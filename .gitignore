@@ -65,6 +65,10 @@ desktop.ini
 *.tar.gz
 *.rar
 
+# Private session briefs — owner context only, never public
+
+
+
 # Misc
 *.xlsx
 *.csv
