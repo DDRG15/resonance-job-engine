@@ -79,6 +79,7 @@ desktop.ini
 
 # Owner-context session briefs
 
+LEEME_*.md
 
 # Phase implementation reports (any phase number, any suffix)
 PHASE_*.md
@@ -87,6 +88,11 @@ PHASE_*.md
 *_REPORT.md
 HOTFIX_*.md
 AUDIT_*.md
+
+# Job search session results — scraped data with personal context
+
+
+
 
 # Distribution guide — references owner by name, not a public-facing doc
 BETA_GUIDE.md
@@ -106,6 +112,9 @@ README_*.md
 
 # Personal CV data — use user_profile.yaml.example as template
 user_profile.yaml
+
+# Temporary scrape data files — not source code
+
 
 # Torre personal job search results — never public
 torre_job_analysis/
