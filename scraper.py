@@ -103,7 +103,8 @@ class CircuitBreaker:
         if domain not in self._domains:
             self._domains[domain] = {
                 "state":       CircuitState.CLOSED,
-                "null_count":  0,
+                "null_count":  0,   # CONSECUTIVE nulls — reset on every success; feeds the threshold trip
+                "null_total":  0,   # CUMULATIVE nulls — never reset; feeds the drift-rate detector
                 "total":       0,
                 "threshold":   threshold,
             }
@@ -120,7 +121,8 @@ class CircuitBreaker:
     def record_null(self, domain: str, threshold: int = config.CIRCUIT_BREAKER_THRESHOLD) -> None:
         self._ensure(domain, threshold)
         d = self._domains[domain]
-        d["null_count"] += 1
+        d["null_count"] += 1   # consecutive — for the threshold trip below
+        d["null_total"] += 1   # cumulative — for check_null_rate, never reset by record_success
         d["total"]      += 1
         if d["null_count"] >= d["threshold"]:
             d["state"] = CircuitState.OPEN
@@ -137,14 +139,21 @@ class CircuitBreaker:
 
     def check_null_rate(self, domain: str, alert_threshold: float) -> bool:
         """
-        Checks if the null rate for this domain exceeds the alert threshold.
-        Returns True if the breaker was tripped, False otherwise.
+        Checks if the cumulative null rate for this domain exceeds the alert
+        threshold. Returns True if the breaker was tripped, False otherwise.
+
+        Uses null_total (cumulative, never reset), NOT null_count (consecutive,
+        reset on every success). A board with interleaved nulls — card ok, card
+        null, card ok — keeps null_count near zero while accumulating real nulls;
+        dividing the consecutive counter by the total made the drift detector
+        unable to fire on the most common drift mode. null_total / total is the
+        actual fraction of cards that came back null across the run.
         """
         self._ensure(domain)
         d = self._domains[domain]
         if d["total"] < 5:
             return False   # not enough samples
-        null_rate = d["null_count"] / d["total"]
+        null_rate = d["null_total"] / d["total"]
         if null_rate > alert_threshold:
             d["state"] = CircuitState.OPEN
             logger.warning(

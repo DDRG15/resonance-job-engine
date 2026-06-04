@@ -184,6 +184,37 @@ class TestCheckNullRate:
         assert tripped is False
         assert not cb.is_open(DOMAIN)
 
+    def test_check_null_rate_trips_on_interleaved_nulls(self, cb):
+        # AUDIT #3 regression guard. 5 null + 5 success interleaved = 50% TRUE
+        # null rate, but null_count (consecutive) never exceeds 1. The old code
+        # divided null_count/total ≈ 0/10 and never tripped. The fix divides
+        # null_total/total = 5/10 = 50% > 40% and trips.
+        for _ in range(5):
+            cb.record_null(DOMAIN, threshold=100)   # high threshold: only rate can trip
+            cb.record_success(DOMAIN)
+        assert cb._domains[DOMAIN]["null_count"] <= 1   # consecutive counter stays low
+        tripped = cb.check_null_rate(DOMAIN, alert_threshold=0.40)
+        assert tripped is True
+        assert cb.is_open(DOMAIN)
+
+    def test_null_total_not_reset_by_record_success(self, cb):
+        # The cumulative counter must survive successes — that is the whole point.
+        cb.record_null(DOMAIN, threshold=100)
+        cb.record_null(DOMAIN, threshold=100)
+        cb.record_success(DOMAIN)
+        assert cb._domains[DOMAIN]["null_count"] == 0    # consecutive reset
+        assert cb._domains[DOMAIN]["null_total"] == 2    # cumulative preserved
+
+    def test_check_null_rate_uses_cumulative_not_consecutive(self, cb):
+        # Trailing success drives null_count to 0; the rate must still reflect the
+        # 6 nulls seen across 10 samples (60%), not the 0 consecutive at check time.
+        for _ in range(6):
+            cb.record_null(DOMAIN, threshold=100)
+        for _ in range(4):
+            cb.record_success(DOMAIN)
+        assert cb._domains[DOMAIN]["null_count"] == 0    # last call was success
+        assert cb.check_null_rate(DOMAIN, alert_threshold=0.40) is True   # 6/10 = 60%
+
 
 # =============================================================================
 # get_open_domains
