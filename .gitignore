@@ -90,6 +90,7 @@ HOTFIX_*.md
 AUDIT_*.md
 AUDITORIA_*.md
 
+
 # Copilot-generated scaffolding — purged 2026-06-02, kept local only.
 # Dead VCR-cassette setup that was never wired up + a CI workflow broken by
 # construction (working-directory ./gema doesn't exist; the repo root IS gema).
