@@ -158,18 +158,54 @@ def _score_skill_overlap(
     return score, match_reasons, miss_reasons
 
 
+# ── Location policy for el usuario (la ubicacion del candidato — TUNABLE ─────────────────────────
+# Accessible (no penalty): global/anywhere + LATAM — same region/timezone, no
+# work-authorization barrier. Soft-restricted (-10): a named foreign region that
+# requires work authorization he does not hold. -10 is gentle by design — it
+# deprioritises without excluding (90→80 stays Tier 1; a borderline 80→70 drops
+# to Tier 2). Edit these two sets to retune how aggressively location nudges a job.
+#
+# Word boundaries (\b) are mandatory: a bare substring match flags "uk" inside
+# "ukraine" and "us" inside "belarus". The regex anchors whole tokens only.
+_LOCATION_ACCESSIBLE = re.compile(
+    r"\b("
+    r"anywhere|worldwide|global|international|latam|latin america|"
+    r"south america|americas|"
+    r"peru|brazil|brasil|argentina|chile|colombia|mexico|uruguay|ecuador|"
+    r"bolivia|paraguay|venezuela|costa rica|panama|guatemala"
+    r")\b",
+    re.IGNORECASE,
+)
+_LOCATION_SOFT_RESTRICTED = re.compile(
+    r"\b("
+    r"usa|us|united states|uk|united kingdom|england|canada|"
+    r"europe|emea|eu|european union|north america|australia|new zealand|"
+    r"germany|france|spain|portugal|poland|serbia|cyprus|netherlands|"
+    r"ireland|italy|switzerland|sweden|belgium|austria|denmark|norway|finland"
+    r")\b",
+    re.IGNORECASE,
+)
+
+
 def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     """
     Location accessibility filter for el usuario in la ubicacion del candidato.
 
     Hard block  (-50): Security clearance / citizenship required → forces Tier 3.
-    Restricted  (-20): Explicit region lock (US only, EU only) without clearance context.
-    Open        (+10): Worldwide / anywhere / all time zones.
-    Neutral     (  0): No location signal found → do not penalise.
+    Restricted  (-20): Explicit region-lock phrase (US only, EU only) anywhere
+                       in the listing text.
+    Open        (+10): Worldwide / anywhere / all time zones phrase.
+    Soft geo    (-10): location_raw names a foreign region requiring work
+                       authorization el usuario lacks (US/UK/EU country/Canada/AU),
+                       and does not also signal openness or a LATAM location.
+    Neutral     (  0): No location signal, or an unrecognised/LATAM location.
 
-    NOT a blanket "US = excluded" rule. Many US-posted roles are open to
-    international remote candidates. Only explicit work-authorization and
-    security clearance language triggers a penalty.
+    The soft-geo tier is the fix for AUDIT #2: the explicit RESTRICTED phrases
+    ("must be authorized to work in the US") live in job descriptions, not in the
+    card-level location field GEMA scrapes. Boards expose location_raw as a bare
+    country/region ("USA", "Portugal", "Anywhere"). Without the soft-geo tier the
+    penalty branches never fired on the only data the scraper actually has, so the
+    filter gave false assurance — every US/EU-locked Tier 1 scored as if open.
     """
     HARD_BLOCK = [
         "security clearance", "top secret", "secret clearance", "ts/sci",
@@ -208,6 +244,13 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     for signal in RESTRICTED:
         if signal in searchable:
             return -20, [], [f"Location restricted: '{signal}' detected"]
+
+    # Soft geo — evaluated on location_raw only (not the blob), so a company name
+    # or salary string containing "us"/"eu" can never trigger it. Fires only when
+    # the field names a restricted region AND carries no LATAM/open signal.
+    loc = (getattr(job, "location_raw", None) or "").lower().strip()
+    if loc and not _LOCATION_ACCESSIBLE.search(loc) and _LOCATION_SOFT_RESTRICTED.search(loc):
+        return -10, [], [f"Location soft-restricted for la ciudad del candidato: '{job.location_raw}'"]
 
     return 0, [], []
 

@@ -123,13 +123,17 @@ class TestLocationDeltaInMathPath:
         t_restricted  = score_job(j_restricted, _CFG)
         assert t_restricted.match_score < t_neutral.match_score
 
-    def test_location_neutral_no_score_change(self):
+    def test_latam_neutral_usa_soft_restricted(self):
+        # AUDIT #2 policy: an accessible LATAM location scores the same as no
+        # location; bare USA is soft-restricted (-10) from the la ciudad del candidato perspective.
         j_no_loc = _job(location=None, n=24)
-        j_usa    = _job(location="USA", n=25)
+        j_brazil = _job(location="Brazil", n=25)
+        j_usa    = _job(location="USA", n=26)
         t_no_loc = score_job(j_no_loc, _CFG)
+        t_brazil = score_job(j_brazil, _CFG)
         t_usa    = score_job(j_usa, _CFG)
-        # Plain "USA" without explicit restriction = neutral (0 delta)
-        assert t_no_loc.match_score == t_usa.match_score
+        assert t_brazil.match_score == t_no_loc.match_score        # LATAM = neutral
+        assert t_usa.match_score == t_no_loc.match_score - 10      # USA = soft-restricted
 
 
 # =============================================================================

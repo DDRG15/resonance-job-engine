@@ -47,10 +47,13 @@ class TestScoreLocation:
         assert match == []
         assert miss == []
 
-    def test_neutral_plain_country(self):
-        # "USA" alone is NOT a restriction — don't penalise
-        score, _, _ = _score_location(_job(location="USA"))
-        assert score == 0
+    def test_soft_restricted_plain_usa(self):
+        # AUDIT #2: bare "USA" in location_raw is now soft-restricted (-10) for a
+        # la ciudad del candidato dev. Before, it scored neutral — that was the bug: US-locked jobs
+        # scored as if open and flooded Tier 1.
+        score, _, miss = _score_location(_job(location="USA"))
+        assert score == -10
+        assert any("soft-restricted" in r.lower() for r in miss)
 
     def test_open_anywhere(self):
         score, match, miss = _score_location(_job(location="Anywhere"))
@@ -154,12 +157,15 @@ class TestLocationInScoreJob:
         assert t_usonly.match_score < t_open.match_score
         assert any("restricted" in r.lower() for r in t_usonly.miss_reasons)
 
-    def test_neutral_usa_does_not_penalise(self):
+    def test_usa_now_soft_restricted_vs_no_location(self):
+        # New policy (AUDIT #2): bare USA is a soft restriction, so it scores
+        # exactly 10 below a job with no location signal.
         j_no_loc = _job(location=None, url_suffix="noloc")
         j_usa    = _job(location="USA", url_suffix="usa")
         t_no_loc = score_job(j_no_loc, _CFG)
         t_usa    = score_job(j_usa, _CFG)
-        assert t_no_loc.match_score == t_usa.match_score
+        assert t_usa.match_score < t_no_loc.match_score
+        assert t_no_loc.match_score - t_usa.match_score == 10
 
     def test_match_reasons_contain_location_info(self):
         j = _job(location="Anywhere", url_suffix="anywherejob")
@@ -172,3 +178,85 @@ class TestLocationInScoreJob:
         tiered = score_job(j, _CFG)
         assert any("location" in r.lower() or "restricted" in r.lower()
                    for r in tiered.miss_reasons)
+
+
+# =============================================================================
+# Soft-geo tier (AUDIT #2) — bare foreign region in location_raw → -10
+# =============================================================================
+
+class TestSoftGeoLocation:
+    """
+    The soft-geo tier closes AUDIT #2. The explicit RESTRICTED phrases live in
+    job descriptions, not in the card-level location field GEMA scrapes. Boards
+    expose location_raw as a bare country/region ("USA", "Portugal", "Anywhere").
+    Soft-geo (-10) makes those bare values actually nudge US/UK/EU-locked jobs
+    down for a la ciudad del candidato dev, while LATAM and global values stay accessible.
+    """
+
+    def test_bare_usa_soft_restricted(self):
+        assert _score_location(_job(location="USA"))[0] == -10
+
+    def test_bare_uk_soft_restricted(self):
+        assert _score_location(_job(location="United Kingdom"))[0] == -10
+
+    def test_portugal_soft_restricted(self):
+        assert _score_location(_job(location="Portugal"))[0] == -10
+
+    def test_eu_country_list_soft_restricted(self):
+        # workingnomads multi-region value seen in the 2026-05-30 scrape
+        assert _score_location(_job(location="Poland, Serbia, Cyprus, Germany"))[0] == -10
+
+    def test_north_america_soft_restricted(self):
+        assert _score_location(_job(location="North America"))[0] == -10
+
+    def test_canada_soft_restricted(self):
+        assert _score_location(_job(location="Canada"))[0] == -10
+
+    def test_australia_soft_restricted(self):
+        assert _score_location(_job(location="Australia"))[0] == -10
+
+    def test_brazil_is_accessible_neutral(self):
+        # LATAM — same region, no work-auth barrier for la ciudad del candidato
+        assert _score_location(_job(location="Brazil"))[0] == 0
+
+    def test_peru_is_accessible_neutral(self):
+        assert _score_location(_job(location="la ubicacion del candidato"))[0] == 0
+
+    def test_latam_keyword_accessible(self):
+        assert _score_location(_job(location="Remote - LATAM"))[0] == 0
+
+    def test_anywhere_beats_soft_geo(self):
+        # OPEN signal returns +10 before the soft-geo check is reached
+        assert _score_location(_job(location="Anywhere"))[0] == 10
+
+    def test_anywhere_with_us_timezone_stays_open(self):
+        # "Anywhere (US timezone preferred)" — OPEN matches "anywhere" first → +10
+        assert _score_location(_job(location="Anywhere (US timezone preferred)"))[0] == 10
+
+    def test_empty_and_none_location_neutral(self):
+        assert _score_location(_job(location=""))[0] == 0
+        assert _score_location(_job(location=None))[0] == 0
+
+    def test_ukraine_not_false_matched_as_uk(self):
+        # Word-boundary regression: "uk" must not match inside "ukraine"
+        assert _score_location(_job(location="Ukraine"))[0] == 0
+
+    def test_belarus_not_false_matched_as_us(self):
+        # Word-boundary regression: "us" must not match inside "belarus"
+        assert _score_location(_job(location="Belarus"))[0] == 0
+
+    def test_soft_geo_only_checks_location_not_company(self):
+        # A company name containing "US" must NOT trigger soft-geo — it reads
+        # location_raw only, which is empty here.
+        score, _, _ = _score_location(_job(company="Nexus US Corp", location=None))
+        assert score == 0
+
+    def test_soft_geo_case_insensitive(self):
+        assert _score_location(_job(location="usa"))[0] == -10
+
+    def test_soft_geo_keeps_job_in_play_not_excluded(self):
+        # -10 is gentle: a strong title match stays Tier 1 despite the penalty.
+        j = _job(title="Python Engineer", location="USA", url_suffix="strongusa")
+        tiered = score_job(j, _CFG)
+        assert tiered.match_score == 80   # 90 base - 10 soft-geo
+        assert tiered.tier == "Tier 1"

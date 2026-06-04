@@ -637,11 +637,13 @@ SELECTORS: dict[str, DomainSelectors] = {
     # ── Python.org Jobs ───────────────────────────────────────────────────────
     # Official Python job board. Static HTML, highly stable selectors.
     # Keyword search supported via ?q= param. No salary field published.
+    # Location verified 2026-06-02: span.listing-location, e.g.
+    # "San Francisco, CA, United States" → feeds the soft-geo filter (AUDIT #2).
     "python.org": DomainSelectors(
         domain               = "python.org",
         search_url_template  = "https://www.python.org/jobs/?q={title}",
         wait_for_selector    = "ol.list-recent-jobs",
-        last_verified        = "2026-05-10",
+        last_verified        = "2026-06-02",
         null_threshold       = 5,
         job_card = [
             "ol.list-recent-jobs li",
@@ -661,6 +663,10 @@ SELECTORS: dict[str, DomainSelectors] = {
             "span[class*='company']",
         ],
         salary = [],
+        location = [
+            "span.listing-location",
+            ".listing-location",
+        ],
         next_page_btn = "a[rel='next']",
     ),
 
