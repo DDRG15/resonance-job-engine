@@ -233,3 +233,103 @@ class TestGetOpenDomains:
         cb.is_open(DOMAIN)
         cb.is_open(DOMAIN_B)
         assert cb.get_open_domains() == []
+
+
+# =============================================================================
+# HALF_OPEN recovery (AUDIT #5) — a transient trip must not kill a board for
+# the whole session. Uses a controllable monotonic clock.
+# =============================================================================
+
+class _Clock:
+    def __init__(self, start: float = 1000.0):
+        self.t = start
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, seconds: float) -> None:
+        self.t += seconds
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    c = _Clock()
+    monkeypatch.setattr("scraper.time.monotonic", c)
+    return c
+
+
+class TestHalfOpenRecovery:
+
+    def _trip_open(self, cb, threshold=5):
+        for _ in range(threshold):
+            cb.record_null(DOMAIN, threshold=threshold)
+
+    def test_opened_at_set_on_record_null_trip(self, cb, clock):
+        self._trip_open(cb)
+        assert cb.is_open(DOMAIN)
+        assert cb._domains[DOMAIN]["opened_at"] == clock()
+
+    def test_opened_at_set_on_open_circuit(self, cb, clock):
+        cb.open_circuit(DOMAIN)
+        assert cb._domains[DOMAIN]["opened_at"] == clock()
+
+    def test_attempt_half_open_false_before_cooldown(self, cb, clock):
+        self._trip_open(cb)
+        clock.advance(119)   # cooldown is 120
+        assert cb.attempt_half_open(DOMAIN, cooldown_s=120) is False
+        assert cb.is_open(DOMAIN)   # still OPEN
+
+    def test_attempt_half_open_transitions_after_cooldown(self, cb, clock):
+        self._trip_open(cb)
+        clock.advance(120)
+        assert cb.attempt_half_open(DOMAIN, cooldown_s=120) is True
+        assert cb._domains[DOMAIN]["state"] == CircuitState.HALF_OPEN
+        assert cb.is_open(DOMAIN) is False   # HALF_OPEN is not "open" for gating
+
+    def test_attempt_half_open_noop_on_closed_domain(self, cb, clock):
+        cb.record_success(DOMAIN)   # CLOSED
+        assert cb.attempt_half_open(DOMAIN, cooldown_s=120) is False
+
+    def test_attempt_half_open_noop_on_unknown_domain(self, cb):
+        assert cb.attempt_half_open("never.seen", cooldown_s=120) is False
+
+    def test_attempt_half_open_resets_null_count(self, cb, clock):
+        self._trip_open(cb)
+        clock.advance(120)
+        cb.attempt_half_open(DOMAIN, cooldown_s=120)
+        assert cb._domains[DOMAIN]["null_count"] == 0   # fresh probe budget
+
+    def test_half_open_success_closes_circuit(self, cb, clock):
+        self._trip_open(cb)
+        clock.advance(120)
+        cb.attempt_half_open(DOMAIN, cooldown_s=120)
+        cb.record_success(DOMAIN)
+        assert cb._domains[DOMAIN]["state"] == CircuitState.CLOSED
+        assert cb.is_open(DOMAIN) is False
+
+    def test_half_open_continued_nulls_reopen(self, cb, clock):
+        self._trip_open(cb, threshold=5)
+        clock.advance(120)
+        cb.attempt_half_open(DOMAIN, cooldown_s=120)   # HALF_OPEN, null_count=0
+        for _ in range(5):                              # probe keeps failing
+            cb.record_null(DOMAIN, threshold=5)
+        assert cb.is_open(DOMAIN)   # re-tripped to OPEN
+
+    def test_reopen_restarts_cooldown(self, cb, clock):
+        self._trip_open(cb, threshold=5)
+        clock.advance(120)
+        cb.attempt_half_open(DOMAIN, cooldown_s=120)
+        clock.advance(50)                               # 50s into the probe window
+        for _ in range(5):
+            cb.record_null(DOMAIN, threshold=5)         # re-OPEN at t=1170
+        assert cb._domains[DOMAIN]["opened_at"] == clock()   # cooldown restarted now
+        assert cb.attempt_half_open(DOMAIN, cooldown_s=120) is False   # must wait again
+
+    def test_full_recovery_cycle(self, cb, clock):
+        # OPEN → cooldown → HALF_OPEN → success → CLOSED, end to end.
+        self._trip_open(cb, threshold=3)
+        assert cb.is_open(DOMAIN)
+        clock.advance(200)
+        assert cb.attempt_half_open(DOMAIN, cooldown_s=120) is True
+        cb.record_success(DOMAIN)
+        assert cb._domains[DOMAIN]["state"] == CircuitState.CLOSED

@@ -47,6 +47,9 @@ JITTER_MAX: float = float(os.getenv("JITTER_MAX_SECONDS", "15"))
 
 # Circuit breaker: consecutive null extractions before flagging a domain
 CIRCUIT_BREAKER_THRESHOLD: int = int(os.getenv("CIRCUIT_BREAKER_THRESHOLD", "3"))
+# Seconds an OPEN domain waits before it may probe once (OPEN → HALF_OPEN).
+# A transient 429 burst should not kill a board for the whole session.
+CIRCUIT_HALF_OPEN_COOLDOWN: int = int(os.getenv("CIRCUIT_HALF_OPEN_COOLDOWN", "120"))
 
 # Maximum consecutive HTTP 429/403 before aborting full run
 MAX_RATE_LIMIT_HITS: int = int(os.getenv("MAX_RATE_LIMIT_HITS", "50"))

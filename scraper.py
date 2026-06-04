@@ -54,6 +54,7 @@ import logging
 import os
 import queue
 import random
+import time
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
@@ -103,10 +104,11 @@ class CircuitBreaker:
         if domain not in self._domains:
             self._domains[domain] = {
                 "state":       CircuitState.CLOSED,
-                "null_count":  0,   # CONSECUTIVE nulls — reset on every success; feeds the threshold trip
-                "null_total":  0,   # CUMULATIVE nulls — never reset; feeds the drift-rate detector
+                "null_count":  0,    # CONSECUTIVE nulls — reset on every success; feeds the threshold trip
+                "null_total":  0,    # CUMULATIVE nulls — never reset; feeds the drift-rate detector
                 "total":       0,
                 "threshold":   threshold,
+                "opened_at":   0.0,  # time.monotonic() when last tripped OPEN; feeds the half-open cooldown
             }
         elif threshold > self._domains[domain]["threshold"]:
             # Per-domain selector thresholds (set via record_null) must win over
@@ -115,8 +117,13 @@ class CircuitBreaker:
 
     def record_success(self, domain: str) -> None:
         self._ensure(domain)
-        self._domains[domain]["null_count"] = 0
-        self._domains[domain]["total"] += 1
+        d = self._domains[domain]
+        d["null_count"] = 0
+        d["total"]     += 1
+        # A successful extraction while probing means the board recovered.
+        if d["state"] == CircuitState.HALF_OPEN:
+            d["state"] = CircuitState.CLOSED
+            logger.info("[CIRCUIT] %s recovered (HALF_OPEN → CLOSED).", domain)
 
     def record_null(self, domain: str, threshold: int = config.CIRCUIT_BREAKER_THRESHOLD) -> None:
         self._ensure(domain, threshold)
@@ -125,7 +132,8 @@ class CircuitBreaker:
         d["null_total"] += 1   # cumulative — for check_null_rate, never reset by record_success
         d["total"]      += 1
         if d["null_count"] >= d["threshold"]:
-            d["state"] = CircuitState.OPEN
+            d["state"]     = CircuitState.OPEN
+            d["opened_at"] = time.monotonic()   # (re)start the half-open cooldown clock
             logger.warning(
                 "[CIRCUIT] %s OPEN after %d consecutive nulls. Activate God Mode.",
                 domain, d["null_count"],
@@ -134,8 +142,38 @@ class CircuitBreaker:
     def open_circuit(self, domain: str) -> None:
         """Force circuit open immediately — for rate-limit / bot-block events."""
         self._ensure(domain)
-        self._domains[domain]["state"] = CircuitState.OPEN
+        d = self._domains[domain]
+        d["state"]     = CircuitState.OPEN
+        d["opened_at"] = time.monotonic()
         logger.warning("[CIRCUIT] %s FORCED OPEN (rate-limit / bot-block).", domain)
+
+    def attempt_half_open(
+        self, domain: str, cooldown_s: int = config.CIRCUIT_HALF_OPEN_COOLDOWN
+    ) -> bool:
+        """
+        Transition OPEN → HALF_OPEN once the cooldown has elapsed, so a domain
+        that tripped on a transient burst gets a fresh chance within the session.
+
+        Returns True if it flipped to HALF_OPEN (caller may now probe the domain),
+        False otherwise. On transition, null_count is reset so the probe gets a
+        fresh null_threshold budget: a successful extraction calls record_success
+        → CLOSED (recovered); continued nulls re-trip record_null → OPEN, which
+        restarts opened_at and the cooldown.
+
+        Without this, CircuitState.HALF_OPEN is dead code and any trip — including
+        a 2-minute 429 burst on a WordPress board — kills that board for the entire
+        45-minute scrape, indistinguishable in the Discord summary from a board
+        that is genuinely down.
+        """
+        d = self._domains.get(domain)
+        if not d or d["state"] != CircuitState.OPEN:
+            return False
+        if time.monotonic() - d["opened_at"] >= cooldown_s:
+            d["state"]      = CircuitState.HALF_OPEN
+            d["null_count"] = 0
+            logger.info("[CIRCUIT] %s HALF_OPEN — probing after %ds cooldown.", domain, cooldown_s)
+            return True
+        return False
 
     def check_null_rate(self, domain: str, alert_threshold: float) -> bool:
         """
@@ -512,9 +550,14 @@ class GemaScraper:
                     # while this task was waiting in the asyncio.gather queue.
                     # Without this check, all pre-queued tasks run even after
                     # the breaker opens, wasting semaphore slots on a dead domain.
+                    # attempt_half_open first: a domain that tripped on a transient
+                    # burst flips OPEN → HALF_OPEN once its cooldown elapses, so this
+                    # task probes it instead of skipping for the rest of the session.
+                    self.circuit.attempt_half_open(domain)
                     if self.circuit.is_open(domain):
                         return []
                     async with self._sem:
+                        self.circuit.attempt_half_open(domain)
                         if self.circuit.is_open(domain):
                             return []
                         return await self._scrape_srp(context, domain, title)
