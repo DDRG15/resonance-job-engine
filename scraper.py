@@ -333,19 +333,7 @@ class GemaScraper:
         run_in_executor wraps the synchronous mark_seen_batch() call so the
         event loop is not blocked during the disk write (typically < 5ms).
         """
-        loop   = asyncio.get_running_loop()
         batch: list[JobResult] = []
-
-        async def _flush(b: list) -> None:
-            if not b:
-                return
-            jobs_copy = list(b)
-            try:
-                await loop.run_in_executor(None, self.db.mark_seen_batch, jobs_copy)
-                self._log(f"[DB WRITER] Flushed {len(jobs_copy)} jobs to registry.")
-            except Exception as exc:
-                self._log(f"[DB WRITER] Write error (jobs NOT lost — in memory): {exc}")
-            b.clear()
 
         while True:
             try:
@@ -358,12 +346,57 @@ class GemaScraper:
                 batch.append(item)
                 self._all_jobs.append(item)
                 if len(batch) >= config.DB_WRITE_BATCH_SIZE:
-                    await _flush(batch)
+                    await self._flush_batch(batch)
 
             except asyncio.TimeoutError:
-                await _flush(batch)   # periodic flush for tail items
+                await self._flush_batch(batch)   # periodic flush for tail items
 
-        await _flush(batch)   # final drain before writer exits
+        await self._flush_batch(batch)   # final drain before writer exits
+
+    async def _flush_batch(self, batch: list, _attempt: int = 1) -> None:
+        """
+        Persists a batch to the registry with bounded retry — no silent data loss.
+
+        A failed mark_seen_batch() must not vanish. mark_seen_batch() is
+        INSERT OR IGNORE, so retrying is idempotent (no duplicate rows). The
+        buffer is retained across retries and cleared only on success, or after
+        DB_WRITE_MAX_RETRIES attempts are exhausted — at which point the drop is
+        recorded in summary.errors so it surfaces in the run report.
+
+        This replaces the prior handler that logged "jobs NOT lost — in memory"
+        on the line immediately before unconditionally clearing the buffer. That
+        message was false: the jobs were dropped from seen_jobs_registry, never
+        deduplicated, and re-alerted on the next run. The on-call reader who
+        trusted the log had no signal that data was lost.
+        """
+        if not batch:
+            return
+        loop = asyncio.get_running_loop()
+        jobs_copy = list(batch)
+        try:
+            await loop.run_in_executor(None, self.db.mark_seen_batch, jobs_copy)
+            self._log(f"[DB WRITER] Flushed {len(jobs_copy)} jobs to registry.")
+            batch.clear()
+        except Exception as exc:
+            if _attempt < config.DB_WRITE_MAX_RETRIES:
+                self._log(
+                    f"[DB WRITER] Write failed (attempt {_attempt}/"
+                    f"{config.DB_WRITE_MAX_RETRIES}) for {len(jobs_copy)} jobs — "
+                    f"retrying. Cause: {exc}"
+                )
+                await asyncio.sleep(0.5 * _attempt)   # backoff; buffer left intact
+                await self._flush_batch(batch, _attempt + 1)
+            else:
+                self._log(
+                    f"[DB WRITER] PERMANENT WRITE FAILURE — {len(jobs_copy)} jobs "
+                    f"DROPPED from registry after {config.DB_WRITE_MAX_RETRIES} "
+                    f"attempts. Cause: {exc}"
+                )
+                self.summary.errors.append(
+                    f"DB write dropped {len(jobs_copy)} jobs after "
+                    f"{config.DB_WRITE_MAX_RETRIES} attempts: {exc}"
+                )
+                batch.clear()   # cleared only after the loss is recorded honestly
 
     # =========================================================================
     # Main Run — asyncio.gather() Fan-Out

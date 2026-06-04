@@ -198,6 +198,9 @@ MAX_PAGES_PER_DOMAIN: int = int(os.getenv("MAX_PAGES_PER_DOMAIN", "5"))
 # Write-queue flush policy for the async DB writer task
 DB_WRITE_BATCH_SIZE: int    = int(os.getenv("DB_WRITE_BATCH_SIZE", "10"))
 DB_WRITE_FLUSH_TIMEOUT: float = float(os.getenv("DB_WRITE_FLUSH_TIMEOUT", "2.0"))
+# Bounded retries before a failed batch is declared a permanent loss and recorded
+# in summary.errors. mark_seen_batch is INSERT OR IGNORE, so retries are idempotent.
+DB_WRITE_MAX_RETRIES: int   = int(os.getenv("DB_WRITE_MAX_RETRIES", "3"))
 
 # Webhooks — Discord and/or Slack (both optional, both fire if set)
 DISCORD_WEBHOOK_URL: str = os.getenv("DISCORD_WEBHOOK_URL", "")
