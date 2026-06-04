@@ -122,6 +122,25 @@ class TestScoreLocation:
         score_open, _, _ = _score_location(_job(location="Anywhere"))
         assert score_open > score_none
 
+    def test_restricted_wins_over_open_on_cooccurrence(self):
+        # AUDIT #4: a listing with BOTH an OPEN and a RESTRICTED signal must
+        # return the restriction — the binding constraint dominates the aspiration.
+        # Old order (OPEN first) returned +10; the fix returns -20.
+        score, _, miss = _score_location(_job(salary="worldwide team but us only"))
+        assert score == -20
+        assert any("restricted" in r.lower() for r in miss)
+
+    def test_hard_block_wins_over_restricted_on_cooccurrence(self):
+        # Precedence is HARD_BLOCK > RESTRICTED > OPEN. Clearance + region lock
+        # together → hard block (-50), the most severe.
+        score, _, _ = _score_location(_job(salary="us only, security clearance required"))
+        assert score == -50
+
+    def test_pure_open_still_returns_open_after_reorder(self):
+        # Reordering must not break the plain OPEN path.
+        score, _, _ = _score_location(_job(location="Anywhere"))
+        assert score == 10
+
 
 # =============================================================================
 # Integration with score_job()

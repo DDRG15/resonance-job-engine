@@ -237,13 +237,17 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
         if signal in searchable:
             return -50, [], [f"Hard block: '{signal}' detected — requires clearance/citizenship"]
 
-    for signal in OPEN:
-        if signal in searchable:
-            return 10, [f"Location open: '{signal}' found"], []
-
+    # RESTRICTED before OPEN (AUDIT #4): a binding region-lock must dominate an
+    # aspirational "worldwide team" phrase in the same listing. For a la ciudad del candidato dev,
+    # "Worldwide team, but you must be authorized to work in the US" is a US lock,
+    # not an open role.
     for signal in RESTRICTED:
         if signal in searchable:
             return -20, [], [f"Location restricted: '{signal}' detected"]
+
+    for signal in OPEN:
+        if signal in searchable:
+            return 10, [f"Location open: '{signal}' found"], []
 
     # Soft geo — evaluated on location_raw only (not the blob), so a company name
     # or salary string containing "us"/"eu" can never trigger it. Fires only when
