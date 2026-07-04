@@ -159,11 +159,39 @@ def _is_rate_limit(exc: Exception) -> bool:
 
 
 # =============================================================================
-# Backoff decorator — retries on transient errors, skips on rate limits
+# Backoff decorator — retries ONLY transient errors, fails fast on deterministic
 # =============================================================================
 
+def _is_transient(exc: Exception) -> bool:
+    """
+    Retry only genuinely transient failures; fail fast on deterministic ones.
+
+    A deterministic error (401 auth, 400 malformed, schema/value error) fails
+    identically on every attempt — retrying it 3× just burns calls + exponential
+    backoff before falling through to the next provider. Retrying is reserved for
+    failures a fresh attempt can actually win: connection/timeout blips and 5xx
+    server errors. Rate limits (429) are excluded — already handled by the
+    session-level skip flag, not the retry loop.
+
+    Robust across SDK error shapes: matches Timeout/Connection by type name
+    (groq/httpx/requests) and reads the HTTP status from either `exc.status_code`
+    (groq APIStatusError) or `exc.response.status_code` (requests HTTPError).
+    """
+    if isinstance(exc, _ProviderRateLimited):
+        return False
+    name = type(exc).__name__.lower()
+    if "timeout" in name or "connection" in name:
+        return True
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    if isinstance(status, int):
+        return status >= 500   # 5xx transient; 4xx deterministic → fail fast
+    return False               # unknown / deterministic → do not burn retries
+
+
 _backoff = retry(
-    retry=retry_if_exception(lambda e: not isinstance(e, _ProviderRateLimited)),
+    retry=retry_if_exception(_is_transient),
     stop=stop_after_attempt(config.LLM_MAX_RETRIES),
     wait=wait_exponential(min=config.LLM_RETRY_WAIT_MIN, max=config.LLM_RETRY_WAIT_MAX),
     before_sleep=before_sleep_log(logger, logging.WARNING),
