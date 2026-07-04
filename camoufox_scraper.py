@@ -25,6 +25,7 @@ from urllib.parse import quote_plus
 
 from camoufox.async_api import AsyncCamoufox
 
+import metrics
 from models import JobResult, SearchConfig
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,9 @@ async def _scrape_one_query(
                     source_domain="remoteok.com",
                 ))
             except Exception as exc:
-                logger.debug("[CAMOUFOX] Card parse error (card %d): %s", i, exc)
+                # AUDIT #8: a card that fails to parse is a remoteok job silently lost.
+                logger.warning("[CAMOUFOX] Card parse error (card %d) — job lost: %s", i, exc)
+                metrics.emit("card_parse_error_total", 1, source="remoteok.com")
                 continue
 
         logger.info("[CAMOUFOX] '%s' → %d jobs", query, len(results))

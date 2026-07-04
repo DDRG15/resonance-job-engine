@@ -684,7 +684,7 @@ class GemaScraper:
                     if tiered.tier == "Tier 1":
                         await self.webhook.notify_tier1(tiered)
                 except Exception as exc:
-                    logger.debug("[WEBHOOK SCORE] camoufox inline scoring error: %s", exc)
+                    logger.warning("[WEBHOOK SCORE] camoufox inline scoring error: %s", exc)
         return ingested
 
     # =========================================================================
@@ -752,7 +752,9 @@ class GemaScraper:
             return True
 
         except Exception as exc:
-            logger.debug("[PAGINATION] %s page %d failed: %s", domain, page_num, exc)
+            # AUDIT #8: a board's pagination breaking is silent job loss — scream, don't whisper.
+            logger.warning("[PAGINATION] %s page %d failed — stopping pagination: %s", domain, page_num, exc)
+            metrics.emit("pagination_failed_total", 1, domain=domain, page=page_num)
             return False
 
     async def _scrape_srp(
@@ -980,7 +982,7 @@ class GemaScraper:
                     if tiered.tier == "Tier 1":
                         await self.webhook.notify_tier1(tiered)
                 except Exception as exc:
-                    logger.debug("[WEBHOOK SCORE] Inline scoring error: %s", exc)
+                    logger.warning("[WEBHOOK SCORE] Inline scoring error: %s", exc)
 
         return jobs
 

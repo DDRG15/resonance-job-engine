@@ -111,8 +111,15 @@ class GemaDatabase:
             try:
                 conn.execute("ALTER TABLE seen_jobs_registry ADD COLUMN location_raw TEXT")
                 logger.info("Migration: added location_raw column to seen_jobs_registry")
-            except Exception:
-                pass  # Column already exists — safe to ignore
+            except Exception as exc:
+                # AUDIT #7: distinguish the expected case (column already exists) from
+                # a real ALTER failure (lock, disk, permission). Swallowing the latter
+                # lets every subsequent INSERT fail silently — scream instead.
+                if "duplicate column" in str(exc).lower():
+                    pass  # expected — column already exists on a migrated DB
+                else:
+                    logger.error("[DB MIGRATION] ALTER seen_jobs_registry failed unexpectedly: %s", exc)
+                    raise
         logger.info("Database initialized: %s", self.db_path)
 
     def backup(self) -> str:
