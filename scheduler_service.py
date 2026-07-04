@@ -28,6 +28,8 @@ from typing import Optional
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+import metrics
+
 logger = logging.getLogger(__name__)
 
 _JOB_ID = "gema_auto_scrape"
@@ -183,6 +185,7 @@ class SchedulerService:
                 )
             except Exception as exc:
                 logger.error("[SCHEDULER] Run failed: %s", exc)
+                metrics.emit("scheduler_run_failed_total", 1, error=type(exc).__name__)
             finally:
                 self.is_running = False
 

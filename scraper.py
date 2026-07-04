@@ -66,6 +66,7 @@ from playwright.async_api import (
 from playwright_stealth import Stealth
 
 import config
+import metrics
 from selectors_registry import DomainSelectors, get_selectors
 from database import GemaDatabase
 from integrations.cookie_vault import CookieVault
@@ -138,6 +139,7 @@ class CircuitBreaker:
                 "[CIRCUIT] %s OPEN after %d consecutive nulls. Activate God Mode.",
                 domain, d["null_count"],
             )
+            metrics.emit("circuit_breaker_open", 1, domain=domain, reason="consecutive_nulls")
 
     def open_circuit(self, domain: str) -> None:
         """Force circuit open immediately — for rate-limit / bot-block events."""
@@ -146,6 +148,7 @@ class CircuitBreaker:
         d["state"]     = CircuitState.OPEN
         d["opened_at"] = time.monotonic()
         logger.warning("[CIRCUIT] %s FORCED OPEN (rate-limit / bot-block).", domain)
+        metrics.emit("circuit_breaker_open", 1, domain=domain, reason="rate_limit")
 
     def attempt_half_open(
         self, domain: str, cooldown_s: int = config.CIRCUIT_HALF_OPEN_COOLDOWN
@@ -199,6 +202,7 @@ class CircuitBreaker:
                 "SRP layout may have changed. Open God Mode.",
                 domain, null_rate * 100, alert_threshold * 100,
             )
+            metrics.emit("srp_null_rate", round(null_rate, 3), domain=domain, event="drift_alert")
             return True
         return False
 
@@ -443,6 +447,8 @@ class GemaScraper:
                     f"DB write dropped {len(jobs_copy)} jobs after "
                     f"{config.DB_WRITE_MAX_RETRIES} attempts: {exc}"
                 )
+                metrics.emit("ingest_records_dropped_total", len(jobs_copy),
+                             reason="db_write_failed")
                 batch.clear()   # cleared only after the loss is recorded honestly
 
     # =========================================================================
