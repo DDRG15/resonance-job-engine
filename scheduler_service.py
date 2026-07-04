@@ -186,6 +186,14 @@ class SchedulerService:
             except Exception as exc:
                 logger.error("[SCHEDULER] Run failed: %s", exc)
                 metrics.emit("scheduler_run_failed_total", 1, error=type(exc).__name__)
+                # AUDIT #2 fail-loud: the autopilot notifies success (line ~176)
+                # but was silent on failure. An unattended run that dies at 3 AM
+                # must reach the human by the same channel as success.
+                threading.Thread(
+                    target=send_discord_alert,
+                    args=(f"🔴 GEMA autopilot FALLÓ: {type(exc).__name__}: {exc}",),
+                    daemon=True,
+                ).start()
             finally:
                 self.is_running = False
 

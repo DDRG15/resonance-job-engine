@@ -662,18 +662,37 @@ if st.session_state.is_running:
         f"- Tier 3: {len(tier3)}\n"
         f"- Tier 4: {len(tier4)}"
     )
+    # AUDIT #1 fail-loud: errors collected honestly by the scrape (dropped DB
+    # batches, aborted domains, task exceptions) must reach the human, not die in
+    # summary.errors where nobody reads them.
+    if summary.errors:
+        _discord_report += f"\n\n⚠️ {len(summary.errors)} error(es) durante el run:"
+        for err in summary.errors[:5]:      # cap — Discord message length
+            _discord_report += f"\n  • {err}"
+        if len(summary.errors) > 5:
+            _discord_report += f"\n  • … y {len(summary.errors) - 5} más"
     threading.Thread(target=send_discord_alert, args=(_discord_report,), daemon=True).start()
     threading.Thread(target=send_discord_alert, args=(random.choice(END_PHRASES),), daemon=True).start()
 
-    # Push to integrations
+    # Push to integrations — AUDIT #3: each integration isolated. A delivery-layer
+    # failure (Sheets 429, revoked token) must not crash the pipeline after a
+    # successful scrape, and must notify which stage failed (results are in the DB).
     all_results = tier1 + tier2 + tier3 + tier4
-    if all_results and notion.is_enabled:
-        _add_log("[NOTION] Pushing results (incl. Tier 4 manual review)...")
-        notion.push_batch(all_results)
-
-    if all_results and sheets.is_enabled:
-        _add_log("[SHEETS] Appending to data warehouse...")
-        sheets.append_batch(all_results, summary)
+    for _name, _enabled, _push in (
+        ("NOTION", notion.is_enabled, lambda: notion.push_batch(all_results)),
+        ("SHEETS", sheets.is_enabled, lambda: sheets.append_batch(all_results, summary)),
+    ):
+        if all_results and _enabled:
+            _add_log(f"[{_name}] Pushing results...")
+            try:
+                _push()
+            except Exception as _exc:
+                _add_log(f"[{_name}] Push FAILED (scrape OK, results in DB): {_exc}")
+                threading.Thread(
+                    target=send_discord_alert,
+                    args=(f"🟠 {_name} push falló (scrape OK, resultados en DB): {_exc}",),
+                    daemon=True,
+                ).start()
 
     st.rerun()
 
@@ -696,6 +715,14 @@ if st.session_state.scrape_results:
     c4.metric("🟣 Tier 4", len(tier4), help="Text salary — manual review required")
     if summary and summary.duration_seconds:
         c5.metric("⏱ Duration", f"{summary.duration_seconds:.0f}s")
+
+    # AUDIT #1 fail-loud: surface run errors in the UI, not just in a summary
+    # field nobody reads. An empty scrape "looks fine" without this.
+    if summary and summary.errors:
+        st.error(f"⚠️ {len(summary.errors)} error(es) durante el run — resultados pueden estar incompletos")
+        with st.expander("Ver errores del run", expanded=True):
+            for _err in summary.errors:
+                st.code(_err, language="")
 
     def _render_tier(tiered_jobs, label, color_emoji, show_score=True):
         if not tiered_jobs:
