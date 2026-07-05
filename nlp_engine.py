@@ -503,16 +503,14 @@ def _call_cohere_plain(prompt: str) -> str:
 # =============================================================================
 
 _OAI_PROVIDERS: dict[str, dict] = {
-    "cerebras":  {"url": "https://api.cerebras.ai/v1/chat/completions",      "model": config.CEREBRAS_MODEL,  "key": config.CEREBRAS_API_KEY,  "label": f"Cerebras ({config.CEREBRAS_MODEL})"},
-    "sambanova": {"url": "https://api.sambanova.ai/v1/chat/completions",     "model": config.SAMBANOVA_MODEL, "key": config.SAMBANOVA_API_KEY, "label": f"SambaNova ({config.SAMBANOVA_MODEL})"},
-    "aimlapi":   {"url": "https://api.aimlapi.com/v1/chat/completions",      "model": config.AIMLAPI_MODEL,   "key": config.AIMLAPI_API_KEY,   "label": f"AIMLAPI ({config.AIMLAPI_MODEL})"},
-    "mistral":   {"url": "https://api.mistral.ai/v1/chat/completions",       "model": config.MISTRAL_MODEL,   "key": config.MISTRAL_API_KEY,   "label": f"Mistral ({config.MISTRAL_MODEL})"},
-    "novita":    {"url": "https://api.novita.ai/v3/openai/chat/completions", "model": config.NOVITA_MODEL,    "key": config.NOVITA_API_KEY,    "label": f"Novita ({config.NOVITA_MODEL})"},
+    "cerebras":  {"url": "https://api.cerebras.ai/v1/chat/completions",   "model": config.CEREBRAS_MODEL,  "key": config.CEREBRAS_API_KEY,  "label": f"Cerebras ({config.CEREBRAS_MODEL})"},
+    "sambanova": {"url": "https://api.sambanova.ai/v1/chat/completions",  "model": config.SAMBANOVA_MODEL, "key": config.SAMBANOVA_API_KEY, "label": f"SambaNova ({config.SAMBANOVA_MODEL})"},
+    "mistral":   {"url": "https://api.mistral.ai/v1/chat/completions",    "model": config.MISTRAL_MODEL,   "key": config.MISTRAL_API_KEY,   "label": f"Mistral ({config.MISTRAL_MODEL})"},
 }
 
-# Deterministic fallback order for the five extra providers (fastest + most
-# reliable free tiers first). Appended after the original four.
-_OAI_ORDER = ("cerebras", "sambanova", "aimlapi", "mistral", "novita")
+# Deterministic fallback order for the extra providers (fastest + most reliable
+# free tiers first). AIMLAPI + Novita removed 2026-07-05 (403 on their free tier).
+_OAI_ORDER = ("cerebras", "sambanova", "mistral")
 
 # Per-session rate-limit flags (parallels the module-global flags of the original
 # four; reset by reset_rate_limit_flags()).

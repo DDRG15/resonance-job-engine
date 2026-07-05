@@ -25,11 +25,11 @@ GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
 # Extra free-tier fallback providers (added 2026-07-05). All OpenAI-compatible.
+# AIMLAPI + Novita removed 2026-07-05: their free tier returns 403 on the models
+# we need (not our account — their tier is unusable). Dead weight, cut from chain.
 CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
 SAMBANOVA_API_KEY: str = os.getenv("SAMBANOVA_API_KEY", "")
-AIMLAPI_API_KEY: str = os.getenv("AIMLAPI_API_KEY", "")
 MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")
-NOVITA_API_KEY: str = os.getenv("NOVITA_API_KEY", "")
 PRIMARY_LLM: str = os.getenv("PRIMARY_LLM", "groq").lower()
 
 # Model identifiers — picks verified live against each provider's /models endpoint
@@ -39,11 +39,11 @@ GROQ_MODEL: str = "llama-3.3-70b-versatile"
 GEMINI_MODEL: str = "gemini-2.0-flash-lite"
 OPENROUTER_MODEL: str = "nvidia/nemotron-3-ultra-550b-a55b:free"  # free tier; was google/gemma-2-27b-it (stale)
 COHERE_MODEL: str = "command-r-plus-08-2024"
-CEREBRAS_MODEL: str = "gpt-oss-120b"
+# Cerebras: gemma-4-31b (non-reasoning) — gpt-oss-120b is a reasoning model that
+# returned no `content` field under our call shape. gemma-4-31b answers directly.
+CEREBRAS_MODEL: str = "gemma-4-31b"
 SAMBANOVA_MODEL: str = "Meta-Llama-3.3-70B-Instruct"
-AIMLAPI_MODEL: str = "openai/gpt-4.1-mini"
 MISTRAL_MODEL: str = "mistral-small-latest"
-NOVITA_MODEL: str = "deepseek/deepseek-v3.2"
 
 # LLM retry policy (exponential backoff via tenacity)
 LLM_MAX_RETRIES: int = 3
