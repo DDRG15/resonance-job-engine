@@ -130,3 +130,10 @@ user_profile.yaml
 
 # Torre personal job search results — never public
 torre_job_analysis/
+
+# Archived / superseded code — moved out of the tree, not deleted (kept local)
+legacy/
+
+# Internal project maps + provider reference — local context, not for GitHub
+INVENTORY.md
+LLM_PROVIDERS.md
