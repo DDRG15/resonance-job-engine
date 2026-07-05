@@ -266,6 +266,7 @@ def _call_gemini(messages: list[dict]) -> str:
                 temperature=0.0,
                 response_mime_type="application/json",
             ),
+            request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
         )
         return resp.text.strip()
     except Exception as e:
@@ -310,6 +311,7 @@ def _call_gemini_plain(prompt: str) -> str:
         resp = model.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=128),
+            request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
         )
         return resp.text.strip()
     except Exception as e:
@@ -866,6 +868,7 @@ CV TEXT:
                 temperature=0.0,
                 response_mime_type="application/json",
             ),
+            request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
         )
         parsed = json.loads(resp.text.strip())
         return _sanitize_profile(parsed)

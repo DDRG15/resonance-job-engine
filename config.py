@@ -36,6 +36,9 @@ COHERE_MODEL: str = "command-r-plus-08-2024"
 LLM_MAX_RETRIES: int = 3
 LLM_RETRY_WAIT_MIN: float = 1.0   # seconds
 LLM_RETRY_WAIT_MAX: float = 30.0  # seconds
+# Per-call request timeout. Groq/OpenRouter/Cohere already use 30s; Gemini's SDK
+# defaulted to unbounded → a hung call froze the extraction thread (AUDIT #5).
+LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 
 
 # =============================================================================
