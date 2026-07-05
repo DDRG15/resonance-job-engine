@@ -44,6 +44,21 @@ def test_cleaner_collapses_whitespace_and_survives_malformed():
     assert "a b c" in out
 
 
+def test_cleaner_resolves_relative_href_to_absolute():
+    """Boards often use relative job links (/job/42). The cleaner must resolve
+    them against base_url so the REAL absolute url lands in the text — otherwise
+    the guard drops it and the LLM fabricates one (the example.com bug)."""
+    html = '<a href="/job/42">Dev</a>'
+    out = scraper._strip_html_to_text(html, base_url="https://builtin.com/jobs/remote?q=x")
+    assert "(https://builtin.com/job/42)" in out
+
+
+def test_cleaner_leaves_absolute_href_untouched():
+    html = '<a href="https://board.com/job/9">Dev</a>'
+    out = scraper._strip_html_to_text(html, base_url="https://board.com/jobs")
+    assert "(https://board.com/job/9)" in out
+
+
 # ── Pure helper: salary formatting ───────────────────────────────────────────
 
 def _ej(**kw):
@@ -113,6 +128,15 @@ class _FakePage:
     async def content(self) -> str:
         return self._html
 
+    async def query_selector_all(self, _selector):
+        # No card containers in the stub → fallback uses content() (whole page).
+        return []
+
+
+# Stub DomainSelectors: only .job_card is read by the fallback's card path.
+from types import SimpleNamespace
+_SEL = SimpleNamespace(job_card=["div.job-card"])
+
 
 def _scraper(tmp_path, monkeypatch) -> "scraper.GemaScraper":
     # Isolate the strategy registry to a tmp file so tests never touch the repo.
@@ -129,7 +153,7 @@ def _scraper(tmp_path, monkeypatch) -> "scraper.GemaScraper":
 async def test_fallback_disabled_returns_empty(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", False)
     s = _scraper(tmp_path, monkeypatch)
-    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP)
+    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP, _SEL)
     assert out == []
 
 
@@ -137,7 +161,7 @@ async def test_fallback_respects_cap(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", True)
     monkeypatch.setattr(config, "LLM_FALLBACK_MAX_BOARDS_PER_RUN", 0)
     s = _scraper(tmp_path, monkeypatch)
-    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP)
+    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP, _SEL)
     assert out == []
 
 
@@ -153,14 +177,41 @@ async def test_fallback_recovers_distinct_and_drops_collisions(tmp_path, monkeyp
     ])
     monkeypatch.setattr(scraper, "extract_jobs_from_text", lambda *a, **k: fake_result)
 
+    # HTML must contain both real urls so the grounding filter keeps them.
+    page_html = ("<a href='https://board.com/job/1'>Dev A</a>"
+                 "<a href='https://board.com/job/2'>Dev B</a>")
     s = _scraper(tmp_path, monkeypatch)
-    out = await s._llm_extraction_fallback(_FakePage("<a href='https://board.com/job/1'>Dev A</a>"), "board.com", SRP)
+    out = await s._llm_extraction_fallback(_FakePage(page_html), "board.com", SRP, _SEL)
 
     assert len(out) == 2                                  # collision dropped
     assert {j.url for j in out} == {"https://board.com/job/1", "https://board.com/job/2"}
+    # PERSISTENCE: recovered jobs must reach the write queue (feeds _all_jobs+DB),
+    # not just a discarded local list — the bug the live test exposed.
+    assert s._write_q.qsize() == 2
     # a successful recovery flips the board's extraction_mode in the registry
     assert s._strategy.get("board.com").extraction_mode == ExtractionMode.LLM_FALLBACK
     assert s._strategy.get("board.com").health == Health.PROBATION
+
+
+async def test_fallback_drops_hallucinated_url_not_in_source(tmp_path, monkeypatch):
+    """Anti-hallucination grounding: a url the LLM fabricated (not present in the
+    source text we sent, e.g. the schema's example.com) must be dropped even
+    though it passes the basic distinct-absolute guard."""
+    monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(config, "LLM_FALLBACK_MAX_BOARDS_PER_RUN", 3)
+
+    # Source HTML contains ONLY job/7. The LLM also returns a fabricated example.com url.
+    page_html = "<a href='https://board.com/job/7'>Real Job</a>"
+    fake_result = ExtractionResult(jobs=[
+        ExtractedJob(title="Real Job", company="Acme", source_url="https://board.com/job/7"),
+        ExtractedJob(title="Ghost", company="Fake", source_url="https://example.com/job/999"),
+    ])
+    monkeypatch.setattr(scraper, "extract_jobs_from_text", lambda *a, **k: fake_result)
+
+    s = _scraper(tmp_path, monkeypatch)
+    out = await s._llm_extraction_fallback(_FakePage(page_html), "board.com", SRP, _SEL)
+    assert len(out) == 1
+    assert out[0].url == "https://board.com/job/7"       # fabricated example.com dropped
 
 
 async def test_fallback_truncates_oversized_input(tmp_path, monkeypatch):
@@ -178,7 +229,7 @@ async def test_fallback_truncates_oversized_input(tmp_path, monkeypatch):
 
     huge = "<body>" + "".join(f"<a href='https://b.com/j/{i}'>Job number {i} here</a> " for i in range(4000)) + "</body>"
     s = _scraper(tmp_path, monkeypatch)
-    await s._llm_extraction_fallback(_FakePage(huge), "board.com", SRP)
+    await s._llm_extraction_fallback(_FakePage(huge), "board.com", SRP, _SEL)
     assert captured["len"] <= 5000
 
 
@@ -192,7 +243,7 @@ async def test_fallback_zero_recovered_does_not_flip_strategy(tmp_path, monkeypa
     monkeypatch.setattr(scraper, "extract_jobs_from_text", lambda *a, **k: fake_result)
 
     s = _scraper(tmp_path, monkeypatch)
-    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP)
+    out = await s._llm_extraction_fallback(_FakePage("<p>x</p>"), "board.com", SRP, _SEL)
     assert out == []
     # strategy stays CSS — we don't mark a board LLM-recovered when it recovered nothing
     assert s._strategy.get("board.com").extraction_mode == ExtractionMode.CSS

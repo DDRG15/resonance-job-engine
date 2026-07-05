@@ -61,7 +61,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from html.parser import HTMLParser
 from typing import Optional
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urljoin
 
 from playwright.async_api import (
     async_playwright, Browser, BrowserContext, Page, Response,
@@ -94,11 +94,12 @@ class _TextExtractor(HTMLParser):
 
     _SKIP_TAGS = {"script", "style", "noscript", "svg", "template"}
 
-    def __init__(self) -> None:
+    def __init__(self, base_url: Optional[str] = None) -> None:
         super().__init__()
         self._chunks: list[str] = []
         self._skip_depth = 0
         self._href: Optional[str] = None
+        self._base_url = base_url  # resolve relative hrefs against this
 
     def handle_starttag(self, tag, attrs):
         if tag in self._SKIP_TAGS:
@@ -110,7 +111,13 @@ class _TextExtractor(HTMLParser):
         if tag in self._SKIP_TAGS and self._skip_depth:
             self._skip_depth -= 1
         elif tag == "a" and self._href:
-            self._chunks.append(f" ({self._href})")
+            href = self._href
+            # Boards often use relative job links (/job/123). Resolve to absolute
+            # so the REAL url is in the text — otherwise the guard drops it and the
+            # LLM fabricates one from the schema example (the example.com bug).
+            if self._base_url and href.startswith("/"):
+                href = urljoin(self._base_url, href)
+            self._chunks.append(f" ({href})")
             self._href = None
 
     def handle_data(self, data):
@@ -124,10 +131,10 @@ class _TextExtractor(HTMLParser):
         return re.sub(r"\s+", " ", " ".join(self._chunks)).strip()
 
 
-def _strip_html_to_text(html: str) -> str:
-    """Convert rendered SRP HTML to compact text (anchor hrefs inlined). Cuts
-    token cost vs raw HTML and never raises on malformed markup."""
-    parser = _TextExtractor()
+def _strip_html_to_text(html: str, base_url: Optional[str] = None) -> str:
+    """Convert rendered SRP HTML to compact text (anchor hrefs inlined, relative
+    ones resolved against base_url). Cuts token cost vs raw HTML and never raises."""
+    parser = _TextExtractor(base_url)
     try:
         parser.feed(html)
     except Exception:
@@ -967,8 +974,9 @@ class GemaScraper:
             # page is still open here (closed in finally). Safe by construction:
             # only jobs with a distinct absolute URL are accepted (see mapper).
             if drifted:
-                recovered = await self._llm_extraction_fallback(page, domain, url)
-                jobs.extend(recovered)
+                # The fallback self-persists via _ingest_external_jobs (dedup +
+                # write queue), so no need to extend the local `jobs` list here.
+                await self._llm_extraction_fallback(page, domain, url, sel)
 
         except Exception as exc:
             self._log(f"[ERROR] {domain}/'{title}': {type(exc).__name__}: {exc}")
@@ -983,6 +991,7 @@ class GemaScraper:
         page:   Page,
         domain: str,
         srp_url: str,
+        sel:    DomainSelectors,
     ) -> list[JobResult]:
         """Phase 27 — recover a drifted board by running its rendered HTML through
         the LLM extraction path (the same one gema_industrial uses, now backed by
@@ -1000,13 +1009,37 @@ class GemaScraper:
             return []
         self._llm_fallback_boards_used += 1
 
+        # Prefer the CARD containers' HTML over the whole page. On a drifted board
+        # the card selector still matches (it's the title/company sub-selectors
+        # that broke), so each card gives the LLM one job + its own link with no
+        # nav/footer boilerplate to bury it — which is exactly what preserves the
+        # title->URL adjacency the mapper's guard needs. Fall back to the full
+        # page only if even the card selector finds nothing.
+        raw_html = ""
         try:
-            raw_html = await page.content()
-        except Exception as exc:
-            self._log(f"[LLM-FALLBACK] {domain}: could not read page content: {exc}")
-            return []
+            for card_sel in sel.job_card:
+                cards = await page.query_selector_all(card_sel)
+                if cards:
+                    parts = []
+                    for c in cards[:60]:
+                        try:
+                            parts.append(await c.evaluate("el => el.outerHTML"))
+                        except Exception:
+                            continue
+                    raw_html = "\n\n".join(parts)
+                    if raw_html:
+                        self._log(f"[LLM-FALLBACK] {domain}: using {len(cards)} card containers.")
+                        break
+        except Exception:
+            raw_html = ""
+        if not raw_html:
+            try:
+                raw_html = await page.content()
+            except Exception as exc:
+                self._log(f"[LLM-FALLBACK] {domain}: could not read page content: {exc}")
+                return []
 
-        clean_text = _strip_html_to_text(raw_html)
+        clean_text = _strip_html_to_text(raw_html, base_url=srp_url)
         if not clean_text:
             return []
 
@@ -1045,19 +1078,41 @@ class GemaScraper:
             if (jr := _extracted_to_jobresult(ej, domain, srp_url)) is not None
         ]
 
-        if recovered:
-            self._strategy.update(
-                domain,
-                extraction_mode=ExtractionMode.LLM_FALLBACK,
-                health=Health.PROBATION,
+        # Anti-hallucination grounding: keep only jobs whose url literally appears
+        # in the text we sent. A fabricated url (e.g. the schema's example.com,
+        # which the LLM copied when it couldn't find a real one) is NOT in the
+        # source, so it is rejected. This makes url hallucination impossible.
+        present = {u.rstrip("/") for u in re.findall(r"https?://[^\s)]+", clean_text)}
+        dropped = [j for j in recovered if j.url.rstrip("/") not in present]
+        if dropped:
+            self._log(
+                f"[LLM-FALLBACK] {domain}: dropped {len(dropped)} job(s) with "
+                f"fabricated urls not present in source."
             )
-            metrics.emit("llm_fallback_jobs_recovered", len(recovered), domain=domain)
-            self._log(f"[LLM-FALLBACK] {domain}: recovered {len(recovered)} jobs via LLM.")
-        else:
+            metrics.emit("llm_fallback_hallucinated_url", len(dropped), domain=domain)
+        recovered = [j for j in recovered if j.url.rstrip("/") in present]
+
+        if not recovered:
             self._log(
                 f"[LLM-FALLBACK] {domain}: LLM recovered 0 usable jobs "
                 f"(no distinct per-card URLs)."
             )
+            return []
+
+        # Persist through the SAME dedup + write-queue + scoring pipeline as
+        # normal cards and camoufox — otherwise recovered jobs never reach
+        # _all_jobs or the DB (they'd only sit in a local list that's discarded).
+        ingested = await self._ingest_external_jobs(recovered, domain)
+        self._strategy.update(
+            domain,
+            extraction_mode=ExtractionMode.LLM_FALLBACK,
+            health=Health.PROBATION,
+        )
+        metrics.emit("llm_fallback_jobs_recovered", ingested, domain=domain)
+        self._log(
+            f"[LLM-FALLBACK] {domain}: {len(recovered)} usable, "
+            f"{ingested} new enqueued via LLM."
+        )
         return recovered
 
     # =========================================================================

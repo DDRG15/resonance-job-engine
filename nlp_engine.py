@@ -1113,7 +1113,7 @@ Result is your integrity_score. Round to 2 decimal places.
 • employment_type allowed values ONLY: full-time, contract, part-time, internship, null
 • seniority_level allowed values ONLY: Staff, Principal, Senior, Mid, Junior, Lead, null
 • location_strictness allowed values ONLY: Strict, Flexible, Match
-• source_url: extract THIS job's OWN url from the text. Each job's link usually appears in parentheses right after its title, e.g. "Senior Backend Dev (https://site.com/jobs/42)" → use https://site.com/jobs/42. Every job in a listing has a DIFFERENT url — never reuse one url for multiple jobs. Only if no per-job url exists in the text for this entry, fall back to the URL provided in the input context. If neither → null.
+• source_url: extract THIS job's OWN url from the text. Each job's link usually appears in parentheses right after its title, e.g. "Senior Backend Dev (https://site.com/jobs/42)" → use https://site.com/jobs/42. Every job in a listing has a DIFFERENT url — never reuse one url for multiple jobs. NEVER invent, guess, or fabricate a url, and NEVER copy the example url shown in the schema below — that is only an illustration. If you cannot find this job's real url in the text, set source_url to null. A null url is honest; a fabricated one is a data-integrity failure.
 • Multiple postings in input → return all as separate objects in the "jobs" list.
 • Duplicate post, ghost post (no real requirements), or unreadable garbage → {{"jobs": []}}.
 • Missing title OR missing company → skip that entry entirely. Do not include it.
