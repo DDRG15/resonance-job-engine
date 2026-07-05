@@ -70,6 +70,10 @@ LLM_EXTRACTION_FALLBACK_ENABLED: bool = (
     os.getenv("LLM_EXTRACTION_FALLBACK_ENABLED", "true").lower() == "true"
 )
 LLM_FALLBACK_MAX_BOARDS_PER_RUN: int = int(os.getenv("LLM_FALLBACK_MAX_BOARDS_PER_RUN", "3"))
+# Cap the cleaned SRP text sent to the LLM. Free tiers have low TPM limits (Groq
+# ~12k tokens/min); a full SRP (~40k chars ≈ 12.5k tokens) hits 413. ~20k chars
+# ≈ ~6k tokens leaves room for the system prompt + output. Truncated, not chunked.
+LLM_FALLBACK_MAX_INPUT_CHARS: int = int(os.getenv("LLM_FALLBACK_MAX_INPUT_CHARS", "20000"))
 
 
 # =============================================================================

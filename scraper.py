@@ -1010,6 +1010,14 @@ class GemaScraper:
         if not clean_text:
             return []
 
+        # Cap input to fit free-tier token limits (Groq ~12k TPM). A full SRP
+        # (~40k chars) hit 413 in the live test. Truncate on a whitespace
+        # boundary so we don't cut a URL in half.
+        cap = config.LLM_FALLBACK_MAX_INPUT_CHARS
+        if len(clean_text) > cap:
+            cut = clean_text.rfind(" ", 0, cap)
+            clean_text = clean_text[: cut if cut > 0 else cap]
+
         self._log(
             f"[LLM-FALLBACK] {domain} drifted — recovering via LLM "
             f"({len(clean_text)} chars of text)..."

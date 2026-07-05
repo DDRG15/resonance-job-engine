@@ -163,6 +163,25 @@ async def test_fallback_recovers_distinct_and_drops_collisions(tmp_path, monkeyp
     assert s._strategy.get("board.com").health == Health.PROBATION
 
 
+async def test_fallback_truncates_oversized_input(tmp_path, monkeypatch):
+    """Phase 27.5b: a full SRP (~40k chars) must be capped before the LLM call
+    or free-tier TPM limits reject it (Groq 413 in the live test)."""
+    monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", True)
+    monkeypatch.setattr(config, "LLM_FALLBACK_MAX_BOARDS_PER_RUN", 3)
+    monkeypatch.setattr(config, "LLM_FALLBACK_MAX_INPUT_CHARS", 5000)
+
+    captured = {}
+    def _fake(text, source_url=None, **k):
+        captured["len"] = len(text)
+        return ExtractionResult(jobs=[])
+    monkeypatch.setattr(scraper, "extract_jobs_from_text", _fake)
+
+    huge = "<body>" + "".join(f"<a href='https://b.com/j/{i}'>Job number {i} here</a> " for i in range(4000)) + "</body>"
+    s = _scraper(tmp_path, monkeypatch)
+    await s._llm_extraction_fallback(_FakePage(huge), "board.com", SRP)
+    assert captured["len"] <= 5000
+
+
 async def test_fallback_zero_recovered_does_not_flip_strategy(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", True)
     monkeypatch.setattr(config, "LLM_FALLBACK_MAX_BOARDS_PER_RUN", 3)
