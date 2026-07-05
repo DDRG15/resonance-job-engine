@@ -63,6 +63,14 @@ BOARD_STRATEGY_PATH: str = os.getenv("BOARD_STRATEGY_PATH", "board_strategy.json
 # How long a board's probe stays fresh before it should be re-probed (Phase 28/29).
 BOARD_STRATEGY_TTL_HOURS: int = int(os.getenv("BOARD_STRATEGY_TTL_HOURS", "168"))  # 7 days
 
+# LLM extraction fallback (Phase 27): when a board drifts (CSS selectors return
+# ~100% null), retry that board's rendered HTML through the LLM extraction path.
+# Only fires on drift (rare) and is capped per run to bound token cost.
+LLM_EXTRACTION_FALLBACK_ENABLED: bool = (
+    os.getenv("LLM_EXTRACTION_FALLBACK_ENABLED", "true").lower() == "true"
+)
+LLM_FALLBACK_MAX_BOARDS_PER_RUN: int = int(os.getenv("LLM_FALLBACK_MAX_BOARDS_PER_RUN", "3"))
+
 
 # =============================================================================
 # Scraper Configuration

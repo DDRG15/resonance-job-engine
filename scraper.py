@@ -50,13 +50,16 @@ WEBHOOK INTEGRATION:
 """
 
 import asyncio
+import functools
 import logging
 import os
 import queue
 import random
+import re
 import time
 from datetime import datetime, timezone
 from enum import Enum
+from html.parser import HTMLParser
 from typing import Optional
 from urllib.parse import quote_plus
 
@@ -67,14 +70,106 @@ from playwright_stealth import Stealth
 
 import config
 import metrics
+from board_strategy import BoardStrategyRegistry, ExtractionMode, Health
 from selectors_registry import DomainSelectors, get_selectors
 from database import GemaDatabase
 from integrations.cookie_vault import CookieVault
 from integrations.webhook_client import WebhookClient
 from matcher import score_job
 from models import JobResult, SearchConfig, ScrapeRunSummary, TieredJob
+from nlp_engine import extract_jobs_from_text
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# LLM Extraction Fallback helpers (Phase 27) — pure functions, unit-tested
+# =============================================================================
+
+class _TextExtractor(HTMLParser):
+    """Strips HTML to visible text, dropping script/style/svg, and inlines each
+    anchor's href as ' (url)' right after its text. Keeping per-card URLs inline
+    gives the LLM fallback a chance to recover each job's own URL (which the
+    conservative mapper then requires) instead of collapsing onto the SRP URL."""
+
+    _SKIP_TAGS = {"script", "style", "noscript", "svg", "template"}
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._chunks: list[str] = []
+        self._skip_depth = 0
+        self._href: Optional[str] = None
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self._SKIP_TAGS:
+            self._skip_depth += 1
+        elif tag == "a":
+            self._href = dict(attrs).get("href")
+
+    def handle_endtag(self, tag):
+        if tag in self._SKIP_TAGS and self._skip_depth:
+            self._skip_depth -= 1
+        elif tag == "a" and self._href:
+            self._chunks.append(f" ({self._href})")
+            self._href = None
+
+    def handle_data(self, data):
+        if self._skip_depth:
+            return
+        text = data.strip()
+        if text:
+            self._chunks.append(text)
+
+    def get_text(self) -> str:
+        return re.sub(r"\s+", " ", " ".join(self._chunks)).strip()
+
+
+def _strip_html_to_text(html: str) -> str:
+    """Convert rendered SRP HTML to compact text (anchor hrefs inlined). Cuts
+    token cost vs raw HTML and never raises on malformed markup."""
+    parser = _TextExtractor()
+    try:
+        parser.feed(html)
+    except Exception:
+        pass  # HTMLParser can choke on malformed markup — return what we have.
+    return parser.get_text()
+
+
+def _fmt_salary_raw(ej) -> Optional[str]:
+    """Rebuild a salary_raw string from an ExtractedJob's split min/max/currency
+    so it flows through JobResult.parse_salary_usd like a normal scrape."""
+    lo, hi, cur = ej.salary_min, ej.salary_max, (ej.currency or "USD")
+    if lo and hi:
+        return f"{lo}-{hi} {cur}"
+    if lo or hi:
+        return f"{lo or hi} {cur}"
+    return None
+
+
+def _extracted_to_jobresult(ej, domain: str, srp_url: str) -> Optional[JobResult]:
+    """Map an LLM-extracted job to a JobResult, with a CONSERVATIVE URL guard:
+    only accept jobs that carry their own absolute URL distinct from the SRP
+    page URL. This makes the fallback safe by construction — it can never
+    collapse many jobs onto one URL (dedup corruption); worst case it recovers
+    nothing, which is no worse than today's 'board lost on drift'."""
+    url = (ej.source_url or "").strip()
+    if not url.lower().startswith("http"):
+        return None
+    if url.rstrip("/") == (srp_url or "").rstrip("/"):
+        return None
+    if not (ej.title or "").strip() or not (ej.company or "").strip():
+        return None
+    try:
+        return JobResult(
+            title=ej.title,
+            company=ej.company,
+            url=url,
+            salary_raw=_fmt_salary_raw(ej),
+            location_raw=ej.remote_region or ej.location_strictness,
+            source_domain=domain,
+        )
+    except Exception:
+        return None
 
 
 # =============================================================================
@@ -351,6 +446,11 @@ class GemaScraper:
 
         # Collected jobs from all tasks (populated via write queue)
         self._all_jobs: list[JobResult] = []
+
+        # Phase 27 — LLM extraction fallback: shared board-strategy registry
+        # (Fase 0) + a per-run cap so a drift storm can't burn unbounded tokens.
+        self._strategy = BoardStrategyRegistry()
+        self._llm_fallback_boards_used = 0
 
     def _log(self, msg: str) -> None:
         logger.info(msg)
@@ -860,7 +960,15 @@ class GemaScraper:
                         break
 
             # Null-rate check across all pages for this SRP
-            self.circuit.check_null_rate(domain, sel.null_rate_alert_threshold)
+            drifted = self.circuit.check_null_rate(domain, sel.null_rate_alert_threshold)
+
+            # Phase 27: on selector drift, don't just alert — recover the board
+            # by reading its rendered HTML through the LLM extraction path.
+            # page is still open here (closed in finally). Safe by construction:
+            # only jobs with a distinct absolute URL are accepted (see mapper).
+            if drifted:
+                recovered = await self._llm_extraction_fallback(page, domain, url)
+                jobs.extend(recovered)
 
         except Exception as exc:
             self._log(f"[ERROR] {domain}/'{title}': {type(exc).__name__}: {exc}")
@@ -869,6 +977,80 @@ class GemaScraper:
             await page.close()
 
         return jobs
+
+    async def _llm_extraction_fallback(
+        self,
+        page:   Page,
+        domain: str,
+        srp_url: str,
+    ) -> list[JobResult]:
+        """Phase 27 — recover a drifted board by running its rendered HTML through
+        the LLM extraction path (the same one gema_industrial uses, now backed by
+        9 providers). Selectors failed but the text is still there; the LLM reads
+        it. Runs in an executor so the sync HTTP calls never block the event loop
+        (which would freeze the other concurrent tabs). Safe by construction:
+        capped per run, and only jobs with a distinct absolute URL are accepted."""
+        if not config.LLM_EXTRACTION_FALLBACK_ENABLED:
+            return []
+        if self._llm_fallback_boards_used >= config.LLM_FALLBACK_MAX_BOARDS_PER_RUN:
+            self._log(
+                f"[LLM-FALLBACK] cap reached "
+                f"({config.LLM_FALLBACK_MAX_BOARDS_PER_RUN}) — skipping {domain}"
+            )
+            return []
+        self._llm_fallback_boards_used += 1
+
+        try:
+            raw_html = await page.content()
+        except Exception as exc:
+            self._log(f"[LLM-FALLBACK] {domain}: could not read page content: {exc}")
+            return []
+
+        clean_text = _strip_html_to_text(raw_html)
+        if not clean_text:
+            return []
+
+        self._log(
+            f"[LLM-FALLBACK] {domain} drifted — recovering via LLM "
+            f"({len(clean_text)} chars of text)..."
+        )
+        metrics.emit("llm_fallback_invoked", 1, domain=domain)
+
+        # source_url=None on purpose: the single-URL echo/backfill would collapse
+        # every recovered job onto the SRP URL. We rely on the inlined per-anchor
+        # hrefs in clean_text instead, and the mapper's distinct-URL guard.
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                functools.partial(extract_jobs_from_text, clean_text, source_url=None),
+            )
+        except Exception as exc:
+            self._log(f"[LLM-FALLBACK] {domain}: extraction failed: {exc}")
+            metrics.emit(
+                "llm_fallback_failed_total", 1, domain=domain, error=type(exc).__name__
+            )
+            return []
+
+        recovered = [
+            jr for ej in result.jobs
+            if (jr := _extracted_to_jobresult(ej, domain, srp_url)) is not None
+        ]
+
+        if recovered:
+            self._strategy.update(
+                domain,
+                extraction_mode=ExtractionMode.LLM_FALLBACK,
+                health=Health.PROBATION,
+            )
+            metrics.emit("llm_fallback_jobs_recovered", len(recovered), domain=domain)
+            self._log(f"[LLM-FALLBACK] {domain}: recovered {len(recovered)} jobs via LLM.")
+        else:
+            self._log(
+                f"[LLM-FALLBACK] {domain}: LLM recovered 0 usable jobs "
+                f"(no distinct per-card URLs)."
+            )
+        return recovered
 
     # =========================================================================
     # Card Extraction — Surface Metadata from SRP DOM
