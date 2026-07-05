@@ -55,6 +55,16 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 
 
 # =============================================================================
+# Board Strategy Registry (Fase 0 — shared contract for resilience layers)
+# =============================================================================
+# Per-board strategy: protection, access_vector, cookies_ref, extraction_mode,
+# health. Phases 27/28/29 write here. JSON store, safe free/CSS defaults.
+BOARD_STRATEGY_PATH: str = os.getenv("BOARD_STRATEGY_PATH", "board_strategy.json")
+# How long a board's probe stays fresh before it should be re-probed (Phase 28/29).
+BOARD_STRATEGY_TTL_HOURS: int = int(os.getenv("BOARD_STRATEGY_TTL_HOURS", "168"))  # 7 days
+
+
+# =============================================================================
 # Scraper Configuration
 # =============================================================================
 
