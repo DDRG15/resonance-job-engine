@@ -19,6 +19,14 @@ import sys
 import yaml
 from pathlib import Path
 
+# Windows consoles default to cp1252, which crashes the logging StreamHandler on
+# non-latin-1 chars (e.g. the '->' arrow in scraper logs). Match gema_industrial.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
