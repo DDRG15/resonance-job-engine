@@ -44,9 +44,11 @@ class Protection(str, Enum):
 
 
 class AccessVector(str, Enum):
-    DIRECT = "direct"          # plain request, no anti-bot
-    CAMOUFOX = "camoufox"      # Firefox fork — free Cloudflare bypass
-    ANYIP_PROXY = "anyip_proxy"  # residential proxy — paid, optional (Phase 28)
+    DIRECT = "direct"            # plain request, no anti-bot
+    CAMOUFOX = "camoufox"        # Firefox fork — free Cloudflare bypass
+    EXTERNAL_PROXY = "external_proxy"  # optional future slot, vendor-agnostic —
+    # reserved for a hard-board vector GEMA does NOT yet use. No provider is
+    # committed (AnyIP was a concept reference only). Keeps the router extensible.
 
 
 class ExtractionMode(str, Enum):
