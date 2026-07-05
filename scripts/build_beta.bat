@@ -16,6 +16,20 @@ echo  GEMA Beta Builder
 echo ============================================================
 echo.
 
+REM ── Supply-chain gate (AUDIT #2) ─────────────────────────────────────────
+REM A green test suite over a compromised dependency is a green light into an
+REM incident. No beta image ships without a clean CVE scan of its pinned deps.
+echo [0/4] Supply-chain gate: scanning requirements for known CVEs...
+python -m pip_audit -r requirements.txt --progress-spinner off
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: pip-audit found known vulnerabilities in dependencies.
+    echo        Fix or pin around the CVEs before shipping this image to a friend.
+    pause
+    exit /b 1
+)
+echo       Clean — no known CVEs.
+echo.
+
 REM ── Build Docker image ────────────────────────────────────────────────────
 echo [1/4] Building Docker image %IMAGE_NAME%...
 docker build -t %IMAGE_NAME% .

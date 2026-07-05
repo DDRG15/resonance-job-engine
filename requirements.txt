@@ -24,7 +24,7 @@ playwright-stealth==2.0.3
 # SQLite is built into Python — no package needed.
 
 # ── Environment & Config ─────────────────────────────────────────────────────
-python-dotenv==1.0.1
+python-dotenv==1.2.2   # bumped from 1.0.1 — GHSA-mf9w-mj56-hr94 (AUDIT #2 supply-chain)
 
 # ── Integrations ─────────────────────────────────────────────────────────────
 notion-client==2.2.1
@@ -32,7 +32,7 @@ gspread==6.1.2
 google-auth==2.52.0
 
 # ── HTTP Client ──────────────────────────────────────────────────────────────
-requests==2.32.3       # Discord webhook delivery (send_discord_alert)
+requests==2.33.0       # Discord webhook delivery — bumped from 2.32.3, fixes GHSA-9hjg + GHSA-gc5v (AUDIT #2)
 
 # ── CV Parsing — Ephemeral Identity (Phase 7) ────────────────────────────────
 pdfplumber==0.11.4     # PDF text extraction for CV upload
