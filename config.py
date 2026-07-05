@@ -24,13 +24,26 @@ GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
 OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
 COHERE_API_KEY: str = os.getenv("COHERE_API_KEY", "")
+# Extra free-tier fallback providers (added 2026-07-05). All OpenAI-compatible.
+CEREBRAS_API_KEY: str = os.getenv("CEREBRAS_API_KEY", "")
+SAMBANOVA_API_KEY: str = os.getenv("SAMBANOVA_API_KEY", "")
+AIMLAPI_API_KEY: str = os.getenv("AIMLAPI_API_KEY", "")
+MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")
+NOVITA_API_KEY: str = os.getenv("NOVITA_API_KEY", "")
 PRIMARY_LLM: str = os.getenv("PRIMARY_LLM", "groq").lower()
 
-# Model identifiers
+# Model identifiers — picks verified live against each provider's /models endpoint
+# (2026-07-05). Preference: strong instruction-followers, low hallucination on the
+# structured extraction schema; small/7-8B models deliberately avoided.
 GROQ_MODEL: str = "llama-3.3-70b-versatile"
 GEMINI_MODEL: str = "gemini-2.0-flash-lite"
-OPENROUTER_MODEL: str = "google/gemma-2-27b-it"
+OPENROUTER_MODEL: str = "nvidia/nemotron-3-ultra-550b-a55b:free"  # free tier; was google/gemma-2-27b-it (stale)
 COHERE_MODEL: str = "command-r-plus-08-2024"
+CEREBRAS_MODEL: str = "gpt-oss-120b"
+SAMBANOVA_MODEL: str = "Meta-Llama-3.3-70B-Instruct"
+AIMLAPI_MODEL: str = "openai/gpt-4.1-mini"
+MISTRAL_MODEL: str = "mistral-small-latest"
+NOVITA_MODEL: str = "deepseek/deepseek-v3.2"
 
 # LLM retry policy (exponential backoff via tenacity)
 LLM_MAX_RETRIES: int = 3

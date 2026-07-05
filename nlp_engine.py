@@ -495,6 +495,93 @@ def _call_cohere_plain(prompt: str) -> str:
 
 
 # =============================================================================
+# Extra free-tier fallback providers (added 2026-07-05)
+# All five expose an OpenAI-compatible /chat/completions endpoint, so one generic
+# caller + a registry replaces per-provider boilerplate (and is easier to audit).
+# Keys + chosen models were verified live against each provider's /models endpoint.
+# Cohere stays on its native client above (its chat shape is not OpenAI-compatible).
+# =============================================================================
+
+_OAI_PROVIDERS: dict[str, dict] = {
+    "cerebras":  {"url": "https://api.cerebras.ai/v1/chat/completions",      "model": config.CEREBRAS_MODEL,  "key": config.CEREBRAS_API_KEY,  "label": f"Cerebras ({config.CEREBRAS_MODEL})"},
+    "sambanova": {"url": "https://api.sambanova.ai/v1/chat/completions",     "model": config.SAMBANOVA_MODEL, "key": config.SAMBANOVA_API_KEY, "label": f"SambaNova ({config.SAMBANOVA_MODEL})"},
+    "aimlapi":   {"url": "https://api.aimlapi.com/v1/chat/completions",      "model": config.AIMLAPI_MODEL,   "key": config.AIMLAPI_API_KEY,   "label": f"AIMLAPI ({config.AIMLAPI_MODEL})"},
+    "mistral":   {"url": "https://api.mistral.ai/v1/chat/completions",       "model": config.MISTRAL_MODEL,   "key": config.MISTRAL_API_KEY,   "label": f"Mistral ({config.MISTRAL_MODEL})"},
+    "novita":    {"url": "https://api.novita.ai/v3/openai/chat/completions", "model": config.NOVITA_MODEL,    "key": config.NOVITA_API_KEY,    "label": f"Novita ({config.NOVITA_MODEL})"},
+}
+
+# Deterministic fallback order for the five extra providers (fastest + most
+# reliable free tiers first). Appended after the original four.
+_OAI_ORDER = ("cerebras", "sambanova", "aimlapi", "mistral", "novita")
+
+# Per-session rate-limit flags (parallels the module-global flags of the original
+# four; reset by reset_rate_limit_flags()).
+_oai_rate_limited: dict[str, bool] = {name: False for name in _OAI_PROVIDERS}
+
+
+def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_tokens: int) -> str:
+    """Raw OpenAI-compatible chat call for a registered provider. Returns the
+    assistant text. Trips the provider's session rate-limit flag on 429."""
+    prov = _OAI_PROVIDERS[name]
+    if _oai_rate_limited[name]:
+        raise _ProviderRateLimited(f"{name} rate-limited this session — skipping")
+    if not prov["key"]:
+        raise _ProviderRateLimited(f"{name} API key not configured")
+    try:
+        resp = requests.post(
+            prov["url"],
+            headers={
+                "Authorization": f"Bearer {prov['key']}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": prov["model"],
+                "messages": messages,
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=config.LLM_REQUEST_TIMEOUT,
+        )
+        if resp.status_code == 429:
+            _oai_rate_limited[name] = True
+            print(f"  [RATE LIMIT] {name} hit 429 — disabled for this session, falling back.")
+            raise _ProviderRateLimited(f"{name} 429")
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+    except _ProviderRateLimited:
+        raise
+    except Exception as e:
+        if _is_rate_limit(e):
+            _oai_rate_limited[name] = True
+            print(f"  [RATE LIMIT] {name} rate limit — disabled for this session, falling back.")
+            raise _ProviderRateLimited(f"{name} rate limit") from e
+        raise
+
+
+def _make_oai_json_caller(name: str):
+    """JSON-mode caller (config generation): returns json.dumps of extracted JSON."""
+    @_backoff
+    def _caller(messages: list[dict]) -> str:
+        text = _call_oai_raw(name, messages, temperature=0.0, max_tokens=1024)
+        return json.dumps(_extract_json_from_text(text))
+    _caller.__name__ = f"_call_{name}"
+    return _caller
+
+
+def _make_oai_plain_caller(name: str):
+    """Plain-text caller (auditor cross-check): returns the raw completion."""
+    @_backoff
+    def _caller(prompt: str) -> str:
+        return _call_oai_raw(name, [{"role": "user", "content": prompt}], temperature=0.2, max_tokens=128)
+    _caller.__name__ = f"_call_{name}_plain"
+    return _caller
+
+
+_OAI_JSON_CALLERS = {name: _make_oai_json_caller(name) for name in _OAI_PROVIDERS}
+_OAI_PLAIN_CALLERS = {name: _make_oai_plain_caller(name) for name in _OAI_PROVIDERS}
+
+
+# =============================================================================
 # Validation
 # =============================================================================
 
@@ -526,6 +613,8 @@ def reset_rate_limit_flags() -> None:
     _gemini_rate_limited = False
     _openrouter_rate_limited = False
     _cohere_rate_limited = False
+    for _name in _oai_rate_limited:
+        _oai_rate_limited[_name] = False
 
 
 def parse_prompt_to_config(
@@ -621,6 +710,11 @@ def _build_caller_chain() -> list[tuple[str, callable]]:
         ordered.append(("OpenRouter (free)", _call_openrouter))
     if bool(config.COHERE_API_KEY) and not _cohere_rate_limited:
         ordered.append(("Cohere (command-r-plus)", _call_cohere))
+    # Extra free-tier providers (deepest fallback), in deterministic order.
+    for _name in _OAI_ORDER:
+        prov = _OAI_PROVIDERS[_name]
+        if prov["key"] and not _oai_rate_limited[_name]:
+            ordered.append((prov["label"], _OAI_JSON_CALLERS[_name]))
     if not ordered:
         raise RuntimeError(
             "No LLM providers available. "
@@ -698,6 +792,12 @@ def generate_and_audit_config(
         ("openrouter", "OpenRouter (gemma-27b)",  _call_openrouter_plain, bool(config.OPENROUTER_API_KEY) and not _openrouter_rate_limited),
         ("cohere",     "Cohere (command-r-plus)", _call_cohere_plain,     bool(config.COHERE_API_KEY)     and not _cohere_rate_limited),
     ]
+    for _name in _OAI_ORDER:
+        prov = _OAI_PROVIDERS[_name]
+        _plain_pool.append(
+            (_name, prov["label"], _OAI_PLAIN_CALLERS[_name],
+             bool(prov["key"]) and not _oai_rate_limited[_name])
+        )
     auditor_chain = [
         (name, caller)
         for key, name, caller, available in _plain_pool
