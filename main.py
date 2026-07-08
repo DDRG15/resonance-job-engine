@@ -301,33 +301,69 @@ with st.sidebar:
         disabled=not has_config,
         help="Requires a confirmed SearchConfig. Parse and confirm a search first.",
     )
-    sched_interval = st.radio(
-        "Interval",
-        options=[2, 4, 8, 12, 24],
-        index=[2, 4, 8, 12, 24].index(sched_svc.interval_hours)
-              if sched_svc.interval_hours in [2, 4, 8, 12, 24] else 1,
-        format_func=lambda x: f"{x}h",
+    sched_mode = st.radio(
+        "Mode",
+        options=["Interval", "Cron (días fijos)"],
+        index=0 if sched_svc.mode != "cron" else 1,
         horizontal=True,
         disabled=not has_config,
+        help="Interval: cada N horas. Cron: días fijos — las ofertas se publican "
+             "sáb–lun, así que martes agarra el lote del fin de semana.",
     )
 
-    if sched_enabled and not sched_svc.enabled and has_config:
-        sched_svc.enable(
-            sched_interval,
-            st.session_state.search_config,
-            st.session_state.dynamic_profile,
-            db,
-        )
-    elif not sched_enabled and sched_svc.enabled:
+    if not sched_enabled and sched_svc.enabled:
         sched_svc.disable()
-    elif sched_enabled and sched_svc.enabled and sched_interval != sched_svc.interval_hours:
-        # Interval changed while running — restart with new interval
-        sched_svc.enable(
-            sched_interval,
-            st.session_state.search_config,
-            st.session_state.dynamic_profile,
-            db,
+    elif sched_mode == "Interval":
+        sched_interval = st.radio(
+            "Interval",
+            options=[2, 4, 8, 12, 24],
+            index=[2, 4, 8, 12, 24].index(sched_svc.interval_hours)
+                  if sched_svc.interval_hours in [2, 4, 8, 12, 24] else 1,
+            format_func=lambda x: f"{x}h",
+            horizontal=True,
+            disabled=not has_config,
         )
+        if sched_enabled and has_config and (
+            not sched_svc.enabled or sched_svc.mode != "interval"
+            or sched_interval != sched_svc.interval_hours
+        ):
+            sched_svc.enable(
+                sched_interval,
+                st.session_state.search_config,
+                st.session_state.dynamic_profile,
+                db,
+            )
+    else:  # Cron (días fijos)
+        _DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        cron_days = st.multiselect(
+            "Días",
+            options=_DAYS,
+            default=[d for d in sched_svc.cron_days.split(",") if d in _DAYS] or ["tue"],
+            disabled=not has_config,
+        )
+        cron_hour = st.slider(
+            "Hora (local, la ciudad del candidato)", 0, 23, value=sched_svc.cron_hour, disabled=not has_config,
+        )
+        retain_cv = st.toggle(
+            "Retener CV entre corridas",
+            value=False,
+            disabled=not has_config,
+            help="Guarda SOLO el perfil (rol/skills), nunca el CV crudo. "
+                 "Off = se descarta cada sesión (privacidad por defecto).",
+        )
+        days_str = ",".join(cron_days) or "tue"
+        if sched_enabled and has_config and (
+            not sched_svc.enabled or sched_svc.mode != "cron"
+            or days_str != sched_svc.cron_days or cron_hour != sched_svc.cron_hour
+        ):
+            sched_svc.enable_cron(
+                days_str,
+                cron_hour,
+                st.session_state.search_config,
+                st.session_state.dynamic_profile,
+                db,
+                retain_profile=retain_cv,
+            )
 
     if sched_svc.enabled:
         st.success(f"● Active — next run: {sched_svc.get_next_run_time()}")

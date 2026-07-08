@@ -77,6 +77,18 @@ LLM_FALLBACK_MAX_INPUT_CHARS: int = int(os.getenv("LLM_FALLBACK_MAX_INPUT_CHARS"
 
 
 # =============================================================================
+# Scheduler / cron (B4)
+# =============================================================================
+# Jobs are usually posted Sat–Mon → Tuesday is a good scrape day (el usuario).
+SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE", "UTC")   # la ciudad del candidato = UTC-5
+SCHEDULER_CRON_DAYS: str = os.getenv("SCHEDULER_CRON_DAYS", "tue,fri,sat")  # day_of_week
+SCHEDULER_CRON_HOUR: int = int(os.getenv("SCHEDULER_CRON_HOUR", "9"))       # local hour
+# CV profile retention for unattended cron. Stores ONLY the ephemeral profile
+# (role/skills/signals) — NEVER the raw CV document. Opt-in; default = discard.
+CV_PROFILE_PATH: str = os.getenv("CV_PROFILE_PATH", "cv_profile.json")
+
+
+# =============================================================================
 # Scraper Configuration
 # =============================================================================
 

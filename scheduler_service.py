@@ -18,16 +18,20 @@ Thread safety:
     set before the thread starts and cleared inside the thread's finally block.
 """
 
+import json
 import logging
 import queue
 import random
 import threading
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
+import config
 import metrics
 
 logger = logging.getLogger(__name__)
@@ -37,19 +41,33 @@ _JOB_ID = "gema_auto_scrape"
 
 class SchedulerService:
     def __init__(self) -> None:
-        self._scheduler = BackgroundScheduler(
-            job_defaults={"misfire_grace_time": 300},  # tolerate 5-min late fires
-        )
+        # Timezone matters for cron ("run Tuesday" in which zone). Default la ciudad del candidato.
+        try:
+            self._scheduler = BackgroundScheduler(
+                job_defaults={"misfire_grace_time": 300},  # tolerate 5-min late fires
+                timezone=config.SCHEDULER_TIMEZONE,
+            )
+        except Exception as exc:
+            logger.warning("[SCHEDULER] Bad timezone %r (%s) — using system default.",
+                           config.SCHEDULER_TIMEZONE, exc)
+            self._scheduler = BackgroundScheduler(job_defaults={"misfire_grace_time": 300})
         self._scheduler.start()
 
         self.enabled: bool = False
+        self.mode: str = "interval"     # "interval" | "cron"
         self.interval_hours: int = 4
+        self.cron_days: str = config.SCHEDULER_CRON_DAYS
+        self.cron_hour: int = config.SCHEDULER_CRON_HOUR
         self.config = None          # SearchConfig | None
         self.profile = None         # dict | None — ephemeral CV profile
         self.is_running: bool = False
         self.last_run_at: Optional[datetime] = None
         self.last_run_new_jobs: int = 0
         self.last_run_tier1: int = 0
+
+        # If the user opted to retain the CV profile, load it so an unattended
+        # cron survives a restart. Ephemeral profile only — never the raw CV.
+        self._maybe_load_profile()
 
     # -------------------------------------------------------------------------
     # Public API
@@ -73,11 +91,86 @@ class SchedulerService:
             replace_existing=True,
         )
         self.enabled = True
+        self.mode = "interval"
         logger.info(
             "[SCHEDULER] Auto-scrape enabled: every %dh. Next: %s",
             interval_hours,
             self.get_next_run_time(),
         )
+
+    def enable_cron(
+        self, days: str, hour: int, search_config, profile, db,
+        retain_profile: bool = False,
+    ) -> None:
+        """Start (or restart) a CRON job on fixed days (B4). `days` is an
+        APScheduler day_of_week string, e.g. "tue,fri,sat"; `hour` is the local
+        hour in SCHEDULER_TIMEZONE. Jobs post Sat–Mon, so Tuesday catches the
+        weekend batch.
+
+        retain_profile: if True, the ephemeral CV profile (role/skills/signals —
+        NEVER the raw CV) is saved to disk so an unattended cron survives a
+        restart. If False (privacy default), any saved profile is discarded and
+        the profile lives only in memory for this process.
+        """
+        self.config = search_config
+        self.profile = profile
+        self.cron_days = days
+        self.cron_hour = hour
+
+        if retain_profile and profile:
+            self._save_profile(profile)
+        elif not retain_profile:
+            self._discard_profile()
+
+        if self._scheduler.get_job(_JOB_ID):
+            self._scheduler.remove_job(_JOB_ID)
+
+        self._scheduler.add_job(
+            func=self._fire,
+            trigger=CronTrigger(day_of_week=days, hour=hour),
+            id=_JOB_ID,
+            args=[db],
+            replace_existing=True,
+        )
+        self.enabled = True
+        self.mode = "cron"
+        logger.info(
+            "[SCHEDULER] Cron auto-scrape enabled: days=%s hour=%02d:00 tz=%s "
+            "(CV retained=%s). Next: %s",
+            days, hour, config.SCHEDULER_TIMEZONE, retain_profile,
+            self.get_next_run_time(),
+        )
+
+    # -------------------------------------------------------------------------
+    # CV profile retention (B4) — ephemeral profile only, never the raw CV
+    # -------------------------------------------------------------------------
+
+    def _save_profile(self, profile: dict) -> None:
+        try:
+            Path(config.CV_PROFILE_PATH).write_text(
+                json.dumps(profile, ensure_ascii=False), encoding="utf-8"
+            )
+            logger.info("[SCHEDULER] CV profile retained for unattended cron.")
+        except Exception as exc:
+            logger.warning("[SCHEDULER] Could not persist CV profile: %s", exc)
+
+    def _discard_profile(self) -> None:
+        try:
+            p = Path(config.CV_PROFILE_PATH)
+            if p.exists():
+                p.unlink()
+                logger.info("[SCHEDULER] Retained CV profile discarded (privacy).")
+        except Exception as exc:
+            logger.warning("[SCHEDULER] Could not discard CV profile: %s", exc)
+
+    def _maybe_load_profile(self) -> None:
+        try:
+            p = Path(config.CV_PROFILE_PATH)
+            if p.exists():
+                self.profile = json.loads(p.read_text(encoding="utf-8"))
+                logger.info("[SCHEDULER] Loaded retained CV profile.")
+        except Exception as exc:
+            logger.warning("[SCHEDULER] Could not load retained CV profile: %s", exc)
 
     def disable(self) -> None:
         """Stop the interval job."""
