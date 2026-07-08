@@ -227,6 +227,54 @@ def _camoufox_targets(all_domains: list[str], strategy) -> list[str]:
 
 
 # =============================================================================
+# Self-healing (Phase 29) — board health lifecycle
+# =============================================================================
+
+def _next_health(current: Health, drifted: bool) -> Health:
+    """Health lifecycle driven by actual scrape outcomes (never a self-triggered
+    loop, so it can't run away). A clean CSS run heals the board toward HEALTHY;
+    drift on an already-probation board escalates to DEGRADED (a persistent
+    problem that warrants attention / re-probe)."""
+    if not drifted:
+        return Health.HEALTHY               # a clean run heals
+    if current == Health.HEALTHY:
+        return Health.PROBATION             # first drift
+    return Health.DEGRADED                  # drift while already probation/degraded
+
+
+def _health_updates(strat, drifted: bool, has_jobs: bool) -> dict:
+    """The self-healing 'brain', PURE and exhaustively testable — decoupled from
+    the browser so bugs can't hide in inline scrape logic. Returns the registry
+    updates to apply for a board after one scrape outcome.
+
+    Safe + self-correcting by design:
+      - health follows _next_health (bounded, outcome-driven).
+      - extraction_mode heals llm_fallback -> css ONLY on a clean run that
+        actually produced CSS jobs (has_jobs) — never on ambiguous signals.
+      - if the heal is wrong (board still drifting), the NEXT run re-detects
+        drift and flips back. Worst case = one wasted run, not a broken board.
+    """
+    updates: dict = {}
+    if drifted:
+        # Drift escalates health (healthy->probation->degraded). Extraction stays
+        # on the fallback — the LLM path is what recovers a drifted board.
+        new_health = _next_health(strat.health, True)
+        if new_health != strat.health:
+            updates["health"] = new_health
+    elif has_jobs:
+        # A clean run WITH real CSS results = demonstrated recovery. Heal health,
+        # and if the board had been flipped to the LLM fallback, flip it back to
+        # css so we stop paying for the expensive path.
+        if strat.health != Health.HEALTHY:
+            updates["health"] = Health.HEALTHY
+        if strat.extraction_mode == ExtractionMode.LLM_FALLBACK:
+            updates["extraction_mode"] = ExtractionMode.CSS
+    # Clean but EMPTY (not drifted, no jobs) = ambiguous → change nothing. We
+    # never heal on a signal that didn't actually demonstrate the board works.
+    return updates
+
+
+# =============================================================================
 # Circuit Breaker
 # =============================================================================
 
@@ -1054,13 +1102,23 @@ class GemaScraper:
             # Null-rate check across all pages for this SRP
             drifted = self.circuit.check_null_rate(domain, sel.null_rate_alert_threshold)
 
-            # Phase 27: on selector drift, don't just alert — recover the board
-            # by reading its rendered HTML through the LLM extraction path.
-            # page is still open here (closed in finally). Safe by construction:
-            # only jobs with a distinct absolute URL are accepted (see mapper).
+            # Phase 29: self-healing. The decision lives in the pure _health_updates
+            # 'brain' (exhaustively tested); the wiring just applies it. Driven by
+            # this run's real outcome — never a self-triggered loop.
+            strat = self._strategy.get(domain)
+            updates = _health_updates(strat, drifted, bool(jobs))
+            if updates:
+                self._strategy.update(domain, **updates)
+                if updates.get("health") == Health.DEGRADED:
+                    self._log(f"[HEALTH] {domain}: persistent drift — DEGRADED.")
+                    metrics.emit("board_degraded", 1, domain=domain)
+                if updates.get("extraction_mode") == ExtractionMode.CSS:
+                    self._log(f"[HEAL] {domain}: CSS selectors recovered — back to css.")
+                    metrics.emit("board_self_healed", 1, domain=domain)
+
             if drifted:
-                # The fallback self-persists via _ingest_external_jobs (dedup +
-                # write queue), so no need to extend the local `jobs` list here.
+                # Phase 27: recover the drifted board via the LLM extraction path.
+                # Self-persists via _ingest_external_jobs (dedup + write queue).
                 await self._llm_extraction_fallback(page, domain, url, sel)
 
         except Exception as exc:
