@@ -8,9 +8,11 @@
 
 Manual job hunting across 16 boards takes 2-3 hours per session. Relevance filtering requires reading every listing. Repeating this daily at the volume required to find quality remote roles is not a sustainable use of engineering time.
 
-GEMA eliminates that. One natural-language prompt triggers concurrent scraping across 16 boards, structured LLM extraction on every listing, and CV-aware scoring that surfaces Tier 1 results in the UI before the scrape finishes.
+GEMA eliminates that. One natural-language prompt triggers concurrent scraping across 17 boards, CSS extraction at zero LLM cost, CV-aware scoring that surfaces Tier 1 results in the UI before the scrape finishes -- and a self-healing layer that recovers boards whose selectors break and stands back down once they recover.
 
-`Prompt -> SearchConfig -> 16-board scrape -> LLM extraction chain -> 115-point scoring -> tier buckets -> Discord alert`
+`Prompt -> SearchConfig -> probe-routed scrape -> CSS extraction (0 tokens) -> LLM fallback on drift -> 115-point scoring -> tier buckets -> self-heal -> Discord alert`
+
+The main scrape path spends **zero LLM tokens** -- extraction is CSS selectors, scoring is pure Python. The 7-provider LLM chain is a *fallback*, invoked only when a board's selectors drift, never on the happy path.
 
 ---
 
@@ -20,28 +22,31 @@ GEMA eliminates that. One natural-language prompt triggers concurrent scraping a
 User Prompt (natural language)
         |
         v
-   NLP Engine          (LLM #1 generates SearchConfig)
+   NLP Engine + AI Auditor   (LLM generates SearchConfig, a 2nd provider cross-checks it)
         |
         v
-   AI Auditor          (LLM #2 cross-checks the config)
+   board_probe -> BoardStrategy registry   (classifies protection; writes the per-board recipe)
         |
         v
-   board_probe         (HTTP recon -- classifies Cloudflare/Login Wall/Open per domain)
-        |
-        v
-   asyncio.gather      (16 domains, Semaphore(3) concurrent tabs)
+   asyncio.gather   (17 domains, Semaphore(3) concurrent tabs)
       |         |
-   Chromium   camoufox (Firefox/NSS -- remoteok.com Cloudflare Bot Fight Mode bypass)
+   Chromium   camoufox   (engine chosen by the registry's access_vector, not hardcoded)
       |         |
-        |
         v
-   LLM Extraction Chain   (Groq -> Gemini -> OpenRouter -> Cohere)
+   CSS Extraction   (selectors_registry -- ZERO LLM tokens, the happy path)
         |
+        +--- drift detected (null-rate > 40%)? --> LLM Extraction Fallback
+        |                                          (7-provider chain reads the card
+        |                                           HTML; anti-hallucination grounding)
         v
    Matcher / Scorer   (CV profile vs job requirements, 115-point model)
         |
         v
    asyncio.Queue -> single _db_writer_task   (zero SQLite lock contention)
+        |
+        v
+   Self-Heal   (board health: healthy <-> probation <-> degraded; heal llm_fallback -> css
+                once selectors recover, so the expensive path stops)
         |
         v
    Tier Buckets   (T1: 80+ | T2: 50-79 | T3: 1-49 | T4: manual review)
@@ -71,13 +76,35 @@ Upload a PDF, DOCX, TXT, or MD file at runtime. GEMA parses it into a sanitized 
 
 ---
 
+## What Changed in v2.2 -- Self-Healing
+
+**A shared per-board strategy registry.**
+`BoardStrategy` records, per domain, the recipe the resilience layers write to: `protection`, `access_vector`, `cookies_ref`, `extraction_mode`, `health`. Defined first, as one contract, so the three layers below never refactor each other. Persisted as JSON; safe free/CSS defaults for an unseen board.
+
+**LLM extraction fallback on drift.**
+When a board's selectors break -- the null-extraction rate crosses 40% -- the engine no longer just alerts and gives up. It feeds the board's card HTML (not the whole page: the card container selector usually still matches) through the LLM extraction path and recovers the listings the CSS selectors could not. The LLM call runs in an executor so it never blocks the event loop. Anti-hallucination by construction: relative URLs are resolved to absolute, and a recovered URL is accepted only if it appears literally in the source text sent to the model -- a fabricated URL is not present, so it is dropped. Validated live: builtin.com at 100% null recovered real jobs with real `builtin.com/job/...` URLs.
+
+**The probe as an access-vector router.**
+board_probe already classified each board's protection; now it writes that classification to the registry and the scraper routes the engine (Chromium vs camoufox) from the registry, not a hardcoded domain. Upgrade-only: the chromium probe can raise a board to camoufox when it sees Cloudflare, but never downgrades a known-camoufox board -- the probe cannot tell "chromium blocked but firefox works." camoufox routing runs over all domains, so a board the probe skips for chromium still gets its firefox pass.
+
+**Self-healing board health.**
+Health follows the run's real outcome (never a self-triggered loop, so it cannot run away): drift escalates `healthy -> probation -> degraded`; a clean CSS run with real results heals back toward healthy. Critically, a board that was flipped to the LLM fallback flips **back** to CSS once its selectors recover -- the expensive path switches itself off. The decision lives in a pure, exhaustively tested function; a wrong heal costs one run, not a broken board.
+
+**Cron scheduling.**
+In addition to fixed intervals, the autopilot runs on fixed days. Jobs are usually posted Saturday through Monday, so a Tuesday scrape catches the weekend batch -- but the days and hour are fully user-configurable (the defaults are only a suggestion). Optional, opt-in CV-profile retention lets an unattended cron survive a restart; it stores only the ephemeral profile (role/skills), never the raw CV, and defaults to discard.
+
+**7-provider LLM fallback chain.**
+Groq and Gemini for normal use; OpenRouter, Cohere, Cerebras, SambaNova, and Mistral as deep backup. Providers are verified with a real minimal completion, not just a key-validity check -- validity does not guarantee the completion works.
+
+---
+
 ## Capabilities
 
-**16 boards scraped concurrently:**
-himalayas.app, trueup.io, remote.co, weworkremotely.com, remoteok.com, workingnomads.com, news.ycombinator.com, wellfound.com, arc.dev, builtin.com, welcometothejungle.com, remotivated.com, posthog.com, greenhouse.com, jobspresso.co, python.org/jobs
+**17 boards scraped concurrently:**
+himalayas.app, trueup.io, remote.co, weworkremotely.com, remoteok.com, workingnomads.com, news.ycombinator.com, wellfound.com, arc.dev, builtin.com, welcometothejungle.com, remotivated.com, posthog.com, greenhouse.com, jobspresso.co, python.org, startup.jobs
 
-**4-provider LLM fallback chain.**
-Rate-limit or provider outage on any single provider does not stop a run. The chain falls to the next provider automatically. Groq's free tier rate-limits aggressively under the concurrent extraction load of a 16-board run (50-200 listings per session). Three independent fallback layers mean the probability of all four providers being down simultaneously during a 10-minute scrape window is operationally zero.
+**7-provider LLM fallback chain.**
+The LLM is used only as a *fallback* (on selector drift) and for prompt->config parsing -- never on the main scrape path. When it is invoked, rate-limit or outage on any single provider does not stop the run: the chain falls to the next automatically. Groq and Gemini serve normal use; OpenRouter, Cohere, Cerebras, SambaNova, and Mistral are deep backup. Six independent fallback layers behind the primary mean the probability of all seven being down during a scrape is operationally zero.
 
 **115-point scoring model.**
 CV skill overlap + audit signal matches + job quality signals (salary disclosed, remote confirmed, visa sponsorship) minus negative signals (contract-only flag, level mismatch). Tier 1 threshold: 80. Tier 2: 50-79. Tier 3: 1-49. Tier 4: manual review for unstructured salary text.
@@ -94,7 +121,7 @@ Any board can change its HTML structure. When a domain's selectors are more than
 | UI | Streamlit 1.57 |
 | Browser automation | Playwright 1.50 + playwright-stealth 2.0 |
 | Firefox bypass | camoufox 0.4.11 |
-| LLM providers | Groq, Google Gemini, OpenRouter, Cohere |
+| LLM providers | Groq + Gemini (normal); OpenRouter, Cohere, Cerebras, SambaNova, Mistral (backup) |
 | Data validation | Pydantic v2 |
 | Database | SQLite (WAL mode, async write queue, SHA-256 URL dedup) |
 | Export | Pandas + openpyxl |
@@ -194,13 +221,17 @@ GOOGLE_CREDENTIALS_PATH=credentials/google_service_account.json
 
 16 scraper coroutines completing concurrently against a single SQLite file produce write contention. SQLite WAL mode handles concurrent reads but serializes writes -- if 3 coroutines call `db.write()` simultaneously, 2 block and one times out under load. The `asyncio.Queue` feeds a single `_db_writer_task` that processes results serially. The coroutines never touch the database -- they `put()` into the queue and continue. Zero lock contention.
 
-### Why a 4-provider fallback chain
+### Why a 7-provider fallback chain
 
-A single-provider setup fails when that provider has an outage or hits a rate limit. Groq's free tier rate-limits aggressively under the concurrent extraction load of a 16-board scrape (50-200 LLM calls per run). The chain falls from Groq to Gemini on rate-limit, then OpenRouter, then Cohere. All four providers have independent rate limit pools and independent uptime SLAs. A run does not fail unless all four are simultaneously unavailable.
+A single-provider setup fails when that provider has an outage or hits a rate limit. Groq's free tier rate-limits aggressively -- and the LLM fallback fires exactly when a board is drifting, i.e. under load. The chain falls Groq -> Gemini (normal use), then OpenRouter -> Cohere -> Cerebras -> SambaNova -> Mistral (backup). Each has an independent rate-limit pool and uptime. A run does not fail unless all seven are simultaneously unavailable. Providers are verified with a real minimal completion, not just a key check: a valid key does not guarantee a working completion (two providers passed key validation but 403'd on the actual model and were cut).
 
-### Why camoufox for remoteok.com
+### Why camoufox for Cloudflare boards, routed by the registry
 
-Cloudflare Bot Fight Mode identifies browsers by their TLS ClientHello hash (JA3 fingerprint). Chromium uses BoringSSL, which produces a fingerprint Cloudflare has flagged and blocks before any page content loads. Firefox uses NSS, which produces a different fingerprint that passes Bot Fight Mode. camoufox is a Firefox-based Playwright fork that exposes the NSS stack through the standard AsyncCamoufox API. remoteok.com routes through camoufox; all other boards use Chromium. The routing is a three-line conditional in `scraper.py`.
+Cloudflare Bot Fight Mode identifies browsers by their TLS ClientHello hash (JA3 fingerprint). Chromium uses BoringSSL, which produces a fingerprint Cloudflare flags and blocks before any page content loads. Firefox uses NSS, which produces a different fingerprint that passes. camoufox is a Firefox-based Playwright fork exposing the NSS stack. The engine choice is **no longer a hardcoded `if domain == "remoteok.com"`** -- board_probe classifies each board and writes `access_vector` to the BoardStrategy registry, and the scraper routes from that. The routing is upgrade-only (a chromium probe never downgrades a known-camoufox board) and runs over all domains, so a board the probe skips for chromium still gets its firefox pass -- closing a gap where a probe-blocked remoteok never ran camoufox at all.
+
+### Why an LLM fallback instead of only CSS extraction
+
+CSS selectors are fast and free but brittle: a board changes its DOM and extraction silently drops to zero. Before, a drifted board was lost until someone fixed the selectors by hand. Now the drift detector triggers an LLM pass over the card HTML -- the text is still there even when the selectors miss it. It is a *fallback*, capped per run and only on drift, so the main path stays at zero LLM cost. The hard part was not calling the LLM; it was **trusting its URLs**. An early live run recovered real companies (Encora, DualEntry) with fabricated `example.com` URLs, because the board's real links were relative and the model copied the schema's example. The fix: resolve relative URLs to absolute, then accept a recovered URL only if it appears literally in the source text. A fabricated URL is not in the source, so it is dropped -- hallucination becomes structurally impossible, not merely discouraged.
 
 ### Why board_probe before browser launch
 
@@ -243,7 +274,9 @@ gema/
 |-- models.py                # Pydantic v2 contracts
 |-- config.py                # Centralized env var loading (single source of truth)
 |-- database.py              # SQLite WAL-mode async registry
-|-- board_probe.py           # Pre-scrape domain recon
+|-- board_probe.py           # Pre-scrape domain recon -> writes access_vector to the registry
+|-- board_strategy.py        # Per-board strategy registry (protection, vector, extraction, health)
+|-- metrics.py               # Structured metric emission (observability)
 |-- cookie_vault.py          # Session cookie injection
 |-- scheduler_service.py     # APScheduler BackgroundScheduler singleton
 |-- setup_wizard.py          # First-run wizard -- no keys configured -> guided setup
@@ -293,6 +326,12 @@ The daemon thread running the scraper attempted to read `st.session_state.search
 
 **starlette version conflicts between projects are invisible to pip's resolver.**
 `streamlit run main.py` crashed with `ImportError: cannot import name 'DEFAULT_EXCLUDED_CONTENT_TYPES' from 'starlette.middleware.gzip'`. starlette 0.38.6 was installed from another project in the same environment. streamlit 1.57 requires starlette>=0.40.0. pip's dependency resolver did not catch this conflict. Fix: explicitly pin `starlette==0.41.3` in `requirements.txt`. Any transitive dependency that has caused a production crash belongs in the pin list.
+
+**The LLM extraction fallback recovered real jobs with fabricated URLs.**
+On the first live run of the drift fallback, builtin.com (100% null) returned real listings -- "Senior Go Backend Engineer @ Encora", real company -- but every `source_url` was `https://example.com/job/NNN`. The model had copied the example URL from the JSON schema in its prompt, because builtin's real job links are *relative* (`/job/.../9340094`), the URL guard required absolute, and the model filled the gap with the example it was shown. A key that validates is not a completion that works, and an LLM that extracts is not an LLM you can trust on identifiers. Two-part fix: resolve relative hrefs to absolute against the SRP URL so the real link lands in the text, then require a recovered URL to appear literally in that text. A hallucinated URL is not in the source, so it never survives. The lesson generalizes: never let a generative model mint an identifier you will treat as ground truth -- ground it in the input or drop it.
+
+**A "valid" free-tier key is not a working provider.**
+All nine LLM providers passed the `/models` key-validity check. A real minimal completion (`max_tokens=5`) exposed four failures: two returned 403 on the actual model (free tier does not include it), one returned no `content` field (a reasoning model under the wrong call shape), and Gemini was quota-exhausted. Two providers were cut, one had its model swapped. Validity endpoints answer "is this key real"; only a real request answers "does this actually work."
 
 ---
 
