@@ -70,7 +70,9 @@ from playwright_stealth import Stealth
 
 import config
 import metrics
-from board_strategy import BoardStrategyRegistry, ExtractionMode, Health
+from board_strategy import (
+    AccessVector, BoardStrategyRegistry, ExtractionMode, Health, Protection,
+)
 from selectors_registry import DomainSelectors, get_selectors
 from database import GemaDatabase
 from integrations.cookie_vault import CookieVault
@@ -177,6 +179,34 @@ def _extracted_to_jobresult(ej, domain: str, srp_url: str) -> Optional[JobResult
         )
     except Exception:
         return None
+
+
+# =============================================================================
+# Access-vector routing (Phase 28) — probe classification -> BoardStrategy
+# =============================================================================
+
+def _probe_to_strategy(protection_type: str) -> tuple[Protection, AccessVector]:
+    """Map a board_probe protection string to the registry's (Protection,
+    AccessVector). Cloudflare challenges route to camoufox (GEMA's free Firefox
+    bypass); everything else stays on the free direct vector. Values are strings
+    matching board_probe's protection constants."""
+    if protection_type in ("cloudflare_js_challenge", "cloudflare_turnstile"):
+        return Protection.CLOUDFLARE, AccessVector.CAMOUFOX
+    if protection_type == "rate_limited":
+        return Protection.RATE_LIMIT, AccessVector.DIRECT
+    if protection_type == "open":
+        return Protection.NONE, AccessVector.DIRECT
+    return Protection.UNKNOWN, AccessVector.DIRECT
+
+
+def _resolve_vector(current: AccessVector, probed: AccessVector) -> AccessVector:
+    """Upgrade-only vector resolution: the chromium probe may raise a board to a
+    stronger vector, but must never downgrade a board already on camoufox/external
+    to direct — the probe can't tell "chromium blocked but firefox works"."""
+    if (current in (AccessVector.CAMOUFOX, AccessVector.EXTERNAL_PROXY)
+            and probed == AccessVector.DIRECT):
+        return current
+    return probed
 
 
 # =============================================================================
@@ -592,6 +622,18 @@ class GemaScraper:
             probe_results = await probe_all_boards(domains=all_domains, concurrency=3)
             scrapeable, skipped = [], []
             for pr in probe_results:
+                # Phase 28 (Step 1): persist the probe's read to the strategy
+                # registry. UPGRADE-ONLY — the chromium probe may raise a board to
+                # camoufox when it sees Cloudflare, but must NEVER downgrade a board
+                # already on a stronger vector to direct (the probe can't tell
+                # "chromium blocked but firefox works", e.g. remoteok).
+                prot, probed_vector = _probe_to_strategy(pr.protection_type)
+                current = self._strategy.get(pr.domain).access_vector
+                vector = _resolve_vector(current, probed_vector)
+                self._strategy.update(
+                    pr.domain, protection=prot, access_vector=vector,
+                    last_probed=time.time(),
+                )
                 if pr.can_scrape_now or pr.protection_type == LOGIN_WALL:
                     # LOGIN_WALL domains are attempted — CookieVault may have cookies
                     scrapeable.append(pr.domain)
