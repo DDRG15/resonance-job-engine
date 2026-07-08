@@ -209,6 +209,23 @@ def _resolve_vector(current: AccessVector, probed: AccessVector) -> AccessVector
     return probed
 
 
+# Boards that need camoufox (Firefox) AND have a bespoke camoufox scraper today.
+# A GENERIC camoufox scraper (any board via selectors_registry) is Phase 28b —
+# until then, only these domains can actually be routed to camoufox.
+_CAMOUFOX_DOMAINS = frozenset({"remoteok.com"})
+
+
+def _camoufox_targets(all_domains: list[str], strategy) -> list[str]:
+    """Domains to route to the camoufox scraper: vector == camoufox AND a bespoke
+    scraper exists. Uses all_domains (NOT the post-probe scrapeable set) on
+    purpose — camoufox exists precisely to reach boards the chromium probe skips."""
+    return [
+        d for d in all_domains
+        if d in _CAMOUFOX_DOMAINS
+        and strategy.get(d).access_vector == AccessVector.CAMOUFOX
+    ]
+
+
 # =============================================================================
 # Circuit Breaker
 # =============================================================================
@@ -616,6 +633,13 @@ class GemaScraper:
         # Pre-scrape board probe — classify protection type, skip hard-blocked domains
         # Runs only if board_probe is importable (graceful degradation if missing deps)
         domains = all_domains
+
+        # Phase 28: seed known-camoufox boards so the probe's upgrade-only rule
+        # protects them (a chromium probe seeing 'open' must not downgrade them).
+        for _cf in _CAMOUFOX_DOMAINS:
+            if _cf in all_domains:
+                self._strategy.update(_cf, access_vector=AccessVector.CAMOUFOX)
+
         try:
             from board_probe import probe_all_boards, OPEN, RATE_LIMITED, LOGIN_WALL
             self._log("[PROBE] Running pre-scrape board reconnaissance...")
@@ -746,26 +770,45 @@ class GemaScraper:
                         )
                         self.summary.errors.append(str(result))
 
-                # camoufox — remoteok.com uses Firefox to bypass Cloudflare Bot Fight Mode.
-                # Runs after the Playwright gather while the DB writer task is still alive,
-                # so camoufox results flow through the same dedup + write pipeline.
-                if "remoteok.com" in domains:
+                # camoufox — route boards whose strategy vector is camoufox to the
+                # Firefox scraper (Cloudflare Bot Fight Mode bypass). Phase 28:
+                # data-driven from the registry, not a hardcoded domain, and over
+                # all_domains so a board the chromium probe SKIPPED still gets its
+                # camoufox pass. Results flow through the same dedup + write pipeline.
+                cf_scrapers = {}
+                cf_targets = _camoufox_targets(all_domains, self._strategy)
+                if cf_targets:
+                    from camoufox_scraper import scrape_remoteok
+                    cf_scrapers = {"remoteok.com": scrape_remoteok}
+                for cf_domain in cf_targets:
+                    scraper_fn = cf_scrapers.get(cf_domain)
+                    if scraper_fn is None:
+                        continue
                     try:
-                        from camoufox_scraper import scrape_remoteok
-                        self._log("[CAMOUFOX] Launching Firefox scraper for remoteok.com...")
-                        camoufox_jobs = await scrape_remoteok(
-                            self.config.target_titles, self.config
-                        )
-                        ingested = await self._ingest_external_jobs(
-                            camoufox_jobs, "remoteok.com"
-                        )
+                        self._log(f"[CAMOUFOX] Launching Firefox scraper for {cf_domain}...")
+                        camoufox_jobs = await scraper_fn(self.config.target_titles, self.config)
+                        ingested = await self._ingest_external_jobs(camoufox_jobs, cf_domain)
                         self._log(
-                            f"[CAMOUFOX] remoteok.com: {len(camoufox_jobs)} scraped, "
+                            f"[CAMOUFOX] {cf_domain}: {len(camoufox_jobs)} scraped, "
                             f"{ingested} new ingested."
                         )
                     except Exception as cf_exc:
-                        self._log(f"[CAMOUFOX] Skipped (error: {cf_exc}).")
-                        self.summary.errors.append(f"camoufox: {cf_exc}")
+                        self._log(f"[CAMOUFOX] {cf_domain} skipped (error: {cf_exc}).")
+                        self.summary.errors.append(f"camoufox {cf_domain}: {cf_exc}")
+
+                # Boards the probe classified camoufox but that lack a bespoke
+                # scraper today — recorded in the registry, awaiting Phase 28b.
+                needs_generic = [
+                    d for d in all_domains
+                    if self._strategy.get(d).access_vector == AccessVector.CAMOUFOX
+                    and d not in _CAMOUFOX_DOMAINS
+                ]
+                if needs_generic:
+                    self._log(
+                        f"[CAMOUFOX] {needs_generic} need camoufox but no scraper yet "
+                        f"(recipe recorded — Phase 28b)."
+                    )
+                    metrics.emit("camoufox_scraper_missing", len(needs_generic))
 
                 # Signal writer to flush and stop
                 await self._write_q.put(None)

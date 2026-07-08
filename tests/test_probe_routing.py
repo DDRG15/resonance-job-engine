@@ -60,3 +60,37 @@ def test_direct_stays_direct_when_probe_says_direct():
 
 def test_camoufox_stays_camoufox_when_probe_agrees():
     assert scraper._resolve_vector(AccessVector.CAMOUFOX, AccessVector.CAMOUFOX) == AccessVector.CAMOUFOX
+
+
+# ── camoufox routing target selection ────────────────────────────────────────
+
+class _StratStub:
+    def __init__(self, vectors):
+        self._v = vectors
+
+    def get(self, domain):
+        from types import SimpleNamespace
+        return SimpleNamespace(access_vector=self._v.get(domain, AccessVector.DIRECT))
+
+
+def test_camoufox_target_includes_remoteok_when_vector_camoufox():
+    strat = _StratStub({"remoteok.com": AccessVector.CAMOUFOX})
+    assert scraper._camoufox_targets(["remoteok.com", "himalayas.app"], strat) == ["remoteok.com"]
+
+
+def test_camoufox_target_excludes_remoteok_when_vector_direct():
+    strat = _StratStub({"remoteok.com": AccessVector.DIRECT})
+    assert scraper._camoufox_targets(["remoteok.com"], strat) == []
+
+
+def test_camoufox_target_excludes_board_without_bespoke_scraper():
+    # A board classified camoufox but not in _CAMOUFOX_DOMAINS has no scraper (28b).
+    strat = _StratStub({"builtin.com": AccessVector.CAMOUFOX})
+    assert scraper._camoufox_targets(["builtin.com"], strat) == []
+
+
+def test_camoufox_target_runs_even_if_probe_would_skip():
+    # all_domains includes probe-skipped boards on purpose — camoufox reaches
+    # what chromium can't. remoteok stays a target regardless of skip.
+    strat = _StratStub({"remoteok.com": AccessVector.CAMOUFOX})
+    assert "remoteok.com" in scraper._camoufox_targets(["remoteok.com"], strat)
