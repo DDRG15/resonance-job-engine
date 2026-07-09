@@ -85,13 +85,21 @@ def _save_keys(
 def render_setup_wizard() -> None:
     """Render the full-page first-run wizard. Call st.stop() immediately after in main.py."""
 
+    # B5 — mismo tema Pulse que la app principal: el primer pantallazo del beta
+    # tester ya se ve como GEMA, no como Streamlit default.
+    from ui_theme import inject_theme
+    inject_theme()
+
     st.markdown(
         """
         <style>
-        .wizard-header { font-size: 2.4rem; font-weight: 800; margin-bottom: 0.2rem; }
-        .wizard-sub { font-size: 1.1rem; color: #888; margin-bottom: 2rem; }
+        .wizard-header { font-size: 2.4rem; font-weight: 700; margin-bottom: 0.2rem;
+                         letter-spacing: -.01em; color: var(--gema-text, #E6EDF3); }
+        .wizard-header em { font-style: normal; color: var(--gema-accent, #2DD4BF); }
+        .wizard-sub { font-size: 1.05rem; color: var(--gema-muted, #8A97A6); margin-bottom: 2rem; }
         .step-label { font-size: 1rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.3rem; }
-        .step-hint { font-size: 0.85rem; color: #999; margin-bottom: 0.6rem; }
+        .step-hint { font-size: 0.85rem; color: var(--gema-faint, #5A6675); margin-bottom: 0.6rem; }
+        .step-hint a { color: var(--gema-accent, #2DD4BF); }
         </style>
         """,
         unsafe_allow_html=True,
@@ -100,7 +108,7 @@ def render_setup_wizard() -> None:
     _, col, _ = st.columns([1, 2, 1])
 
     with col:
-        st.markdown('<p class="wizard-header">💎 Welcome to GEMA</p>', unsafe_allow_html=True)
+        st.markdown('<p class="wizard-header">Welcome to <em>GEMA</em></p>', unsafe_allow_html=True)
         st.markdown(
             '<p class="wizard-sub">First-time setup — takes about 2 minutes.</p>',
             unsafe_allow_html=True,

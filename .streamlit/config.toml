@@ -1,0 +1,11 @@
+# GEMA — tema global "Pulse" (B5). Solo presentación; cero cambios de lógica.
+# Los tokens completos viven en ui_theme.py — este archivo cubre lo que
+# Streamlit pinta antes de que inject_theme() corra (flash del primer render).
+
+[theme]
+base = "dark"
+primaryColor = "#2DD4BF"
+backgroundColor = "#0B0F14"
+secondaryBackgroundColor = "#111823"
+textColor = "#E6EDF3"
+font = "sans serif"

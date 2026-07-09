@@ -130,6 +130,16 @@ if needs_setup():
     render_setup_wizard()
     st.stop()
 
+# B5 — capa visual "Pulse". Presentación pura: solo CSS + fragmentos HTML.
+from ui_theme import (  # noqa: E402
+    inject_theme,
+    header_html,
+    brand_html,
+    stat_tiles_html,
+    job_card_html,
+)
+inject_theme()
+
 # =============================================================================
 # Session State Initialization
 # =============================================================================
@@ -195,7 +205,7 @@ def _reset_session() -> None:
 # =============================================================================
 
 with st.sidebar:
-    st.title("💎 GEMA Control Panel")
+    st.markdown(brand_html(), unsafe_allow_html=True)
     st.divider()
 
     # ── Config Warnings ───────────────────────────────────────────────────────
@@ -378,7 +388,7 @@ with st.sidebar:
     st.divider()
 
     # ── God Mode ──────────────────────────────────────────────────────────────
-    with st.expander("🔴 God Mode (Advanced Selectors)"):
+    with st.expander("God Mode — Advanced Selectors"):
         st.caption(
             "Override automatic selectors when a job board changes its HTML structure. "
             "Vol 1.4 Risk 2.3 mitigation."
@@ -391,7 +401,7 @@ with st.sidebar:
     st.divider()
 
     # ── Kill Switch ───────────────────────────────────────────────────────────
-    if st.button("🔴 Reset Session (Kill Switch)", use_container_width=True):
+    if st.button("Reset Session — Kill Switch", use_container_width=True):
         _reset_session()
 
     # ── Selector Staleness Warnings ───────────────────────────────────────────
@@ -418,8 +428,27 @@ with st.sidebar:
 # Main Panel
 # =============================================================================
 
-st.title("💎 GEMA — Intelligent Talent Acquisition")
-st.caption("SRE-grade job discovery pipeline | Surface-only extraction | Idempotent")
+# Header Pulse — saludo por hora local + card de Live Status con datos reales
+# (boards registrados, proveedores LLM configurados, selectores stale, scheduler).
+_providers_configured = sum(bool(k.strip()) for k in (
+    config.GROQ_API_KEY, config.GEMINI_API_KEY, config.OPENROUTER_API_KEY,
+    config.COHERE_API_KEY, config.CEREBRAS_API_KEY, config.SAMBANOVA_API_KEY,
+    config.MISTRAL_API_KEY,
+))
+_sched_line = (
+    f"próxima corrida: {sched_svc.get_next_run_time()}"
+    if sched_svc.enabled else "scheduler en pausa"
+)
+st.markdown(
+    header_html(
+        boards=len(selectors_registry.SELECTORS),
+        providers=_providers_configured,
+        stale_count=len(stale),
+        nominal=not warnings and not stale,
+        sched_line=_sched_line,
+    ),
+    unsafe_allow_html=True,
+)
 st.divider()
 
 # =============================================================================
@@ -443,9 +472,10 @@ col_parse, col_save = st.columns([3, 1])
 
 with col_parse:
     parse_btn = st.button(
-        "🧠 Parse with AI",
+        "Parse with AI",
         disabled=st.session_state.is_running or not user_prompt.strip(),
         use_container_width=True,
+        type="primary",
     )
 
 with col_save:
@@ -548,14 +578,14 @@ if st.session_state.search_config:
 
     with col_confirm:
         confirm_btn = st.button(
-            "✅ Confirm & Start Extraction",
+            "Confirm & Start Extraction",
             disabled=st.session_state.is_running,
             use_container_width=True,
             type="primary",
         )
 
     with col_cancel:
-        if st.button("✏️ Re-parse", use_container_width=True):
+        if st.button("Re-parse", use_container_width=True):
             st.session_state.search_config   = None
             st.session_state.config_json_str = ""
             st.session_state.audit_report    = None   # clear stale audit
@@ -743,14 +773,20 @@ if st.session_state.scrape_results:
     st.divider()
     st.subheader("Phase 4 — Results")
 
-    # Summary metrics
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("🟢 Tier 1", len(tier1), help="80–100% match — apply immediately")
-    c2.metric("🟡 Tier 2", len(tier2), help="50–79% match — review carefully")
-    c3.metric("🔴 Tier 3", len(tier3), help="<50% match — recycle bin")
-    c4.metric("🟣 Tier 4", len(tier4), help="Text salary — manual review required")
-    if summary and summary.duration_seconds:
-        c5.metric("⏱ Duration", f"{summary.duration_seconds:.0f}s")
+    # Summary — stat tiles Pulse (mismos datos que los st.metric que reemplazan)
+    st.markdown(
+        stat_tiles_html(
+            tier1=len(tier1),
+            tier2=len(tier2),
+            tier3=len(tier3),
+            tier4=len(tier4),
+            duration_seconds=(
+                summary.duration_seconds
+                if summary and summary.duration_seconds else None
+            ),
+        ),
+        unsafe_allow_html=True,
+    )
 
     # AUDIT #1 fail-loud: surface run errors in the UI, not just in a summary
     # field nobody reads. An empty scrape "looks fine" without this.
@@ -760,35 +796,41 @@ if st.session_state.scrape_results:
             for _err in summary.errors:
                 st.code(_err, language="")
 
-    def _render_tier(tiered_jobs, label, color_emoji, show_score=True):
+    def _render_tier(tiered_jobs, label, tier_class, show_score=True):
+        # Presentación pura: misma data que las filas st.columns que reemplaza,
+        # ahora como job cards HTML (ui_theme.job_card_html). tier_class colorea
+        # la barra de score (t1 teal / t2 ámbar / t3 rojo).
         if not tiered_jobs:
             return
-        with st.expander(f"{color_emoji} {label} ({len(tiered_jobs)} jobs)", expanded=True):
+        with st.expander(f"{label} ({len(tiered_jobs)} jobs)", expanded=True):
             for tj in tiered_jobs:
-                with st.container():
-                    cols = st.columns([3, 2, 1, 1])
-                    cols[0].markdown(f"**[{tj.job.title}]({tj.job.url})**")
-                    cols[1].write(tj.job.company)
-                    cols[2].write(tj.job.salary_raw or "—")
-                    if show_score and tj.match_score >= 0:
-                        cols[3].progress(
-                            tj.match_score / 100,
-                            text=f"{tj.match_score}%",
-                        )
-                    else:
-                        cols[3].caption("Manual")
-                    if tj.match_reasons or tj.miss_reasons:
-                        with st.expander("Details", expanded=False):
-                            if tj.match_reasons:
-                                st.success("✓ " + " | ".join(tj.match_reasons))
-                            if tj.miss_reasons:
-                                st.warning("✗ " + " | ".join(tj.miss_reasons))
-                    st.divider()
+                meta = tj.job.source_domain + (
+                    f" · {tj.job.location_raw}" if tj.job.location_raw else ""
+                )
+                st.markdown(
+                    job_card_html(
+                        title=tj.job.title,
+                        url=tj.job.url,
+                        company=tj.job.company,
+                        salary=tj.job.salary_raw,
+                        meta=meta,
+                        score=tj.match_score,
+                        tier_class=tier_class,
+                        show_score=show_score,
+                    ),
+                    unsafe_allow_html=True,
+                )
+                if tj.match_reasons or tj.miss_reasons:
+                    with st.expander("Details", expanded=False):
+                        if tj.match_reasons:
+                            st.success("✓ " + " | ".join(tj.match_reasons))
+                        if tj.miss_reasons:
+                            st.warning("✗ " + " | ".join(tj.miss_reasons))
 
-    _render_tier(tier1, "Tier 1 — High Priority",          "🟢")
-    _render_tier(tier2, "Tier 2 — Explore",                "🟡")
-    _render_tier(tier3, "Tier 3 — Recycle Bin",            "🔴")
-    _render_tier(tier4, "Tier 4 — Manual Review (Salary)", "🟣", show_score=False)
+    _render_tier(tier1, "Tier 1 — High Priority",          "t1")
+    _render_tier(tier2, "Tier 2 — Explore",                "t2")
+    _render_tier(tier3, "Tier 3 — Recycle Bin",            "t3")
+    _render_tier(tier4, "Tier 4 — Manual Review (Salary)", "t4", show_score=False)
 
     # ── Excel Export ──────────────────────────────────────────────────────────
     all_tiered = (
@@ -817,7 +859,7 @@ if st.session_state.scrape_results:
         buf.seek(0)
         run_id_short = st.session_state.get("run_id", "gema")[:8]
         st.download_button(
-            label="📥 Download Results as Excel",
+            label="Download Results (Excel)",
             data=buf,
             file_name=f"gema_results_{run_id_short}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
