@@ -137,3 +137,7 @@ legacy/
 # Internal project maps + provider reference â€” local context, not for GitHub
 INVENTORY.md
 LLM_PROVIDERS.md
+
+# B6 — frontend React
+node_modules/
+frontend/dist/
