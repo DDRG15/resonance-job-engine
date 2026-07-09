@@ -141,3 +141,6 @@ LLM_PROVIDERS.md
 # B6 — frontend React
 node_modules/
 frontend/dist/
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig.json
