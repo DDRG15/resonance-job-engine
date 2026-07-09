@@ -137,6 +137,7 @@ from ui_theme import (  # noqa: E402
     brand_html,
     stat_tiles_html,
     job_card_html,
+    panel_head_html,
 )
 inject_theme()
 
@@ -219,7 +220,7 @@ with st.sidebar:
     st.divider()
 
     # ── Your Profile (Ephemeral CV Upload) ───────────────────────────────────
-    st.subheader("Your Profile")
+    st.subheader("Tu Perfil")
     cv_file = st.file_uploader(
         "Upload CV (PDF / DOCX / TXT / MD)",
         type=["pdf", "docx", "txt", "md"],
@@ -292,7 +293,7 @@ with st.sidebar:
     st.divider()
 
     # ── TTL Slider ────────────────────────────────────────────────────────────
-    st.subheader("Delta Load Settings")
+    st.subheader("Delta Load — TTL")
     ttl_hours = st.slider(
         "Ignore jobs seen within (hours)",
         min_value=0, max_value=168, value=config.DEFAULT_TTL_HOURS, step=1,
@@ -455,35 +456,36 @@ st.divider()
 # Phase 1: Command Center — Natural Language Input
 # =============================================================================
 
-st.subheader("Phase 1 — Command Center")
-st.caption("Describe your ideal job in plain language. GEMA handles the rest.")
+with st.container(border=True):
+    st.markdown(panel_head_html("Command Center", "Fase 1"), unsafe_allow_html=True)
+    st.caption("Describí tu trabajo ideal en lenguaje natural. GEMA se encarga del resto.")
 
-user_prompt = st.text_area(
-    label="Natural Language Search Prompt",
-    height=120,
-    placeholder=(
-        'Example: "I need Senior SDET or Automation QA roles, 100% remote, '
-        'minimum $90k/year. Exclude contract and hybrid positions."'
-    ),
-    help="Be specific about titles, salary expectations, remote preference, and exclusions.",
-)
-
-col_parse, col_save = st.columns([3, 1])
-
-with col_parse:
-    parse_btn = st.button(
-        "Parse with AI",
-        disabled=st.session_state.is_running or not user_prompt.strip(),
-        use_container_width=True,
-        type="primary",
-    )
-
-with col_save:
-    vault_label = st.text_input(
-        "Save to Vault as",
-        placeholder="Label (optional)",
+    user_prompt = st.text_area(
+        label="Prompt de búsqueda en lenguaje natural",
+        height=120,
+        placeholder=(
+            'Ejemplo: "Necesito roles Senior SDET o Automation QA, 100% remoto, '
+            'mínimo $90k/año. Excluir posiciones contract e híbridas."'
+        ),
+        help="Sé específico con títulos, expectativa salarial, preferencia remota y exclusiones.",
         label_visibility="collapsed",
     )
+
+    col_parse, col_save = st.columns([3, 1])
+
+    with col_parse:
+        parse_btn = st.button(
+            "Parse with AI",
+            disabled=st.session_state.is_running or not user_prompt.strip(),
+            type="primary",
+        )
+
+    with col_save:
+        vault_label = st.text_input(
+            "Save to Vault as",
+            placeholder="Guardar en Vault (opcional)",
+            label_visibility="collapsed",
+        )
 
 if parse_btn and user_prompt.strip():
     with st.spinner("Contacting LLM engine..."):
@@ -528,68 +530,71 @@ if parse_btn and user_prompt.strip():
 
 if st.session_state.search_config:
     st.divider()
-    st.subheader("Phase 2 — Human-in-the-Loop Validation")
-    st.caption(
-        "Review the extracted search config below. "
-        "Edit directly if the AI misinterpreted your request, then confirm to proceed."
-    )
-
-    # ── AI Auditor Second Opinion ─────────────────────────────────────────────
-    # Displayed ABOVE the editable JSON so the user reads the cross-audit
-    # before deciding whether to edit or confirm.
-    audit_report = st.session_state.get("audit_report")
-    if audit_report:
-        audit_lower = audit_report.lower()
-        is_skip    = audit_lower.startswith("audit skipped")
-        is_clean   = "no issues detected" in audit_lower or "looks accurate" in audit_lower
-        is_unavail = audit_lower.startswith("audit unavailable")
-
-        if is_skip or is_unavail:
-            # Neutral info — no second LLM available or call failed
-            st.info(
-                f"🤖 **AI Auditor:** {audit_report}",
-                icon="ℹ️",
-            )
-        elif is_clean:
-            # Both LLMs agree — green light for the user
-            st.success(
-                f"✅ **AI Auditor (Cross-Check):** {audit_report}",
-            )
-        else:
-            # Auditor flagged something — show as warning, not error.
-            # The user is in full control: they can edit the JSON below
-            # or proceed anyway if the auditor's concern is irrelevant.
-            st.warning(
-                f"⚠️ **AI Auditor (Cross-Check):** {audit_report}\n\n"
-                f"Review the JSON below and correct any issues before confirming.",
-            )
-
-    # ── Editable JSON Config ──────────────────────────────────────────────────
-    # Bug B3 fix: st.text_area for JSON editing (not st.data_editor which
-    # requires flat DataFrames and cannot handle nested dicts).
-    edited_json = st.text_area(
-        "Search Configuration (JSON — editable)",
-        value=st.session_state.config_json_str,
-        height=220,
-        help="Modify any field. The system re-validates via Pydantic before scraping starts.",
-    )
-
-    col_confirm, col_cancel = st.columns([2, 1])
-
-    with col_confirm:
-        confirm_btn = st.button(
-            "Confirm & Start Extraction",
-            disabled=st.session_state.is_running,
-            use_container_width=True,
-            type="primary",
+    with st.container(border=True):
+        st.markdown(
+            panel_head_html("Validación human-in-the-loop", "Fase 2"),
+            unsafe_allow_html=True,
+        )
+        st.caption(
+            "Revisá la configuración extraída. Editala directo si la IA malinterpretó "
+            "tu pedido, y confirmá para arrancar."
         )
 
-    with col_cancel:
-        if st.button("Re-parse", use_container_width=True):
-            st.session_state.search_config   = None
-            st.session_state.config_json_str = ""
-            st.session_state.audit_report    = None   # clear stale audit
-            st.rerun()
+        # ── AI Auditor Second Opinion ─────────────────────────────────────────
+        # Displayed ABOVE the editable JSON so the user reads the cross-audit
+        # before deciding whether to edit or confirm.
+        audit_report = st.session_state.get("audit_report")
+        if audit_report:
+            audit_lower = audit_report.lower()
+            is_skip    = audit_lower.startswith("audit skipped")
+            is_clean   = "no issues detected" in audit_lower or "looks accurate" in audit_lower
+            is_unavail = audit_lower.startswith("audit unavailable")
+
+            if is_skip or is_unavail:
+                # Neutral info — no second LLM available or call failed
+                st.info(
+                    f"**AI Auditor:** {audit_report}",
+                    icon="ℹ️",
+                )
+            elif is_clean:
+                # Both LLMs agree — green light for the user
+                st.success(
+                    f"**AI Auditor (Cross-Check):** {audit_report}",
+                )
+            else:
+                # Auditor flagged something — show as warning, not error.
+                # The user is in full control: they can edit the JSON below
+                # or proceed anyway if the auditor's concern is irrelevant.
+                st.warning(
+                    f"**AI Auditor (Cross-Check):** {audit_report}\n\n"
+                    f"Review the JSON below and correct any issues before confirming.",
+                )
+
+        # ── Editable JSON Config ──────────────────────────────────────────────
+        # Bug B3 fix: st.text_area for JSON editing (not st.data_editor which
+        # requires flat DataFrames and cannot handle nested dicts).
+        edited_json = st.text_area(
+            "Search Configuration (JSON — editable)",
+            value=st.session_state.config_json_str,
+            height=220,
+            help="Modify any field. The system re-validates via Pydantic before scraping starts.",
+        )
+
+        col_confirm, col_cancel = st.columns([2, 1])
+
+        with col_confirm:
+            confirm_btn = st.button(
+                "Confirm & Start Extraction",
+                disabled=st.session_state.is_running,
+                type="primary",
+            )
+
+        with col_cancel:
+            if st.button("Re-parse"):
+                st.session_state.search_config   = None
+                st.session_state.config_json_str = ""
+                st.session_state.audit_report    = None   # clear stale audit
+                st.rerun()
 
     if confirm_btn:
         try:
@@ -619,7 +624,10 @@ if st.session_state.search_config:
 
 if st.session_state.is_running:
     st.divider()
-    st.subheader("Phase 3 — Pipeline Running")
+    st.markdown(
+        panel_head_html("Consola del pipeline", "Fase 3 · corriendo"),
+        unsafe_allow_html=True,
+    )
 
     log_placeholder = st.empty()
     progress_placeholder = st.empty()
@@ -771,7 +779,7 @@ if st.session_state.scrape_results:
     summary = st.session_state.summary
 
     st.divider()
-    st.subheader("Phase 4 — Results")
+    st.markdown(panel_head_html("Resultados", "Fase 4"), unsafe_allow_html=True)
 
     # Summary — stat tiles Pulse (mismos datos que los st.metric que reemplazan)
     st.markdown(
@@ -872,5 +880,5 @@ if st.session_state.scrape_results:
 
 if st.session_state.logs:
     st.divider()
-    st.subheader("Live Engine Log")
+    st.markdown(panel_head_html("Live Engine Log"), unsafe_allow_html=True)
     st.code("\n".join(st.session_state.logs[-60:]), language="")

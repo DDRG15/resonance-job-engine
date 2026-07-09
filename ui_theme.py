@@ -46,8 +46,26 @@ _THEME_CSS = """
   --gema-mono: "Cascadia Code", Consolas, ui-monospace, monospace;
 }
 
-/* ── Chrome de Streamlit ── */
+/* ── Chrome de Streamlit — ocultar lo que no es GEMA ── */
 [data-testid="stHeader"] { background: rgba(11, 15, 20, .85); }
+#MainMenu, [data-testid="stMainMenu"], footer,
+[data-testid="stToolbar"], [data-testid="stDecoration"],
+[data-testid="stAppDeployButton"], [data-testid="stStatusWidget"] {
+  display: none !important;
+}
+
+/* ── Densidad: menos aire muerto que el default de Streamlit ── */
+.block-container { padding-top: 2.2rem; padding-bottom: 3rem; max-width: 1160px; }
+[data-testid="stVerticalBlock"] { gap: .65rem; }
+hr { margin: 1.1rem 0 !important; }
+
+/* ── st.container(border=True) como panel Pulse ── */
+[data-testid="stVerticalBlockBorderWrapper"] {
+  background: var(--gema-surface);
+  border: 1px solid var(--gema-border) !important;
+  border-radius: 14px;
+  padding: 10px 14px;
+}
 [data-testid="stSidebar"] {
   background: var(--gema-surface2);
   border-right: 1px solid var(--gema-border);
@@ -132,8 +150,45 @@ code { font-family: var(--gema-mono) !important; }
 }
 .stMultiSelect [data-baseweb="tag"] span { color: var(--gema-accent); }
 
-/* ── Alerts redondeados ── */
+/* ── File uploader (CV) integrado al tema ── */
+[data-testid="stFileUploaderDropzone"] {
+  background: var(--gema-surface);
+  border: 1px dashed var(--gema-border);
+  border-radius: 10px;
+}
+[data-testid="stFileUploaderDropzone"] button { border-radius: 8px; }
+
+/* ── Alerts: tinte oscuro por severidad (adiós bloques chillones) ── */
 [data-testid="stAlert"] { border-radius: 10px; }
+[data-testid="stAlert"]:has([data-testid="stAlertContentWarning"]) {
+  background: rgba(217, 119, 6, .08);
+  border: 1px solid rgba(217, 119, 6, .4);
+}
+[data-testid="stAlert"]:has([data-testid="stAlertContentSuccess"]) {
+  background: var(--gema-accent-08);
+  border: 1px solid var(--gema-accent-16);
+}
+[data-testid="stAlert"]:has([data-testid="stAlertContentError"]) {
+  background: rgba(220, 38, 38, .08);
+  border: 1px solid rgba(220, 38, 38, .4);
+}
+[data-testid="stAlert"]:has([data-testid="stAlertContentInfo"]) {
+  background: var(--gema-surface);
+  border: 1px solid var(--gema-border);
+}
+
+/* ── Panel head: título + eyebrow de fase ── */
+.gema-panel-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  margin: 2px 0 0;
+}
+.gema-panel-head h3 {
+  margin: 0; font-size: 15.5px; font-weight: 600; color: var(--gema-text);
+}
+.gema-panel-head .ph {
+  font-family: var(--gema-mono); font-size: 10.5px; color: var(--gema-accent);
+  letter-spacing: .12em; text-transform: uppercase;
+}
 
 /* ══ Componentes propios (header, tiles, job cards) ══ */
 .gema-topbar {
@@ -302,6 +357,14 @@ def header_html(
         f'<div class="big">{boards} boards · {providers} LLM en cadena</div>'
         f'<div class="sub">{stale_count} selectores stale · {html.escape(sched_line)}</div>'
         '</div></div>'
+    )
+
+
+def panel_head_html(title: str, phase: str = "") -> str:
+    """Cabecera de panel Pulse: título compacto + eyebrow de fase a la derecha."""
+    ph = f'<span class="ph">{html.escape(phase)}</span>' if phase else ''
+    return (
+        f'<div class="gema-panel-head"><h3>{html.escape(title)}</h3>{ph}</div>'
     )
 
 
