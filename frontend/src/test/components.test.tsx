@@ -1,0 +1,158 @@
+import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { render, screen, fireEvent } from '@testing-library/react'
+import Header from '../components/Header'
+import Results from '../components/Results'
+import SchedulerPanel from '../components/SchedulerPanel'
+import StatTiles from '../components/StatTiles'
+import type { ResultsResponse, SchedulerState, Status, TieredJobDto } from '../types'
+
+function makeJob(over: Partial<TieredJobDto['job']> = {}, tj: Partial<TieredJobDto> = {}): TieredJobDto {
+  return {
+    job: {
+      title: 'Senior Python Backend Engineer',
+      company: 'Deel',
+      url: 'https://example.com/j1',
+      salary_raw: '$120k-150k',
+      location_raw: 'remoto worldwide',
+      source_domain: 'remoteok.com',
+      scraped_at: '2026-07-09T12:00:00Z',
+      ...over,
+    },
+    match_score: 92,
+    tier: 'Tier 1',
+    match_reasons: ['senior backend'],
+    miss_reasons: [],
+    ...tj,
+  }
+}
+
+const RESULTS: ResultsResponse = {
+  run_id: 'abc',
+  is_running: false,
+  has_results: true,
+  summary: {
+    run_id: 'abc', total_urls_found: 3, skipped_seen: 0, skipped_ttl: 0,
+    new_processed: 3, tier1_count: 1, tier2_count: 0, tier3_count: 0,
+    domains_aborted: [], errors: ['remoteok.com aborted: timeout'],
+    duration_seconds: 214,
+  },
+  tiers: {
+    tier1: [makeJob()],
+    tier2: [],
+    tier3: [],
+    tier4: [
+      makeJob(
+        { title: 'Backend Developer', company: 'Turing', salary_raw: 'Competitive', url: 'https://example.com/j2' },
+        { match_score: -1, tier: 'Tier 4', match_reasons: [], miss_reasons: [] },
+      ),
+    ],
+  },
+}
+
+const STATUS: Status = {
+  boards: 17,
+  stale_selectors: ['remoteok.com'],
+  providers_configured: 7,
+  warnings: [],
+  nominal: false,
+  scheduler: { enabled: false, next_run: null },
+  is_running: false,
+  has_results: false,
+  needs_setup: false,
+  ttl_hours: 0,
+  integrations: { notion: false, sheets: false },
+}
+
+const SCHED: SchedulerState = {
+  enabled: true,
+  mode: 'cron',
+  interval_hours: 4,
+  cron_days: ['tue', 'fri', 'sat'],
+  cron_hour: 8,
+  is_running: false,
+  next_run: 'vie 10 jul 08:00',
+  last_run: 'No runs yet',
+  has_config: true,
+}
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => SCHED,
+      text: async () => '',
+    }),
+  )
+})
+
+describe('Header', () => {
+  it('muestra los datos reales del live status', () => {
+    render(<Header status={STATUS} />)
+    expect(screen.getByText(/17 boards · 7 LLM en cadena/)).toBeInTheDocument()
+    expect(screen.getByText(/1 selectores stale/)).toBeInTheDocument()
+    expect(screen.getByText('Atención')).toBeInTheDocument()
+  })
+})
+
+describe('StatTiles', () => {
+  it('renderiza conteos por tier y duración', () => {
+    render(<StatTiles results={RESULTS} />)
+    expect(screen.getByText('Tier 1')).toBeInTheDocument()
+    expect(screen.getByText('Tier 4')).toBeInTheDocument()
+    expect(screen.getByText('214')).toBeInTheDocument()
+  })
+})
+
+describe('Results', () => {
+  it('renderiza el job card con link real y score', () => {
+    render(<Results results={RESULTS} />)
+    const link = screen.getByRole('link', { name: 'Senior Python Backend Engineer' })
+    expect(link).toHaveAttribute('href', 'https://example.com/j1')
+    expect(screen.getByText('92%')).toBeInTheDocument()
+  })
+
+  it('marca MANUAL los jobs con salario en texto (Tier 4)', () => {
+    render(<Results results={RESULTS} />)
+    expect(screen.getByText('MANUAL')).toBeInTheDocument()
+  })
+
+  it('grita los errores del run (fail-loud, AUDIT #1)', () => {
+    render(<Results results={RESULTS} />)
+    expect(screen.getByText(/1 error\(es\) durante el run/)).toBeInTheDocument()
+    expect(screen.getByText(/remoteok.com aborted: timeout/)).toBeInTheDocument()
+  })
+})
+
+describe('SchedulerPanel (cron B4 — no-negociable)', () => {
+  it('muestra los días del cron y hace PUT al togglear un día', () => {
+    render(<SchedulerPanel scheduler={SCHED} hasConfig={true} onChanged={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'L' }))
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/scheduler',
+      expect.objectContaining({ method: 'PUT' }),
+    )
+    const body = JSON.parse(
+      (vi.mocked(fetch).mock.calls[0][1] as RequestInit).body as string,
+    )
+    expect(body.cron_days).toContain('mon')
+    expect(body.cron_days).toContain('tue')
+    expect(body.retain_cv).toBe(false)
+  })
+
+  it('deshabilita los controles sin SearchConfig confirmado', () => {
+    render(
+      <SchedulerPanel
+        scheduler={{ ...SCHED, enabled: false }}
+        hasConfig={false}
+        onChanged={() => {}}
+      />,
+    )
+    // En modo cron hay 2 switches (scraping automático + retener CV) — todos
+    // deben estar deshabilitados sin config confirmada.
+    for (const sw of screen.getAllByRole('switch')) {
+      expect(sw).toBeDisabled()
+    }
+    expect(screen.getByRole('button', { name: 'M' })).toBeDisabled()
+  })
+})

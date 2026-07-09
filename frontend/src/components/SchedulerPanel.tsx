@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { putScheduler } from '../api'
 import type { SchedulerState } from '../types'
 
@@ -27,13 +27,17 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
   const [retainCv, setRetainCv] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Patrón "adjusting state when a prop changes" — el server confirma el
+  // estado real tras cada PUT y este bloque re-sincroniza sin useEffect.
+  const [lastScheduler, setLastScheduler] = useState(scheduler)
+  if (scheduler !== lastScheduler) {
+    setLastScheduler(scheduler)
     setEnabled(scheduler.enabled)
     setMode(scheduler.mode)
     setIntervalHours(scheduler.interval_hours)
     setDays(scheduler.cron_days)
     setHour(scheduler.cron_hour)
-  }, [scheduler])
+  }
 
   async function apply(next: {
     enabled?: boolean; mode?: 'interval' | 'cron'; interval_hours?: number

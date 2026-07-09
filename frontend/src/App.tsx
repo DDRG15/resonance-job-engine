@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getCvProfile, getRegistryStats, getResults, getScheduler, getStatus, getVault,
   loadVaultEntry,
@@ -11,65 +12,49 @@ import SetupWizard from './components/SetupWizard'
 import Sidebar from './components/Sidebar'
 import StatTiles from './components/StatTiles'
 import ValidationPanel from './components/ValidationPanel'
-import type {
-  CvProfile, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
-  SearchConfigDto, Status, VaultEntry,
-} from './types'
+import type { ParseResponse, ResultsResponse, SearchConfigDto } from './types'
 
 export default function App() {
-  const [status, setStatus] = useState<Status | null>(null)
-  const [stats, setStats] = useState<RegistryStats | null>(null)
-  const [vault, setVault] = useState<VaultEntry[]>([])
-  const [scheduler, setScheduler] = useState<SchedulerState | null>(null)
-  const [profile, setProfile] = useState<CvProfile | null>(null)
+  const qc = useQueryClient()
+
+  // Estado servidor — cacheado e invalidado explícitamente tras cada acción
+  const statusQ = useQuery({ queryKey: ['status'], queryFn: getStatus })
+  const statsQ = useQuery({ queryKey: ['registry'], queryFn: getRegistryStats })
+  const vaultQ = useQuery({ queryKey: ['vault'], queryFn: getVault })
+  const schedQ = useQuery({ queryKey: ['scheduler'], queryFn: getScheduler })
+  const cvQ = useQuery({ queryKey: ['cv'], queryFn: getCvProfile })
+
+  // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
   const [auditReport, setAuditReport] = useState<string | null>(null)
   const [ttlHours, setTtlHours] = useState(0)
   const [runId, setRunId] = useState<string | null>(null)
   const [results, setResults] = useState<ResultsResponse | null>(null)
-  const [backendDown, setBackendDown] = useState(false)
 
-  const refresh = useCallback(async () => {
-    try {
-      const [s, r, v, sch, cv] = await Promise.all([
-        getStatus(), getRegistryStats(), getVault(), getScheduler(), getCvProfile(),
-      ])
-      setStatus(s)
-      setStats(r)
-      setVault(v.entries)
-      setScheduler(sch)
-      setProfile(cv.profile)
-      setBackendDown(false)
-    } catch {
-      setBackendDown(true)
-    }
-  }, [])
+  const status = statusQ.data ?? null
+  const backendDown = statusQ.isError
 
-  useEffect(() => {
-    void refresh()
-  }, [refresh])
+  // TTL: se inicializa del primer status; después el slider es la fuente
+  // de verdad (setState durante render — patrón react.dev, sin useEffect).
+  const [ttlInitialized, setTtlInitialized] = useState(false)
+  if (status && !ttlInitialized) {
+    setTtlInitialized(true)
+    setTtlHours(status.ttl_hours)
+  }
 
-  useEffect(() => {
-    if (status) setTtlHours(status.ttl_hours)
-    // solo al primer status — el slider es fuente de verdad después
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status === null])
+  const refresh = () => void qc.invalidateQueries()
 
   function handleParsed(result: ParseResponse) {
     setConfig(result.config)
     setAuditReport(result.audit_report)
-    void refresh()
+    refresh()
   }
 
   async function handleLoadVault(vaultId: string) {
-    try {
-      const { config: cfg } = await loadVaultEntry(vaultId)
-      setConfig(cfg)
-      setAuditReport(null)
-      void refresh()
-    } catch {
-      setBackendDown(true)
-    }
+    const { config: cfg } = await loadVaultEntry(vaultId)
+    setConfig(cfg)
+    setAuditReport(null)
+    refresh()
   }
 
   function handleScrapeStarted(id: string) {
@@ -78,12 +63,8 @@ export default function App() {
   }
 
   async function handleRunDone() {
-    try {
-      setResults(await getResults())
-    } catch {
-      setBackendDown(true)
-    }
-    void refresh()
+    setResults(await getResults())
+    refresh()
   }
 
   function handleReset() {
@@ -91,26 +72,26 @@ export default function App() {
     setAuditReport(null)
     setRunId(null)
     setResults(null)
-    void refresh()
+    refresh()
   }
 
   if (status?.needs_setup) {
-    return <SetupWizard onDone={() => void refresh()} />
+    return <SetupWizard onDone={refresh} />
   }
 
   return (
     <div className="app">
       <Sidebar
         status={status}
-        stats={stats}
-        vault={vault}
-        scheduler={scheduler}
-        profile={profile}
+        stats={statsQ.data ?? null}
+        vault={vaultQ.data?.entries ?? []}
+        scheduler={schedQ.data ?? null}
+        profile={cvQ.data?.profile ?? null}
         hasConfig={config !== null}
         ttlHours={ttlHours}
         onTtlChange={setTtlHours}
-        onLoadVault={handleLoadVault}
-        onChanged={() => void refresh()}
+        onLoadVault={(id) => void handleLoadVault(id)}
+        onChanged={refresh}
         onKill={handleReset}
       />
       <main>
@@ -136,7 +117,9 @@ export default function App() {
             }}
           />
         )}
-        {runId && <PipelineConsole runId={runId} onDone={() => void handleRunDone()} key={runId} />}
+        {runId && (
+          <PipelineConsole runId={runId} onDone={() => void handleRunDone()} key={runId} />
+        )}
         {results && <Results results={results} />}
       </main>
     </div>

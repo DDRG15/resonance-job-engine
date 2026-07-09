@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { postScrape, putConfig } from '../api'
 import type { SearchConfigDto } from '../types'
 
@@ -21,10 +21,14 @@ export default function ValidationPanel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Patrón "adjusting state when a prop changes" (react.dev) — setState
+  // durante el render es legal y no cascadea; un useEffect acá sí.
+  const [lastConfig, setLastConfig] = useState(config)
+  if (config !== lastConfig) {
+    setLastConfig(config)
     setJsonText(JSON.stringify(config, null, 2))
     setError(null)
-  }, [config])
+  }
 
   const clean =
     auditReport !== null &&
