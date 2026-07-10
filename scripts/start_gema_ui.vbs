@@ -36,4 +36,17 @@ If Not up Then
     Next
 End If
 
-shell.Run "http://localhost:8000", 1, False
+' F16 v2 (el usuario): ventana de APLICACIÓN, no pestaña de navegador.
+' El modo --app abre una ventana standalone sin barra de URL ni pestañas,
+' con su propia entrada en la barra de tareas. Edge viene con Windows;
+' Chrome como alternativa; navegador normal como último recurso.
+Dim edge, chrome
+edge = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+If fso.FileExists(edge) Then
+    shell.Run """" & edge & """ --app=http://localhost:8000", 1, False
+ElseIf fso.FileExists(chrome) Then
+    shell.Run """" & chrome & """ --app=http://localhost:8000", 1, False
+Else
+    shell.Run "http://localhost:8000", 1, False
+End If
