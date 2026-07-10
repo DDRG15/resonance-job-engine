@@ -1,12 +1,36 @@
 import { useState } from 'react'
 import { postParse } from '../api'
-import type { ParseResponse } from '../types'
+import type { CvProfile, ParseResponse } from '../types'
 
 interface Props {
+  profile: CvProfile | null
   onParsed: (result: ParseResponse) => void
 }
 
-export default function CommandCenter({ onParsed }: Props) {
+// F10 (idea de el usuario, live test 07-10): generar el prompt desde el perfil del
+// CV — un clic, y el humano lo revisa/edita antes de parsear. Human-in-the-
+// loop intacto: el botón solo PRE-LLENA el textarea, jamás dispara la
+// búsqueda solo.
+function promptFromProfile(p: CvProfile): string {
+  const roles = (p.role ?? '')
+    .split(/\s*[|·/]\s*/)
+    .map((r) => r.trim())
+    .filter(Boolean)
+  const skills = (p.core_skills ?? []).slice(0, 10)
+  const parts = [
+    `Necesito posiciones 100% remotas de: ${roles.join(', ') || 'Software Engineer'}.`,
+  ]
+  if (skills.length > 0) {
+    parts.push(`Tecnologías clave: ${skills.join(', ')}.`)
+  }
+  parts.push(
+    'Cualquier seniority: junior, mid-level o senior.',
+    'Salario mínimo $30k/año.',
+  )
+  return parts.join(' ')
+}
+
+export default function CommandCenter({ profile, onParsed }: Props) {
   const [prompt, setPrompt] = useState('')
   const [vaultLabel, setVaultLabel] = useState('')
   const [busy, setBusy] = useState(false)
@@ -46,6 +70,16 @@ export default function CommandCenter({ onParsed }: Props) {
         >
           {busy ? 'Contactando LLM…' : 'Parse with AI'}
         </button>
+        {profile && (
+          <button
+            className="btn"
+            disabled={busy}
+            title="Genera el prompt desde tu CV — lo podés editar antes de parsear"
+            onClick={() => setPrompt(promptFromProfile(profile))}
+          >
+            Usar mi perfil
+          </button>
+        )}
         <input
           className="prompt-input"
           style={{ minHeight: 0, height: 38, flex: 1 }}

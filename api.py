@@ -47,6 +47,14 @@ _LLM_KEY_NAMES = (
     "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "MISTRAL_API_KEY",
 )
 
+# F13: modalidad/ubicación que los LLM meten como must_include y que, buscadas
+# como texto literal en el card, castigan a casi todos los jobs.
+_LOCATION_NOISE_KEYWORDS = {
+    "remote", "remoto", "latin america", "latam", "latinoamerica",
+    "latinoamérica", "worldwide", "anywhere", "global", "work from home",
+    "wfh", "hybrid", "híbrido", "hibrido", "on-site", "onsite", "100% remote",
+}
+
 
 # =============================================================================
 # Lifespan — singletons por proceso (equivalente a @st.cache_resource)
@@ -140,6 +148,17 @@ def parse_prompt(body: ParseRequest):
     cfg = cfg.model_copy(update={
         "target_domains": list(selectors_registry.SELECTORS.keys())
     })
+    # F13 (run 2, 2026-07-10): palabras de ubicación/modalidad son INTENCIÓN,
+    # no keywords de texto. Como must_include se busca literal en el card
+    # (título+empresa), "Remote"/"Latin America" restan puntos a casi todo
+    # (evidencia: run 1 y run 2). Se filtran acá; el filtro real de ubicación
+    # es F6 (location_raw), no keywords.
+    cleaned_must = [
+        k for k in cfg.must_include
+        if k.lower().strip() not in _LOCATION_NOISE_KEYWORDS
+    ]
+    if cleaned_must != cfg.must_include:
+        cfg = cfg.model_copy(update={"must_include": cleaned_must})
     gm = app.state.godmode
     if gm["custom_xpath"]:
         cfg = cfg.model_copy(update={"custom_xpath": gm["custom_xpath"]})
@@ -332,6 +351,16 @@ def load_vault_entry(vault_id: str):
 @app.get("/api/registry/stats")
 def registry_stats():
     return app.state.db.get_registry_stats()
+
+
+@app.get("/api/registry/jobs")
+def registry_jobs(limit: int = 200, hours: Optional[int] = None):
+    """F12 — visor de DB: todo lo recopilado, crudo, más nuevo primero.
+
+    Incluye las corridas del scheduler (F14): el cron notifica por Discord
+    pero sus resultados viven acá, con tier y match_score backfilleados.
+    """
+    return {"jobs": app.state.db.get_recent_jobs(limit=limit, hours=hours)}
 
 
 @app.post("/api/cv")

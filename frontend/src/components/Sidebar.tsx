@@ -15,11 +15,12 @@ interface Props {
   onLoadVault: (vaultId: string) => void
   onChanged: () => void
   onKill: () => void
+  onOpenDb: () => void
 }
 
 export default function Sidebar({
   status, stats, vault, scheduler, profile,
-  ttlHours, onTtlChange, onLoadVault, onChanged, onKill,
+  ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb,
 }: Props) {
   async function handleKill() {
     await postReset()
@@ -41,9 +42,18 @@ export default function Sidebar({
             <span className="dot" /> All systems nominal
           </span>
         ) : (
-          <span className="pill-warn" title={status.warnings.join('\n')}>
-            <span className="dot" /> {status.warnings.length} warning(s)
-          </span>
+          <details className="warn-details">
+            <summary>
+              <span className="pill-warn">
+                <span className="dot" /> {status.warnings.length} warning(s) — ver detalle
+              </span>
+            </summary>
+            <div className="warn-list">
+              {status.warnings.map((w, i) => (
+                <div key={i}>{w}</div>
+              ))}
+            </div>
+          </details>
         ))}
 
       <CVUpload profile={profile} onChanged={onChanged} />
@@ -61,6 +71,9 @@ export default function Sidebar({
               <span>Últimas 24 h</span>
             </div>
           </div>
+          <button type="button" className="btn mini" onClick={onOpenDb}>
+            Ver base de datos
+          </button>
         </div>
       )}
 

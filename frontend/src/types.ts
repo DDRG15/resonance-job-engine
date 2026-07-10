@@ -112,6 +112,18 @@ export interface ResultsResponse {
   } | null
 }
 
+export interface RegistryJob {
+  job_hash: string
+  url: string
+  title: string
+  company: string
+  source_domain: string
+  scraped_at: string
+  tier: string | null
+  match_score: number | null
+  location_raw: string | null
+}
+
 export interface CvProfile {
   [key: string]: unknown
   role?: string

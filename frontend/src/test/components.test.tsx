@@ -88,6 +88,33 @@ beforeEach(() => {
   )
 })
 
+describe('CommandCenter — F10 Usar mi perfil', () => {
+  it('sin perfil el botón no existe (cero UI decorativa)', async () => {
+    const { default: CommandCenter } = await import('../components/CommandCenter')
+    render(<CommandCenter profile={null} onParsed={() => {}} />)
+    expect(screen.queryByRole('button', { name: 'Usar mi perfil' })).toBeNull()
+  })
+
+  it('con perfil pre-llena el prompt desde rol + skills, sin disparar nada', async () => {
+    const { default: CommandCenter } = await import('../components/CommandCenter')
+    render(
+      <CommandCenter
+        profile={{
+          role: 'Python Backend Developer | Data Integrity',
+          core_skills: ['Python', 'FastAPI', 'SQL'],
+        }}
+        onParsed={() => {}}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Usar mi perfil' }))
+    const textarea = screen.getByPlaceholderText(/Necesito roles Senior/) as HTMLTextAreaElement
+    expect(textarea.value).toContain('Python Backend Developer, Data Integrity')
+    expect(textarea.value).toContain('Python, FastAPI, SQL')
+    // pre-llenar NO parsea: fetch jamás se llamó
+    expect(fetch).not.toHaveBeenCalled()
+  })
+})
+
 describe('Header', () => {
   it('muestra los datos reales del live status', () => {
     render(<Header status={STATUS} />)

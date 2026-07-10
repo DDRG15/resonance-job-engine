@@ -5,6 +5,7 @@ import {
   loadVaultEntry,
 } from './api'
 import CommandCenter from './components/CommandCenter'
+import DbViewer from './components/DbViewer'
 import Header from './components/Header'
 import PipelineConsole from './components/PipelineConsole'
 import Results from './components/Results'
@@ -30,6 +31,7 @@ export default function App() {
   const [ttlHours, setTtlHours] = useState(0)
   const [runId, setRunId] = useState<string | null>(null)
   const [results, setResults] = useState<ResultsResponse | null>(null)
+  const [showDb, setShowDb] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -92,6 +94,7 @@ export default function App() {
         onLoadVault={(id) => void handleLoadVault(id)}
         onChanged={refresh}
         onKill={handleReset}
+        onOpenDb={() => setShowDb(true)}
       />
       <main>
         {backendDown && (
@@ -101,8 +104,9 @@ export default function App() {
           </div>
         )}
         <Header status={status} />
+        {showDb && <DbViewer onClose={() => setShowDb(false)} />}
         {results && <StatTiles results={results} />}
-        <CommandCenter onParsed={handleParsed} />
+        <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />
         {config && (
           <ValidationPanel
             config={config}

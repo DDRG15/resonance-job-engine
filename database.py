@@ -400,6 +400,25 @@ class GemaDatabase:
     # Stats for Streamlit Dashboard
     # =========================================================================
 
+    def get_recent_jobs(self, limit: int = 200, hours: Optional[int] = None) -> list[dict]:
+        """Filas crudas del registry, más nuevas primero (F12 — visor de DB).
+
+        Da acceso directo a TODO lo recopilado — incluidas las corridas del
+        scheduler, que notifican por Discord pero cuyos resultados no pasan
+        por la UI (F14). `hours` filtra a las últimas N horas; None = todo.
+        """
+        query = "SELECT * FROM seen_jobs_registry"
+        params: list = []
+        if hours is not None:
+            cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+            query += " WHERE scraped_at >= ?"
+            params.append(cutoff.isoformat())
+        query += " ORDER BY scraped_at DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 1000)))
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [dict(r) for r in rows]
+
     def get_registry_stats(self) -> dict:
         with _get_connection(self.db_path) as conn:
             total = conn.execute(

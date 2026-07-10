@@ -64,10 +64,14 @@ def fake_scrape(monkeypatch):
     """run_scrape_session falso: emite logs reales al queue y retorna jobs fijos."""
     def _fake(search_config, db, log_queue, ttl_hours=0, webhook=None, profile=None):
         log_queue.put("[SCRAPER] fake-board.com — 3 cards (CSS, 0 tokens)")
+        jobs = _fake_jobs()
+        # El scraper real persiste al registry durante la corrida — el fake
+        # replica ese contrato para que update_tier tenga filas que backfillear.
+        db.mark_seen_batch(jobs)
         summary = ScrapeRunSummary()
         summary.total_urls_found = 3
         summary.new_processed = 3
-        return _fake_jobs(), summary
+        return jobs, summary
     monkeypatch.setattr(run_manager_module, "run_scrape_session", _fake)
     return _fake
 
@@ -119,6 +123,26 @@ class TestStatus:
         assert r.status_code == 200
         body = r.json()
         assert "total_seen" in body and "recent_24h" in body and "by_tier" in body
+
+    def test_registry_jobs_empty_db(self, client):
+        # F12 — visor de DB: DB temporal vacía → lista vacía, no error
+        r = client.get("/api/registry/jobs")
+        assert r.status_code == 200
+        assert r.json()["jobs"] == []
+
+    def test_registry_jobs_returns_scraped_rows(self, client, fake_scrape):
+        # F12+F14: tras una corrida, el visor expone las filas crudas con
+        # tier/match_score backfilleados — la puerta a los resultados del cron.
+        _put_config(client)
+        client.post("/api/scrape", json={})
+        _wait_run_done(client)
+        rows = client.get("/api/registry/jobs?limit=50&hours=24").json()["jobs"]
+        assert len(rows) == 3
+        sample = rows[0]
+        for col in ("job_hash", "url", "title", "company", "source_domain",
+                    "scraped_at", "tier", "match_score", "location_raw"):
+            assert col in sample
+        assert any(r["tier"] for r in rows), "el matcher debe backfillear tiers"
 
 
 # =============================================================================
@@ -182,6 +206,21 @@ class TestParse:
         client.post("/api/parse", json={"prompt": "python", "vault_label": "mi-busqueda"})
         entries = client.get("/api/vault").json()["entries"]
         assert any(e["label"] == "mi-busqueda" for e in entries)
+
+    def test_parse_strips_location_noise_from_must_include(self, client, monkeypatch):
+        # F13 (runs 1 y 2): "Remote"/"Latin America" como keyword literal
+        # castiga a casi todo — son intención de ubicación, no texto del card.
+        def _fake(prompt, log_callback=None):
+            return (
+                SearchConfig(
+                    target_titles=["python dev"],
+                    must_include=["Remote", "Latin America", "python"],
+                ),
+                "audit ok",
+            )
+        monkeypatch.setattr(api_module, "generate_and_audit_config", _fake)
+        body = client.post("/api/parse", json={"prompt": "python latam"}).json()
+        assert body["config"]["must_include"] == ["python"]
 
 
 # =============================================================================
