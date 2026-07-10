@@ -294,7 +294,9 @@ class TestCV:
     def test_upload_cv_stores_profile(self, client, monkeypatch):
         monkeypatch.setattr(
             api_module, "generate_ephemeral_profile",
-            lambda text: {"role": "Python Backend Dev", "core_skills": ["python"]},
+            lambda text, raise_on_failure=False: {
+                "role": "Python Backend Dev", "core_skills": ["python"],
+            },
         )
         r = client.post(
             "/api/cv",
@@ -306,10 +308,34 @@ class TestCV:
 
     def test_delete_cv_clears_profile(self, client, monkeypatch):
         monkeypatch.setattr(
-            api_module, "generate_ephemeral_profile", lambda text: {"role": "x"},
+            api_module, "generate_ephemeral_profile",
+            lambda text, raise_on_failure=False: {"role": "x"},
         )
         client.post("/api/cv", files={"file": ("cv.txt", b"cv", "text/plain")})
         client.delete("/api/cv")
+        assert client.get("/api/cv").json()["profile"] is None
+
+    def test_llm_chain_failure_fails_loud_503(self, client, monkeypatch):
+        # Live test 2026-07-09 hallazgo #5: toda la cadena LLM muerta (cuota
+        # agotada) → 503 explícito, jamás un perfil genérico con 200.
+        def _all_dead(text, raise_on_failure=False):
+            raise RuntimeError("toda la cadena LLM falló")
+        monkeypatch.setattr(api_module, "generate_ephemeral_profile", _all_dead)
+        r = client.post(
+            "/api/cv", files={"file": ("cv.txt", b"el usuario - Python Dev", "text/plain")},
+        )
+        assert r.status_code == 503
+        assert client.get("/api/cv").json()["profile"] is None
+
+    def test_empty_extraction_fails_loud_not_fallback(self, client, monkeypatch):
+        # Live test 2026-07-09 hallazgo #1: extract_cv_text falla sin lanzar
+        # (parser faltante / PDF escaneado) → devuelve "". La API debe gritar
+        # 422, jamás activar el perfil genérico en silencio.
+        monkeypatch.setattr(api_module, "extract_cv_text", lambda name, data: "")
+        r = client.post(
+            "/api/cv", files={"file": ("cv.pdf", b"%PDF-fake", "application/pdf")},
+        )
+        assert r.status_code == 422
         assert client.get("/api/cv").json()["profile"] is None
 
 
@@ -321,10 +347,38 @@ class TestScheduler:
     def test_default_disabled(self, client):
         body = client.get("/api/scheduler").json()
         assert body["enabled"] is False
+        assert body["armed"] is False
 
-    def test_enable_without_config_400(self, client):
-        r = client.put("/api/scheduler", json={"enabled": True, "mode": "cron"})
-        assert r.status_code == 400
+    def test_enable_without_config_arms_pending(self, client):
+        # F3 (live test 2026-07-09): programar sin config NO es error — queda
+        # armado y se activa al confirmar la búsqueda.
+        r = client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron",
+            "cron_days": ["tue", "fri", "sat"], "cron_hour": 8,
+        })
+        assert r.status_code == 200
+        body = r.json()
+        assert body["enabled"] is False
+        assert body["armed"] is True
+        assert body["cron_days"] == ["tue", "fri", "sat"]
+        assert body["cron_hour"] == 8
+
+    def test_armed_schedule_activates_on_config_confirm(self, client):
+        client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron",
+            "cron_days": ["tue", "fri", "sat"], "cron_hour": 8,
+        })
+        _put_config(client)  # confirmar la búsqueda dispara el cron armado
+        body = client.get("/api/scheduler").json()
+        assert body["enabled"] is True
+        assert body["armed"] is False
+        assert body["cron_days"] == ["tue", "fri", "sat"]
+        assert body["next_run"]
+
+    def test_disable_clears_pending(self, client):
+        client.put("/api/scheduler", json={"enabled": True, "mode": "cron"})
+        body = client.put("/api/scheduler", json={"enabled": False}).json()
+        assert body["armed"] is False and body["enabled"] is False
 
     def test_enable_cron_roundtrip(self, client):
         _put_config(client)

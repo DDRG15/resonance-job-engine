@@ -11,15 +11,15 @@ const INTERVALS = [2, 4, 8, 12, 24]
 
 interface Props {
   scheduler: SchedulerState
-  hasConfig: boolean
   onChanged: () => void
 }
 
 // Cron B4 completo — NO-NEGOCIABLE: días + hora + retención de CV,
-// auto-configurable desde la UI. Cada interacción hace PUT /api/scheduler
-// (misma semántica apply-on-change que tenía Streamlit).
-export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Props) {
-  const [enabled, setEnabled] = useState(scheduler.enabled)
+// auto-configurable desde la UI EN CUALQUIER MOMENTO (F3, live test
+// 2026-07-09): sin búsqueda confirmada el horario queda "armado" en el
+// backend y se activa solo al confirmar. Apply-on-change en cada interacción.
+export default function SchedulerPanel({ scheduler, onChanged }: Props) {
+  const [enabled, setEnabled] = useState(scheduler.enabled || scheduler.armed)
   const [mode, setMode] = useState<'interval' | 'cron'>(scheduler.mode)
   const [intervalHours, setIntervalHours] = useState(scheduler.interval_hours)
   const [days, setDays] = useState<string[]>(scheduler.cron_days)
@@ -32,7 +32,7 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
   const [lastScheduler, setLastScheduler] = useState(scheduler)
   if (scheduler !== lastScheduler) {
     setLastScheduler(scheduler)
-    setEnabled(scheduler.enabled)
+    setEnabled(scheduler.enabled || scheduler.armed)
     setMode(scheduler.mode)
     setIntervalHours(scheduler.interval_hours)
     setDays(scheduler.cron_days)
@@ -59,8 +59,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
     }
   }
 
-  const disabled = !hasConfig
-
   function toggleDay(key: string) {
     const next = days.includes(key) ? days.filter((d) => d !== key) : [...days, key]
     setDays(next)
@@ -78,7 +76,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
           role="switch"
           aria-checked={enabled}
           className={`switch ${enabled ? 'on' : ''}`}
-          disabled={disabled}
           onClick={() => {
             const next = !enabled
             setEnabled(next)
@@ -91,7 +88,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
         <button
           type="button"
           className={mode === 'interval' ? 'on' : ''}
-          disabled={disabled}
           onClick={() => {
             setMode('interval')
             if (enabled) void apply({ mode: 'interval' })
@@ -102,7 +98,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
         <button
           type="button"
           className={mode === 'cron' ? 'on' : ''}
-          disabled={disabled}
           onClick={() => {
             setMode('cron')
             if (enabled) void apply({ mode: 'cron' })
@@ -119,7 +114,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
               type="button"
               key={h}
               className={intervalHours === h ? 'on' : ''}
-              disabled={disabled}
               onClick={() => {
                 setIntervalHours(h)
                 if (enabled) void apply({ interval_hours: h })
@@ -137,7 +131,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
                 type="button"
                 key={d.key}
                 className={`day ${days.includes(d.key) ? 'on' : ''}`}
-                disabled={disabled}
                 onClick={() => toggleDay(d.key)}
               >
                 {d.label}
@@ -150,7 +143,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
             min={0}
             max={23}
             value={hour}
-            disabled={disabled}
             onChange={(e) => setHour(Number(e.target.value))}
             onMouseUp={() => enabled && void apply({ cron_hour: hour })}
             onTouchEnd={() => enabled && void apply({ cron_hour: hour })}
@@ -165,7 +157,6 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
               role="switch"
               aria-checked={retainCv}
               className={`switch ${retainCv ? 'on' : ''}`}
-              disabled={disabled}
               onClick={() => {
                 const next = !retainCv
                 setRetainCv(next)
@@ -181,11 +172,15 @@ export default function SchedulerPanel({ scheduler, hasConfig, onChanged }: Prop
           ● Activo — próxima corrida: {scheduler.next_run}
           <small>Última: {scheduler.last_run}</small>
         </div>
+      ) : scheduler.armed ? (
+        <div className="sched-status" style={{ color: 'var(--t2-ink)' }}>
+          ● Programado — se activa al confirmar tu búsqueda
+          <small>Última: {scheduler.last_run}</small>
+        </div>
       ) : (
         <span className="side-note">
-          {hasConfig
-            ? '○ Pausado'
-            : 'Confirmá una búsqueda para habilitar el scheduler.'}
+          ○ Pausado — programalo cuando quieras; empieza a correr apenas
+          confirmes una búsqueda.
         </span>
       )}
       {error && <span className="side-note" style={{ color: 'var(--t3-ink)' }}>{error}</span>}

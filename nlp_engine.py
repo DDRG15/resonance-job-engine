@@ -919,20 +919,31 @@ def extract_cv_text(filename: str, file_bytes: bytes) -> str:
     return text[:8_000]
 
 
-def generate_ephemeral_profile(raw_cv_text: str) -> dict:
+def generate_ephemeral_profile(raw_cv_text: str, raise_on_failure: bool = False) -> dict:
     """
-    Parses raw CV text into a sanitized profile dict using Gemini Flash.
-    Gemini is used here (not Groq) to preserve Groq RPM budget for extraction.
+    Parses raw CV text into a sanitized profile dict via the FULL provider
+    chain (_build_caller_chain — same resilience as the SearchConfig path).
 
-    Instructs the LLM to output a JSON object with the same keys as
-    _GENERIC_FALLBACK_PROFILE. The result is always passed through
-    _sanitize_profile() before return — double-guarantee no PII leaks.
+    Live test 2026-07-09: la versión anterior estaba cableada solo a Gemini;
+    con la cuota free de Gemini en 0, el perfil caía al fallback genérico EN
+    SILENCIO y el matcher puntuaba sin skills. Punto único de falla eliminado.
+    Costo: un (1) request extra al proveedor primario por sesión de CV —
+    despreciable frente a un run entero puntuado a ciegas.
 
-    Falls back to _GENERIC_FALLBACK_PROFILE.copy() on any failure
-    (key not configured, rate limit, bad JSON, empty input) — never raises.
+    The result is always passed through _sanitize_profile() before return —
+    double-guarantee no PII leaks.
+
+    Contract:
+        raise_on_failure=False (default, legacy): falls back to
+            _GENERIC_FALLBACK_PROFILE.copy() on any failure — never raises.
+        raise_on_failure=True (capa API): raises RuntimeError when the whole
+            chain fails, so the caller can fail LOUD instead of activating a
+            fake profile.
     """
     if not raw_cv_text or not raw_cv_text.strip():
         logger.warning("[CV] Empty CV text — returning generic fallback profile.")
+        if raise_on_failure:
+            raise RuntimeError("CV text vacío — nada que analizar")
         return _GENERIC_FALLBACK_PROFILE.copy()
 
     parse_prompt = f"""You are a CV parser. Extract structured data from the CV below.
@@ -957,22 +968,38 @@ Rules:
 CV TEXT:
 {raw_cv_text}"""
 
+    messages = [{"role": "user", "content": parse_prompt}]
+    last_error: Optional[Exception] = None
     try:
-        import google.generativeai as genai
-        model = genai.GenerativeModel(model_name=config.GEMINI_MODEL)
-        resp = model.generate_content(
-            parse_prompt,
-            generation_config=genai.GenerationConfig(
-                temperature=0.0,
-                response_mime_type="application/json",
-            ),
-            request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
-        )
-        parsed = json.loads(resp.text.strip())
-        return _sanitize_profile(parsed)
-    except Exception as exc:
-        logger.warning("[CV] generate_ephemeral_profile failed: %s — using generic fallback.", exc)
+        callers = _build_caller_chain()
+    except RuntimeError as exc:
+        logger.warning("[CV] No LLM providers available: %s", exc)
+        if raise_on_failure:
+            raise
         return _GENERIC_FALLBACK_PROFILE.copy()
+
+    for llm_name, caller in callers:
+        try:
+            raw = caller(messages)
+            parsed = _extract_json_from_text(raw)
+            profile = _sanitize_profile(parsed)
+            logger.info("[CV] Profile parsed via %s.", llm_name)
+            return profile
+        except Exception as exc:
+            # Malformada o proveedor caído — mismo trato que el config path:
+            # historial limpio, siguiente proveedor.
+            last_error = exc
+            logger.warning(
+                "[CV] %s failed (%s: %s) — trying next provider.",
+                llm_name, type(exc).__name__, exc,
+            )
+
+    logger.warning("[CV] ALL providers failed for CV profile. Last: %s", last_error)
+    if raise_on_failure:
+        raise RuntimeError(
+            f"análisis de CV: toda la cadena LLM falló — último error: {last_error}"
+        )
+    return _GENERIC_FALLBACK_PROFILE.copy()
 
 
 def _build_extraction_prompt(profile: dict) -> str:

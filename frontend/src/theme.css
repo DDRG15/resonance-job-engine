@@ -237,6 +237,11 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
   color: var(--muted); background: none; border: none; cursor: pointer; font-family: var(--sans);
 }
 .seg button.on { background: var(--accent-16); color: var(--accent); font-weight: 550; }
+.seg button:disabled { opacity: .4; cursor: not-allowed; }
+/* Los controles del sidebar no son texto seleccionable — un clic sobre un
+   control disabled no debe pintar selección azul (live test 2026-07-09) */
+.sidebar .seg, .sidebar .days, .sidebar .toggle-row, .sidebar .side-label,
+.sidebar .switch, .sidebar .kill { user-select: none; }
 .days { display: flex; gap: 5px; }
 .day {
   flex: 1; text-align: center; font-family: var(--mono); font-size: 11px;

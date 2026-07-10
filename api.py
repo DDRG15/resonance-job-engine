@@ -65,6 +65,10 @@ async def lifespan(app: FastAPI):
     app.state.profile: Optional[dict] = None
     app.state.godmode = {"custom_xpath": None, "custom_css": None}
     app.state.ttl_hours = config.DEFAULT_TTL_HOURS
+    # F3 (live test 2026-07-09): el usuario puede programar el cron ANTES de
+    # tener una búsqueda confirmada — queda "armado" acá y se activa solo
+    # cuando llega la config (PUT /api/config o carga desde el vault).
+    app.state.pending_schedule = None
     yield
 
 
@@ -164,6 +168,8 @@ def put_config(body: dict):
     app.state.current_config = cfg
     # Igual que el Confirm de main.py: sincroniza el config del scheduler
     app.state.sched.update_config(cfg, app.state.profile)
+    # F3: si el cron quedó armado antes de tener búsqueda, se activa acá
+    _apply_pending_schedule()
     return {"config": cfg.model_dump(mode="json")}
 
 
@@ -314,6 +320,7 @@ def load_vault_entry(vault_id: str):
     app.state.current_config = entry.config
     app.state.audit_report = None
     app.state.db.increment_vault_usage(vault_id)
+    _apply_pending_schedule()  # F3: cargar del vault también cuenta como config
     return {"config": entry.config.model_dump(mode="json"), "label": entry.label}
 
 
@@ -333,7 +340,21 @@ def upload_cv(file: UploadFile = File(...)):
         raw_text = extract_cv_text(file.filename, file_bytes)
     except Exception as exc:
         raise HTTPException(422, f"no se pudo extraer texto del CV: {exc}")
-    profile = generate_ephemeral_profile(raw_text)
+    # Fail-loud (live test 2026-07-09, hallazgo #1): extract_cv_text no lanza
+    # cuando el parser falla — devuelve vacío y el engine caería al perfil
+    # genérico SIN avisar. La UI mostraría "perfil activo" con datos falsos.
+    if not raw_text.strip():
+        raise HTTPException(
+            422,
+            "no se pudo extraer texto del CV (¿PDF escaneado, vacío o parser "
+            "faltante?) — revisá el log del server; no se activó ningún perfil",
+        )
+    # Hallazgo #5: raise_on_failure=True — si toda la cadena LLM falla, la API
+    # grita 503; jamás activa un perfil genérico haciéndose pasar por real.
+    try:
+        profile = generate_ephemeral_profile(raw_text, raise_on_failure=True)
+    except RuntimeError as exc:
+        raise HTTPException(503, f"el análisis del CV falló en toda la cadena LLM: {exc}")
     app.state.profile = profile
     # Privacidad: el CV crudo no se persiste — solo el perfil en memoria
     return {"profile": profile}
@@ -376,8 +397,10 @@ def reset_session():
 # =============================================================================
 
 def _scheduler_state(sched: SchedulerService) -> dict:
-    return {
+    pending = app.state.pending_schedule
+    state = {
         "enabled": sched.enabled,
+        "armed": pending is not None,
         "mode": sched.mode,
         "interval_hours": sched.interval_hours,
         "cron_days": [d for d in sched.cron_days.split(",") if d],
@@ -387,6 +410,32 @@ def _scheduler_state(sched: SchedulerService) -> dict:
         "last_run": sched.get_last_run_summary(),
         "has_config": app.state.current_config is not None,
     }
+    if pending is not None:
+        # El estado refleja lo que el usuario programó, aunque aún no corra
+        state.update({
+            "mode": pending["mode"],
+            "interval_hours": pending["interval_hours"],
+            "cron_days": [d for d in pending["cron_days_str"].split(",") if d],
+            "cron_hour": pending["cron_hour"],
+        })
+    return state
+
+
+def _apply_pending_schedule() -> None:
+    """Activa el cron armado apenas exista una config confirmada (F3)."""
+    pending = app.state.pending_schedule
+    cfg = app.state.current_config
+    if pending is None or cfg is None:
+        return
+    sched: SchedulerService = app.state.sched
+    if pending["mode"] == "interval":
+        sched.enable(pending["interval_hours"], cfg, app.state.profile, app.state.db)
+    else:
+        sched.enable_cron(
+            pending["cron_days_str"], pending["cron_hour"], cfg,
+            app.state.profile, app.state.db, retain_profile=pending["retain_cv"],
+        )
+    app.state.pending_schedule = None
 
 
 @app.get("/api/scheduler")
@@ -397,29 +446,41 @@ def get_scheduler():
 @app.put("/api/scheduler")
 def update_scheduler(body: SchedulerUpdate):
     sched: SchedulerService = app.state.sched
+
+    # Validación primero — un input inválido grita 422 haya o no config
+    if body.mode not in ("interval", "cron"):
+        raise HTTPException(422, f"modo inválido: {body.mode}")
+    if not 0 <= body.cron_hour <= 23:
+        raise HTTPException(422, "cron_hour debe estar entre 0 y 23")
+    valid = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
+    days_str = ",".join(d for d in body.cron_days if d in valid) or "tue"
+
     if not body.enabled:
+        app.state.pending_schedule = None
         if sched.enabled:
             sched.disable()
         return _scheduler_state(sched)
 
     cfg = app.state.current_config
     if cfg is None:
-        raise HTTPException(400, "el scheduler necesita un SearchConfig confirmado")
+        # F3: sin config todavía → queda ARMADO; se activa al confirmar
+        app.state.pending_schedule = {
+            "mode": body.mode,
+            "interval_hours": body.interval_hours,
+            "cron_days_str": days_str,
+            "cron_hour": body.cron_hour,
+            "retain_cv": body.retain_cv,
+        }
+        return _scheduler_state(sched)
 
     if body.mode == "interval":
         sched.enable(body.interval_hours, cfg, app.state.profile, app.state.db)
-    elif body.mode == "cron":
-        valid = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
-        days = [d for d in body.cron_days if d in valid]
-        days_str = ",".join(days) or "tue"
-        if not 0 <= body.cron_hour <= 23:
-            raise HTTPException(422, "cron_hour debe estar entre 0 y 23")
+    else:
         sched.enable_cron(
             days_str, body.cron_hour, cfg, app.state.profile, app.state.db,
             retain_profile=body.retain_cv,
         )
-    else:
-        raise HTTPException(422, f"modo inválido: {body.mode}")
+    app.state.pending_schedule = None
     return _scheduler_state(sched)
 
 

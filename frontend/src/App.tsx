@@ -87,7 +87,6 @@ export default function App() {
         vault={vaultQ.data?.entries ?? []}
         scheduler={schedQ.data ?? null}
         profile={cvQ.data?.profile ?? null}
-        hasConfig={config !== null}
         ttlHours={ttlHours}
         onTtlChange={setTtlHours}
         onLoadVault={(id) => void handleLoadVault(id)}

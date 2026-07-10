@@ -45,6 +45,7 @@ export interface VaultEntry {
 
 export interface SchedulerState {
   enabled: boolean
+  armed: boolean
   mode: 'interval' | 'cron'
   interval_hours: number
   cron_days: string[]

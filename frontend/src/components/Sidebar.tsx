@@ -10,7 +10,6 @@ interface Props {
   vault: VaultEntry[]
   scheduler: SchedulerState | null
   profile: CvProfile | null
-  hasConfig: boolean
   ttlHours: number
   onTtlChange: (hours: number) => void
   onLoadVault: (vaultId: string) => void
@@ -19,7 +18,7 @@ interface Props {
 }
 
 export default function Sidebar({
-  status, stats, vault, scheduler, profile, hasConfig,
+  status, stats, vault, scheduler, profile,
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill,
 }: Props) {
   async function handleKill() {
@@ -102,9 +101,7 @@ export default function Sidebar({
         </span>
       </div>
 
-      {scheduler && (
-        <SchedulerPanel scheduler={scheduler} hasConfig={hasConfig} onChanged={onChanged} />
-      )}
+      {scheduler && <SchedulerPanel scheduler={scheduler} onChanged={onChanged} />}
 
       <GodMode />
 

@@ -65,6 +65,7 @@ const STATUS: Status = {
 
 const SCHED: SchedulerState = {
   enabled: true,
+  armed: false,
   mode: 'cron',
   interval_hours: 4,
   cron_days: ['tue', 'fri', 'sat'],
@@ -126,7 +127,7 @@ describe('Results', () => {
 
 describe('SchedulerPanel (cron B4 — no-negociable)', () => {
   it('muestra los días del cron y hace PUT al togglear un día', () => {
-    render(<SchedulerPanel scheduler={SCHED} hasConfig={true} onChanged={() => {}} />)
+    render(<SchedulerPanel scheduler={SCHED} onChanged={() => {}} />)
     fireEvent.click(screen.getByRole('button', { name: 'L' }))
     expect(fetch).toHaveBeenCalledWith(
       '/api/scheduler',
@@ -140,19 +141,28 @@ describe('SchedulerPanel (cron B4 — no-negociable)', () => {
     expect(body.retain_cv).toBe(false)
   })
 
-  it('deshabilita los controles sin SearchConfig confirmado', () => {
+  it('F3: los controles quedan vivos sin config y el toggle hace PUT (queda armado)', () => {
+    render(
+      <SchedulerPanel scheduler={{ ...SCHED, enabled: false }} onChanged={() => {}} />,
+    )
+    // Nada deshabilitado: se puede programar en cualquier momento
+    for (const sw of screen.getAllByRole('switch')) {
+      expect(sw).toBeEnabled()
+    }
+    fireEvent.click(screen.getAllByRole('switch')[0])
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/scheduler',
+      expect.objectContaining({ method: 'PUT' }),
+    )
+  })
+
+  it('F3: muestra el estado Programado cuando está armado sin config', () => {
     render(
       <SchedulerPanel
-        scheduler={{ ...SCHED, enabled: false }}
-        hasConfig={false}
+        scheduler={{ ...SCHED, enabled: false, armed: true }}
         onChanged={() => {}}
       />,
     )
-    // En modo cron hay 2 switches (scraping automático + retener CV) — todos
-    // deben estar deshabilitados sin config confirmada.
-    for (const sw of screen.getAllByRole('switch')) {
-      expect(sw).toBeDisabled()
-    }
-    expect(screen.getByRole('button', { name: 'M' })).toBeDisabled()
+    expect(screen.getByText(/Programado — se activa al confirmar/)).toBeInTheDocument()
   })
 })
