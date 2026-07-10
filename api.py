@@ -105,6 +105,7 @@ class SchedulerUpdate(BaseModel):
     interval_hours: int = 4
     cron_days: list[str] = ["tue"]         # ["mon".."sun"]
     cron_hour: int = 9
+    cron_minute: int = 0                   # F9: precisión de minutos (alarma)
     retain_cv: bool = False
 
 
@@ -405,6 +406,7 @@ def _scheduler_state(sched: SchedulerService) -> dict:
         "interval_hours": sched.interval_hours,
         "cron_days": [d for d in sched.cron_days.split(",") if d],
         "cron_hour": sched.cron_hour,
+        "cron_minute": sched.cron_minute,
         "is_running": sched.is_running,
         "next_run": sched.get_next_run_time() if sched.enabled else None,
         "last_run": sched.get_last_run_summary(),
@@ -417,6 +419,7 @@ def _scheduler_state(sched: SchedulerService) -> dict:
             "interval_hours": pending["interval_hours"],
             "cron_days": [d for d in pending["cron_days_str"].split(",") if d],
             "cron_hour": pending["cron_hour"],
+            "cron_minute": pending["cron_minute"],
         })
     return state
 
@@ -434,6 +437,7 @@ def _apply_pending_schedule() -> None:
         sched.enable_cron(
             pending["cron_days_str"], pending["cron_hour"], cfg,
             app.state.profile, app.state.db, retain_profile=pending["retain_cv"],
+            minute=pending["cron_minute"],
         )
     app.state.pending_schedule = None
 
@@ -452,6 +456,8 @@ def update_scheduler(body: SchedulerUpdate):
         raise HTTPException(422, f"modo inválido: {body.mode}")
     if not 0 <= body.cron_hour <= 23:
         raise HTTPException(422, "cron_hour debe estar entre 0 y 23")
+    if not 0 <= body.cron_minute <= 59:
+        raise HTTPException(422, "cron_minute debe estar entre 0 y 59")
     valid = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
     days_str = ",".join(d for d in body.cron_days if d in valid) or "tue"
 
@@ -469,6 +475,7 @@ def update_scheduler(body: SchedulerUpdate):
             "interval_hours": body.interval_hours,
             "cron_days_str": days_str,
             "cron_hour": body.cron_hour,
+            "cron_minute": body.cron_minute,
             "retain_cv": body.retain_cv,
         }
         return _scheduler_state(sched)
@@ -478,7 +485,7 @@ def update_scheduler(body: SchedulerUpdate):
     else:
         sched.enable_cron(
             days_str, body.cron_hour, cfg, app.state.profile, app.state.db,
-            retain_profile=body.retain_cv,
+            retain_profile=body.retain_cv, minute=body.cron_minute,
         )
     app.state.pending_schedule = None
     return _scheduler_state(sched)

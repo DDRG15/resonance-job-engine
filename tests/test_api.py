@@ -384,7 +384,8 @@ class TestScheduler:
         _put_config(client)
         r = client.put("/api/scheduler", json={
             "enabled": True, "mode": "cron",
-            "cron_days": ["tue", "fri", "sat"], "cron_hour": 8, "retain_cv": False,
+            "cron_days": ["tue", "fri", "sat"], "cron_hour": 8,
+            "cron_minute": 15, "retain_cv": False,
         })
         assert r.status_code == 200
         body = r.json()
@@ -392,7 +393,15 @@ class TestScheduler:
         assert body["mode"] == "cron"
         assert body["cron_days"] == ["tue", "fri", "sat"]
         assert body["cron_hour"] == 8
+        assert body["cron_minute"] == 15  # F9: precisión de minutos (alarma)
         assert body["next_run"]
+
+    def test_invalid_cron_minute_422(self, client):
+        _put_config(client)
+        r = client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron", "cron_minute": 61,
+        })
+        assert r.status_code == 422
 
     def test_enable_interval(self, client):
         _put_config(client)

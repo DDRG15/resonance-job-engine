@@ -24,6 +24,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
   const [intervalHours, setIntervalHours] = useState(scheduler.interval_hours)
   const [days, setDays] = useState<string[]>(scheduler.cron_days)
   const [hour, setHour] = useState(scheduler.cron_hour)
+  const [minute, setMinute] = useState(scheduler.cron_minute)
   const [retainCv, setRetainCv] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -37,11 +38,13 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
     setIntervalHours(scheduler.interval_hours)
     setDays(scheduler.cron_days)
     setHour(scheduler.cron_hour)
+    setMinute(scheduler.cron_minute)
   }
 
   async function apply(next: {
     enabled?: boolean; mode?: 'interval' | 'cron'; interval_hours?: number
-    cron_days?: string[]; cron_hour?: number; retain_cv?: boolean
+    cron_days?: string[]; cron_hour?: number; cron_minute?: number
+    retain_cv?: boolean
   }) {
     setError(null)
     try {
@@ -51,6 +54,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
         interval_hours: next.interval_hours ?? intervalHours,
         cron_days: next.cron_days ?? days,
         cron_hour: next.cron_hour ?? hour,
+        cron_minute: next.cron_minute ?? minute,
         retain_cv: next.retain_cv ?? retainCv,
       })
       onChanged()
@@ -138,17 +142,20 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
             ))}
           </div>
           <input
-            type="range"
-            className="slider"
-            min={0}
-            max={23}
-            value={hour}
-            onChange={(e) => setHour(Number(e.target.value))}
-            onMouseUp={() => enabled && void apply({ cron_hour: hour })}
-            onTouchEnd={() => enabled && void apply({ cron_hour: hour })}
+            type="time"
+            className="time-input"
+            value={`${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`}
+            onChange={(e) => {
+              const [h, m] = e.target.value.split(':').map(Number)
+              if (Number.isNaN(h) || Number.isNaN(m)) return
+              setHour(h)
+              setMinute(m)
+              if (enabled) void apply({ cron_hour: h, cron_minute: m })
+            }}
           />
           <span className="slider-val">
-            {String(hour).padStart(2, '0')}:00 — hora local (la ciudad del candidato)
+            {String(hour).padStart(2, '0')}:{String(minute).padStart(2, '0')} — hora
+            local (la ciudad del candidato), precisión de minutos
           </span>
           <div className="toggle-row">
             <span>Retener CV entre corridas</span>

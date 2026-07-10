@@ -50,6 +50,7 @@ export interface SchedulerState {
   interval_hours: number
   cron_days: string[]
   cron_hour: number
+  cron_minute: number
   is_running: boolean
   next_run: string | null
   last_run: string
@@ -62,6 +63,7 @@ export interface SchedulerUpdate {
   interval_hours: number
   cron_days: string[]
   cron_hour: number
+  cron_minute: number
   retain_cv: boolean
 }
 

@@ -58,6 +58,7 @@ class SchedulerService:
         self.interval_hours: int = 4
         self.cron_days: str = config.SCHEDULER_CRON_DAYS
         self.cron_hour: int = config.SCHEDULER_CRON_HOUR
+        self.cron_minute: int = 0   # F9 (live test 07-10): precisión de minutos
         self.config = None          # SearchConfig | None
         self.profile = None         # dict | None — ephemeral CV profile
         self.is_running: bool = False
@@ -100,7 +101,7 @@ class SchedulerService:
 
     def enable_cron(
         self, days: str, hour: int, search_config, profile, db,
-        retain_profile: bool = False,
+        retain_profile: bool = False, minute: int = 0,
     ) -> None:
         """Start (or restart) a CRON job on fixed days (B4). `days` is an
         APScheduler day_of_week string, e.g. "tue,fri,sat"; `hour` is the local
@@ -116,6 +117,7 @@ class SchedulerService:
         self.profile = profile
         self.cron_days = days
         self.cron_hour = hour
+        self.cron_minute = minute
 
         if retain_profile and profile:
             self._save_profile(profile)
@@ -127,7 +129,7 @@ class SchedulerService:
 
         self._scheduler.add_job(
             func=self._fire,
-            trigger=CronTrigger(day_of_week=days, hour=hour),
+            trigger=CronTrigger(day_of_week=days, hour=hour, minute=minute),
             id=_JOB_ID,
             args=[db],
             replace_existing=True,
@@ -135,9 +137,9 @@ class SchedulerService:
         self.enabled = True
         self.mode = "cron"
         logger.info(
-            "[SCHEDULER] Cron auto-scrape enabled: days=%s hour=%02d:00 tz=%s "
+            "[SCHEDULER] Cron auto-scrape enabled: days=%s hour=%02d:%02d tz=%s "
             "(CV retained=%s). Next: %s",
-            days, hour, config.SCHEDULER_TIMEZONE, retain_profile,
+            days, hour, minute, config.SCHEDULER_TIMEZONE, retain_profile,
             self.get_next_run_time(),
         )
 

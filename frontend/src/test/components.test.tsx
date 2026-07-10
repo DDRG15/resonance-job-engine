@@ -70,6 +70,7 @@ const SCHED: SchedulerState = {
   interval_hours: 4,
   cron_days: ['tue', 'fri', 'sat'],
   cron_hour: 8,
+  cron_minute: 0,
   is_running: false,
   next_run: 'vie 10 jul 08:00',
   last_run: 'No runs yet',
