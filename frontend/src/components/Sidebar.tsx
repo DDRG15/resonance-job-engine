@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { postReset } from '../api'
 import type { CvProfile, RegistryStats, SchedulerState, Status, VaultEntry } from '../types'
 import CVUpload from './CVUpload'
@@ -22,7 +23,22 @@ export default function Sidebar({
   status, stats, vault, scheduler, profile,
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb,
 }: Props) {
+  // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
+  // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
+  // Doble paso: primer clic arma, segundo confirma; se desarma solo en 4 s.
+  const [killArmed, setKillArmed] = useState(false)
+  useEffect(() => {
+    if (!killArmed) return
+    const t = setTimeout(() => setKillArmed(false), 4000)
+    return () => clearTimeout(t)
+  }, [killArmed])
+
   async function handleKill() {
+    if (!killArmed) {
+      setKillArmed(true)
+      return
+    }
+    setKillArmed(false)
     await postReset()
     onKill()
   }
@@ -118,8 +134,15 @@ export default function Sidebar({
 
       <GodMode />
 
-      <button type="button" className="kill" onClick={() => void handleKill()}>
-        Reset Session — Kill Switch
+      <button
+        type="button"
+        className="kill"
+        style={killArmed ? { background: 'rgba(220,38,38,.25)', fontWeight: 700 } : undefined}
+        onClick={() => void handleKill()}
+      >
+        {killArmed
+          ? '¿Seguro? Borra sesión y apaga el cron — clic para confirmar'
+          : 'Reset Session — Kill Switch'}
       </button>
     </aside>
   )
