@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { postReset } from '../api'
+import { useToast } from '../toast'
 import type { CvProfile, RegistryStats, SchedulerState, Status, VaultEntry } from '../types'
 import CVUpload from './CVUpload'
 import GodMode from './GodMode'
@@ -27,6 +28,7 @@ export default function Sidebar({
   // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
   // Doble paso: primer clic arma, segundo confirma; se desarma solo en 4 s.
   const [killArmed, setKillArmed] = useState(false)
+  const toast = useToast()
   useEffect(() => {
     if (!killArmed) return
     const t = setTimeout(() => setKillArmed(false), 4000)
@@ -40,6 +42,7 @@ export default function Sidebar({
     }
     setKillArmed(false)
     await postReset()
+    toast('Sesión reseteada — config, perfil y cron limpiados', 'warn')
     onKill()
   }
 

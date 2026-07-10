@@ -333,6 +333,51 @@ details.warn-details .warn-list {
   border-radius: 8px; padding: 8px 11px;
 }
 
+/* ── F17: toasts ── */
+.toast-stack {
+  position: fixed; top: 20px; right: 20px; z-index: 100;
+  display: flex; flex-direction: column; gap: 8px; max-width: 360px;
+}
+.toast {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left-width: 4px; border-radius: 10px; padding: 11px 15px;
+  font-size: 12.5px; color: var(--text); box-shadow: 0 8px 30px rgba(0,0,0,.45);
+  animation: toast-in .18s ease-out;
+}
+.toast-success { border-left-color: var(--t1); }
+.toast-info    { border-left-color: var(--accent); }
+.toast-warn    { border-left-color: var(--t2); }
+.toast-error   { border-left-color: var(--t3); }
+@keyframes toast-in { from { transform: translateY(-8px); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+/* ── F17: skeleton loaders ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+  background-size: 200% 100%; animation: shimmer 1.4s infinite;
+  border-radius: 6px; height: 14px;
+}
+@keyframes shimmer { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+/* ── F17: empty states ── */
+.empty-state {
+  text-align: center; padding: 36px 20px; color: var(--faint);
+}
+.empty-state .glyph { font-size: 34px; display: block; margin-bottom: 8px; opacity: .5; }
+.empty-state b { display: block; color: var(--muted); font-weight: 600; margin-bottom: 3px; }
+
+/* ── F15a: header de tabla clickeable (sorting) + search ── */
+.db-table th.sortable { cursor: pointer; user-select: none; }
+.db-table th.sortable:hover { color: var(--accent); }
+.db-search {
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 12px; font-size: 12.5px; color: var(--text); min-width: 220px;
+  font-family: var(--sans);
+}
+.db-search:focus { outline: none; border-color: var(--accent); }
+.db-search::placeholder { color: var(--faint); }
+
 /* ── Setup wizard (primera corrida) ── */
 .wizard-wrap { max-width: 560px; margin: 8vh auto; padding: 0 20px; }
 .wizard-wrap h2 { font-size: 26px; font-weight: 650; margin: 0 0 4px; }

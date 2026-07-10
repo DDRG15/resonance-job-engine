@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { putScheduler } from '../api'
+import { useToast } from '../toast'
 import type { SchedulerState } from '../types'
 
 const DAYS: { key: string; label: string }[] = [
@@ -41,6 +42,8 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
     setMinute(scheduler.cron_minute)
   }
 
+  const toast = useToast()
+
   async function apply(next: {
     enabled?: boolean; mode?: 'interval' | 'cron'; interval_hours?: number
     cron_days?: string[]; cron_hour?: number; cron_minute?: number
@@ -48,7 +51,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
   }) {
     setError(null)
     try {
-      await putScheduler({
+      const state = await putScheduler({
         enabled: next.enabled ?? enabled,
         mode: next.mode ?? mode,
         interval_hours: next.interval_hours ?? intervalHours,
@@ -57,6 +60,11 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
         cron_minute: next.cron_minute ?? minute,
         retain_cv: next.retain_cv ?? retainCv,
       })
+      if (state.enabled) {
+        toast(`Cron activo — próxima corrida: ${state.next_run}`, 'success')
+      } else if (state.armed) {
+        toast('Cron programado — se activa al confirmar tu búsqueda', 'info')
+      }
       onChanged()
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
