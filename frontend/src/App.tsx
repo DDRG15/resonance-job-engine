@@ -11,6 +11,7 @@ import PipelineConsole from './components/PipelineConsole'
 import Results from './components/Results'
 import SetupWizard from './components/SetupWizard'
 import Sidebar from './components/Sidebar'
+import StatsBoard from './components/StatsBoard'
 import StatTiles from './components/StatTiles'
 import ValidationPanel from './components/ValidationPanel'
 import type { ParseResponse, ResultsResponse, SearchConfigDto } from './types'
@@ -32,6 +33,7 @@ export default function App() {
   const [runId, setRunId] = useState<string | null>(null)
   const [results, setResults] = useState<ResultsResponse | null>(null)
   const [showDb, setShowDb] = useState(false)
+  const [showStats, setShowStats] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -94,7 +96,8 @@ export default function App() {
         onLoadVault={(id) => void handleLoadVault(id)}
         onChanged={refresh}
         onKill={handleReset}
-        onOpenDb={() => setShowDb(true)}
+        onOpenDb={() => { setShowDb(true); setShowStats(false) }}
+        onOpenStats={() => { setShowStats(true); setShowDb(false) }}
       />
       <main>
         {backendDown && (
@@ -104,6 +107,7 @@ export default function App() {
           </div>
         )}
         <Header status={status} />
+        {showStats && <StatsBoard onClose={() => setShowStats(false)} />}
         {showDb && <DbViewer onClose={() => setShowDb(false)} />}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />

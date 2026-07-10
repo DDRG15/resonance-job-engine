@@ -18,11 +18,12 @@ interface Props {
   onChanged: () => void
   onKill: () => void
   onOpenDb: () => void
+  onOpenStats: () => void
 }
 
 export default function Sidebar({
   status, stats, vault, scheduler, profile,
-  ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb,
+  ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb, onOpenStats,
 }: Props) {
   // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
   // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
@@ -90,9 +91,14 @@ export default function Sidebar({
               <span>Últimas 24 h</span>
             </div>
           </div>
-          <button type="button" className="btn mini" onClick={onOpenDb}>
-            Ver base de datos
-          </button>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className="btn mini" onClick={onOpenDb} style={{ flex: 1 }}>
+              Ver DB
+            </button>
+            <button type="button" className="btn mini" onClick={onOpenStats} style={{ flex: 1 }}>
+              Estadísticas
+            </button>
+          </div>
         </div>
       )}
 

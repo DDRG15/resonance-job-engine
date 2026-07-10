@@ -439,6 +439,35 @@ class GemaDatabase:
             "by_tier": {row["tier"]: row["cnt"] for row in by_tier},
         }
 
+    def get_dashboard_stats(self) -> dict:
+        """Agregados para el panel visual (F19) — todo desde la DB, sin LLM.
+
+        Devuelve distribución por tier, por fuente, y volumen por día (14d)
+        para que la UI dibuje el board de estadísticas del registry.
+        """
+        with _get_connection(self.db_path) as conn:
+            by_tier = conn.execute(
+                "SELECT tier, COUNT(*) AS cnt FROM seen_jobs_registry "
+                "WHERE tier IS NOT NULL GROUP BY tier"
+            ).fetchall()
+            by_source = conn.execute(
+                "SELECT source_domain, COUNT(*) AS cnt FROM seen_jobs_registry "
+                "GROUP BY source_domain ORDER BY cnt DESC LIMIT 20"
+            ).fetchall()
+            # scraped_at es ISO-8601; los 10 primeros chars = YYYY-MM-DD
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+            by_day = conn.execute(
+                "SELECT substr(scraped_at, 1, 10) AS day, COUNT(*) AS cnt "
+                "FROM seen_jobs_registry WHERE scraped_at >= ? "
+                "GROUP BY day ORDER BY day",
+                (cutoff,),
+            ).fetchall()
+        return {
+            "by_tier": {r["tier"]: r["cnt"] for r in by_tier},
+            "by_source": [{"source": r["source_domain"], "count": r["cnt"]} for r in by_source],
+            "by_day": [{"day": r["day"], "count": r["cnt"]} for r in by_day],
+        }
+
     # =========================================================================
     # Async-Safe Interface for "The Blitz" (asyncio.gather concurrency)
     # =========================================================================

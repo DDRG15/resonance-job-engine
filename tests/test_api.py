@@ -125,6 +125,22 @@ class TestStatus:
         body = r.json()
         assert "total_seen" in body and "recent_24h" in body and "by_tier" in body
 
+    def test_dashboard_stats_shape(self, client):
+        # F19 — board visual: agregados desde DB, forma estable aun vacía
+        r = client.get("/api/registry/dashboard")
+        assert r.status_code == 200
+        body = r.json()
+        assert "by_tier" in body and "by_source" in body and "by_day" in body
+        assert isinstance(body["by_source"], list)
+
+    def test_dashboard_stats_after_run(self, client, fake_scrape):
+        _put_config(client)
+        client.post("/api/scrape", json={})
+        _wait_run_done(client)
+        body = client.get("/api/registry/dashboard").json()
+        assert sum(body["by_tier"].values()) > 0
+        assert len(body["by_source"]) > 0
+
     def test_registry_jobs_empty_db(self, client):
         # F12 — visor de DB: DB temporal vacía → lista vacía, no error
         r = client.get("/api/registry/jobs")

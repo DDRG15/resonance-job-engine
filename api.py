@@ -413,6 +413,12 @@ def registry_stats():
     return app.state.db.get_registry_stats()
 
 
+@app.get("/api/registry/dashboard")
+def registry_dashboard():
+    """F19 — agregados para el panel visual de estadísticas (todo desde DB)."""
+    return app.state.db.get_dashboard_stats()
+
+
 @app.get("/api/registry/jobs")
 def registry_jobs(limit: int = 200, hours: Optional[int] = None):
     """F12 — visor de DB: todo lo recopilado, crudo, más nuevo primero.
