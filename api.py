@@ -47,6 +47,62 @@ _LLM_KEY_NAMES = (
     "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "MISTRAL_API_KEY",
 )
 
+# F8: persistencia de sesión — el cron y la última búsqueda confirmada
+# sobreviven reinicios del server. Los tests lo redirigen a un path temporal.
+API_STATE_FILE = Path(__file__).parent / "api_state.json"
+
+
+def _persist_state() -> None:
+    """Guarda config confirmada + schedule (activo o armado) a disco (F8)."""
+    sched: SchedulerService = app.state.sched
+    schedule = None
+    if app.state.pending_schedule is not None:
+        schedule = dict(app.state.pending_schedule)
+    elif sched.enabled:
+        schedule = {
+            "mode": sched.mode,
+            "interval_hours": sched.interval_hours,
+            "cron_days_str": sched.cron_days,
+            "cron_hour": sched.cron_hour,
+            "cron_minute": sched.cron_minute,
+            "retain_cv": False,  # el perfil tiene su propia persistencia opt-in
+        }
+    cfg = app.state.current_config
+    payload = {
+        "config": cfg.model_dump(mode="json") if cfg else None,
+        "schedule": schedule,
+    }
+    try:
+        API_STATE_FILE.write_text(
+            json.dumps(payload, indent=2), encoding="utf-8"
+        )
+    except OSError as exc:
+        # Fail-loud en log; la operación del usuario no se bloquea por esto
+        import logging
+        logging.getLogger("gema.api").warning("[F8] no se pudo persistir estado: %s", exc)
+
+
+def _restore_state() -> None:
+    """Al boot: restaura búsqueda confirmada y re-arma/activa el cron (F8)."""
+    if not API_STATE_FILE.exists():
+        return
+    try:
+        payload = json.loads(API_STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        import logging
+        logging.getLogger("gema.api").warning("[F8] estado persistido ilegible: %s", exc)
+        return
+    if payload.get("config"):
+        try:
+            app.state.current_config = SearchConfig(**payload["config"])
+        except Exception:
+            app.state.current_config = None
+    if payload.get("schedule"):
+        app.state.pending_schedule = payload["schedule"]
+        # Con config restaurada el cron se ACTIVA; sin config queda armado
+        _apply_pending_schedule()
+
+
 # F13: modalidad/ubicación que los LLM meten como must_include y que, buscadas
 # como texto literal en el card, castigan a casi todos los jobs.
 _LOCATION_NOISE_KEYWORDS = {
@@ -77,6 +133,8 @@ async def lifespan(app: FastAPI):
     # tener una búsqueda confirmada — queda "armado" acá y se activa solo
     # cuando llega la config (PUT /api/config o carga desde el vault).
     app.state.pending_schedule = None
+    # F8: restaurar búsqueda confirmada + cron persistidos del boot anterior
+    _restore_state()
     yield
 
 
@@ -190,6 +248,7 @@ def put_config(body: dict):
     app.state.sched.update_config(cfg, app.state.profile)
     # F3: si el cron quedó armado antes de tener búsqueda, se activa acá
     _apply_pending_schedule()
+    _persist_state()  # F8
     return {"config": cfg.model_dump(mode="json")}
 
 
@@ -341,6 +400,7 @@ def load_vault_entry(vault_id: str):
     app.state.audit_report = None
     app.state.db.increment_vault_usage(vault_id)
     _apply_pending_schedule()  # F3: cargar del vault también cuenta como config
+    _persist_state()  # F8
     return {"config": entry.config.model_dump(mode="json"), "label": entry.label}
 
 
@@ -413,12 +473,20 @@ def set_godmode(body: GodModeUpdate):
 
 @app.post("/api/reset")
 def reset_session():
-    """Kill switch — equivalente al Reset Total de Streamlit."""
+    """Kill switch — equivalente al Reset Total de Streamlit.
+
+    F8: también limpia el estado persistido — un reset es un reset,
+    no vuelve solo después del próximo boot.
+    """
     app.state.runs.reset()
     app.state.current_config = None
     app.state.audit_report = None
     app.state.profile = None
     app.state.godmode = {"custom_xpath": None, "custom_css": None}
+    app.state.pending_schedule = None
+    if app.state.sched.enabled:
+        app.state.sched.disable()
+    _persist_state()
     return {"reset": True}
 
 
@@ -460,12 +528,14 @@ def _apply_pending_schedule() -> None:
     if pending is None or cfg is None:
         return
     sched: SchedulerService = app.state.sched
+    # F8: si el scheduler cargó un perfil retenido en su boot, no pisarlo
+    profile = app.state.profile or sched.profile
     if pending["mode"] == "interval":
-        sched.enable(pending["interval_hours"], cfg, app.state.profile, app.state.db)
+        sched.enable(pending["interval_hours"], cfg, profile, app.state.db)
     else:
         sched.enable_cron(
             pending["cron_days_str"], pending["cron_hour"], cfg,
-            app.state.profile, app.state.db, retain_profile=pending["retain_cv"],
+            profile, app.state.db, retain_profile=pending["retain_cv"],
             minute=pending["cron_minute"],
         )
     app.state.pending_schedule = None
@@ -494,6 +564,7 @@ def update_scheduler(body: SchedulerUpdate):
         app.state.pending_schedule = None
         if sched.enabled:
             sched.disable()
+        _persist_state()  # F8
         return _scheduler_state(sched)
 
     cfg = app.state.current_config
@@ -507,6 +578,7 @@ def update_scheduler(body: SchedulerUpdate):
             "cron_minute": body.cron_minute,
             "retain_cv": body.retain_cv,
         }
+        _persist_state()  # F8
         return _scheduler_state(sched)
 
     if body.mode == "interval":
@@ -517,6 +589,7 @@ def update_scheduler(body: SchedulerUpdate):
             retain_profile=body.retain_cv, minute=body.cron_minute,
         )
     app.state.pending_schedule = None
+    _persist_state()  # F8
     return _scheduler_state(sched)
 
 

@@ -33,8 +33,9 @@ VALID_CONFIG = {
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    """TestClient con DB temporal y Discord silenciado. Lifespan real."""
+    """TestClient con DB temporal, estado F8 temporal y Discord silenciado."""
     monkeypatch.setattr(config_module, "GEMA_DB_PATH", str(tmp_path / "test_registry.db"))
+    monkeypatch.setattr(api_module, "API_STATE_FILE", tmp_path / "api_state.json")
     monkeypatch.setattr(run_manager_module, "_fire_discord", lambda msg: None)
     with TestClient(api_module.app) as c:
         yield c
@@ -495,6 +496,51 @@ class TestGodModeReset:
         results = client.get("/api/results").json()
         assert results["has_results"] is False
         assert client.get("/api/config").json()["config"] is None
+
+
+# =============================================================================
+# F8 — persistencia: cron y config sobreviven reinicios del server
+# =============================================================================
+
+class TestPersistence:
+    def _reboot(self, tmp_path, monkeypatch):
+        """Simula un reinicio: nuevo TestClient = nuevo lifespan, mismo disco."""
+        return TestClient(api_module.app)
+
+    def test_cron_and_config_survive_restart(self, client, tmp_path, monkeypatch):
+        _put_config(client)
+        client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron",
+            "cron_days": ["tue", "fri", "sat"], "cron_hour": 12, "cron_minute": 50,
+        })
+        # "Reinicio": nuevo lifespan sobre el mismo api_state.json temporal
+        with self._reboot(tmp_path, monkeypatch) as c2:
+            sched = c2.get("/api/scheduler").json()
+            assert sched["enabled"] is True
+            assert sched["cron_days"] == ["tue", "fri", "sat"]
+            assert sched["cron_hour"] == 12 and sched["cron_minute"] == 50
+            cfg = c2.get("/api/config").json()["config"]
+            assert cfg is not None and cfg["min_salary"] == 90000
+        api_module.app.state.sched.disable()
+
+    def test_armed_schedule_survives_restart_without_config(self, client, tmp_path, monkeypatch):
+        client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron", "cron_days": ["sat"], "cron_hour": 9,
+        })
+        with self._reboot(tmp_path, monkeypatch) as c2:
+            sched = c2.get("/api/scheduler").json()
+            assert sched["enabled"] is False
+            assert sched["armed"] is True
+            assert sched["cron_days"] == ["sat"]
+
+    def test_reset_clears_persisted_state(self, client, tmp_path, monkeypatch):
+        _put_config(client)
+        client.put("/api/scheduler", json={"enabled": True, "mode": "interval"})
+        client.post("/api/reset")
+        with self._reboot(tmp_path, monkeypatch) as c2:
+            sched = c2.get("/api/scheduler").json()
+            assert sched["enabled"] is False and sched["armed"] is False
+            assert c2.get("/api/config").json()["config"] is None
 
 
 # =============================================================================
