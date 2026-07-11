@@ -92,6 +92,16 @@ class DomainSelectors:
     # Pagination support (for future multi-page extension)
     next_page_btn: Optional[str] = None
 
+    # Phase 31 (board recovery, 2026-07-11): cómo construir la query del SRP.
+    #   "phrase"  — el título completo va al template (default histórico).
+    #   "keyword" — el título se reduce a UNA palabra clave. Para boards cuyo
+    #               buscador hace matching de frase exacta: "backend python
+    #               developer" → 0 resultados (evidencia: builtin.com 07-11),
+    #               y ese vacío alimentaba el circuit breaker hasta abortar un
+    #               board perfectamente sano. workingnomads documentó este
+    #               patrón en 05-30 pero el fix nunca se generalizó.
+    query_style: str = "phrase"
+
 
 # =============================================================================
 # DOMAIN REGISTRY
@@ -432,6 +442,9 @@ SELECTORS: dict[str, DomainSelectors] = {
     "builtin.com": DomainSelectors(
         domain               = "builtin.com",
         search_url_template  = "https://builtin.com/jobs/remote?search={title}",
+        # Phase 31: su buscador matchea frase exacta — "backend python
+        # developer" da 0; "python" da 25 (verificado en vivo 2026-07-11).
+        query_style          = "keyword",
         wait_for_selector    = "div[data-id]",
         last_verified        = "2026-05-30",
         null_threshold       = 5,

@@ -415,6 +415,65 @@ class CircuitBreaker:
 # Selector Utilities
 # =============================================================================
 
+# =============================================================================
+# Phase 31 — Board recovery (2026-07-11): query building + empty-vs-drift
+# =============================================================================
+
+# Tokens técnicos con prioridad al reducir un título a keyword: son los que
+# discriminan en un buscador de empleos ("python" > "developer").
+_KEYWORD_PRIORITY = (
+    "python", "sdet", "sre", "qa", "devops", "backend", "frontend",
+    "fullstack", "java", "golang", "rust", "react", "node", "data",
+)
+
+
+def _build_query(title: str, query_style: str) -> str:
+    """Convierte un target_title en la query del SRP según el estilo del board.
+
+    "phrase" (default): el título completo, comportamiento histórico.
+    "keyword": UNA palabra — para buscadores de frase exacta donde
+    "backend python developer" devuelve 0 resultados (builtin.com).
+    Preferimos el token técnico más específico; si no hay, el primero.
+    """
+    if query_style != "keyword":
+        return title
+    tokens = [t for t in title.lower().split() if t]
+    if not tokens:
+        return title
+    for kw in _KEYWORD_PRIORITY:
+        if kw in tokens:
+            return kw
+    return tokens[0]
+
+
+# Señales de que una página ES un listado de empleos (aunque el selector no
+# matchee): si están presentes y hay 0 cards → drift real. Si NO están → la
+# búsqueda simplemente no tuvo resultados y castigar al breaker es injusto.
+_JOB_PAGE_SIGNALS = (
+    "engineer", "developer", "salary", "apply", "hiring",
+    "full-time", "part-time", "remote", "job", "position",
+)
+_NO_RESULTS_MARKERS = (
+    "no results", "no jobs found", "no matching", "nothing found",
+    "0 jobs", "no se encontraron", "try a different", "no openings",
+)
+
+
+def _zero_cards_verdict(page_html_lower: str) -> str:
+    """Con 0 cards en el SRP, decide si es "empty" (búsqueda sin resultados —
+    NO cuenta al circuit breaker) o "drift" (la página tiene pinta de listado
+    pero nuestro selector no la ve — SÍ cuenta).
+
+    Phase 31: antes TODO cero era null → boards sanos ejecutados por el
+    breaker cuando una query legítimamente no tenía resultados.
+    """
+    body = page_html_lower[:20_000]
+    if any(m in body for m in _NO_RESULTS_MARKERS):
+        return "empty"
+    signal_hits = sum(1 for s in _JOB_PAGE_SIGNALS if s in body)
+    return "drift" if signal_hits >= 4 else "empty"
+
+
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
     """
     Returns DomainSelectors for a domain, applying God Mode overrides.
@@ -545,6 +604,10 @@ class GemaScraper:
         # aborting other domains. Previously _rate_hits was a global int that
         # caused weworkremotely's 5 consecutive 403s to kill the entire session.
         self._rate_hits_by_domain: dict[str, int] = {}
+
+        # Phase 31: URLs de SRP ya visitadas esta sesión. Con query_style
+        # "keyword" varios títulos colapsan a la misma query — no re-fetchear.
+        self._visited_srp_urls: set[str] = set()
 
         # Collected jobs from all tasks (populated via write queue)
         self._all_jobs: list[JobResult] = []
@@ -1016,8 +1079,20 @@ class GemaScraper:
             self._log(f"[SKIP] No selectors for '{domain}' — add via God Mode.")
             return []
 
-        url = sel.search_url_template.format(title=quote_plus(title))
-        self._log(f"[BLITZ] → {domain} | '{title}' | {url}")
+        # Phase 31: query según el estilo del board (frase completa vs 1 keyword).
+        # Buscadores de frase exacta devuelven 0 con "backend python developer";
+        # "python" les da resultados (builtin.com verificado 2026-07-11).
+        query = _build_query(title, sel.query_style)
+        url = sel.search_url_template.format(title=quote_plus(query))
+
+        # Con query_style keyword varios títulos colapsan a la misma URL — no
+        # re-fetchear el mismo SRP (ahorra tabs y evita re-contar el mismo cero).
+        if url in self._visited_srp_urls:
+            self._log(f"[BLITZ] skip {domain} | '{title}' → query '{query}' ya visitada")
+            return []
+        self._visited_srp_urls.add(url)
+
+        self._log(f"[BLITZ] -> {domain} | '{title}' (q='{query}') | {url}")
 
         page: Page = await context.new_page()
         # Per-tab User-Agent rotation — breaks fingerprint correlation
@@ -1062,14 +1137,29 @@ class GemaScraper:
                     timeout=config.PAGE_TIMEOUT_MS,
                 )
             except Exception:
+                # Phase 31: 0 cards NO siempre es drift. Puede ser que ESTA
+                # búsqueda no tuvo resultados (SRP legítimamente vacío). Antes
+                # todo cero contaba como null → un board sano moría por hacer
+                # búsquedas específicas. Distinguimos por el contenido de la
+                # página: si NO parece un listado de empleos, es "empty" y NO
+                # castiga al breaker; si SÍ lo parece, es drift real → cuenta.
+                try:
+                    body = (await page.content()).lower()
+                except Exception:
+                    body = ""
+                verdict = _zero_cards_verdict(body)
+                if verdict == "empty":
+                    self._log(
+                        f"[EMPTY] {domain} | '{title}' (q='{query}'): SRP sin "
+                        f"resultados — no cuenta como drift."
+                    )
+                    return []
                 self._log(
                     f"[TIMEOUT] wait_for_selector failed on {domain} for '{title}'. "
-                    f"Selector: {sel.wait_for_selector!r}"
+                    f"Selector: {sel.wait_for_selector!r} — parece listado (drift)."
                 )
-                # Count timeouts against the circuit breaker so that a domain
-                # with a broken/drifted wait_for_selector opens the circuit after
-                # null_threshold consecutive timeouts — instead of consuming all
-                # semaphore slots until every title is exhausted.
+                # Drift real: la página tiene pinta de listado pero el selector
+                # no la ve. Cuenta al breaker para abrir tras null_threshold.
                 self.circuit.record_null(domain, sel.null_threshold)
                 return []
 
