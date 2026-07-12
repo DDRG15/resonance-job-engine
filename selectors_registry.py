@@ -463,6 +463,7 @@ SELECTORS: dict[str, DomainSelectors] = {
             "h2",
         ],
         company = [
+            "a[href*='/company/']",          # Phase 31b: company migró acá (verif. 2026-07-11: "Luxury Presence")
             "div[class*='company-name']",
             "span[class*='company']",
             "a[class*='company']",

@@ -1475,8 +1475,17 @@ class GemaScraper:
         Reads title, company, and salary from one card element.
         Uses fallback chains for each field — survives minor DOM changes.
 
-        Salary is optional: None → Tier 4 routing in matcher.
-        Title + Company are required: None on either → return None → circuit null.
+        Salary/location optional: None → Tier 4 / neutral scoring in matcher.
+
+        Phase 31b (2026-07-11): SOLO title es requerido. company era
+        requerido y su selector stale nuleaba el 100% de los cards de un
+        board sano (builtin/arc: title+href OK, company selector viejo →
+        cada card None → breaker abre → 0 jobs). Peor aún, arc.dev anonimiza
+        la empresa (no la expone hasta aplicar) — con company requerido NUNCA
+        podría funcionar. Ahora una company ausente degrada con un placeholder
+        (el job se conserva: title + URL sirven para clickear) en vez de matar
+        el board. company sigue siendo la "fallback key" del modelo, solo que
+        explícita cuando el board no la publica.
         """
         try:
             title    = await _try_chain(card, sel.title)
@@ -1484,12 +1493,13 @@ class GemaScraper:
             salary   = await _try_chain(card, sel.salary)   if sel.salary   else None
             location = await _try_chain(card, sel.location) if sel.location else None
 
-            if not title or not company:
-                logger.debug(
-                    "[NULL CARD] %s — title=%r company=%r",
-                    url, title, company,
-                )
+            if not title:
+                logger.debug("[NULL CARD] %s — title vacío", url)
                 return None
+
+            if not company:
+                logger.debug("[NO COMPANY] %s — board no publica empresa", url)
+                company = "(empresa no listada)"
 
             return JobResult(
                 title=title,
