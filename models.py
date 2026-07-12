@@ -16,12 +16,26 @@ Architecture role:
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
+
+# AUDIT NEW #2 (2026-07-10): sanitización de keywords en el borde de entrada.
+_HTML_TAG_RE = re.compile(r"<[^>]*>")          # <script>, <b>, etc.
+_CTRL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")  # control chars
+
+
+def _sanitize_keyword(s: str) -> str:
+    """Elimina tags HTML y caracteres de control de un keyword de búsqueda.
+    Defensa en profundidad contra inyección vía prompt (el LLM podría emitir
+    '<script>' en un target_title). Idempotente y seguro con texto normal."""
+    s = _HTML_TAG_RE.sub("", s)
+    s = _CTRL_CHARS_RE.sub("", s)
+    return s.strip()
 
 
 # =============================================================================
@@ -78,11 +92,18 @@ class SearchConfig(BaseModel):
     @field_validator("target_titles", "must_include", "must_exclude", mode="before")
     @classmethod
     def strip_and_deduplicate(cls, v: list) -> list:
-        """Normalize whitespace and remove duplicates while preserving order."""
+        """Normaliza espacios, deduplica y SANITIZA (AUDIT NEW #2, 2026-07-10).
+
+        Un prompt de inyección hacía que el LLM pusiera '<script>...</script>'
+        en target_titles. React escapa al render, pero ese texto viaja al
+        scraper (query string), export y DB. Defensa en profundidad: se
+        eliminan tags HTML y caracteres de control en el borde de entrada,
+        no se confía solo en el escape de salida.
+        """
         seen: set = set()
         result: list = []
         for item in v:
-            cleaned = str(item).strip()
+            cleaned = _sanitize_keyword(str(item))
             if cleaned and cleaned.lower() not in seen:
                 seen.add(cleaned.lower())
                 result.append(cleaned)
