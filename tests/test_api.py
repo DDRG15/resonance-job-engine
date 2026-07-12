@@ -205,10 +205,13 @@ class TestParse:
         assert body["audit_report"].startswith("audit ok")
         assert body["config"]["target_titles"] == ["python dev"]
 
-    def test_parse_forces_all_domains(self, client, fake_nlp):
+    def test_parse_forces_all_active_domains(self, client, fake_nlp):
+        # Phase 31b: fuerza los dominios ACTIVOS (retirados excluidos)
         import selectors_registry
         body = client.post("/api/parse", json={"prompt": "python"}).json()
-        assert set(body["config"]["target_domains"]) == set(selectors_registry.SELECTORS.keys())
+        assert set(body["config"]["target_domains"]) == set(selectors_registry.active_domains())
+        # los retirados NO deben estar
+        assert "greenhouse.com" not in body["config"]["target_domains"]
 
     def test_parse_applies_godmode(self, client, fake_nlp):
         client.put("/api/godmode", json={"custom_css": "div.job-card"})

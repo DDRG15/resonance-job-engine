@@ -204,7 +204,7 @@ def parse_prompt(body: ParseRequest):
 
     # Igual que main.py: la IA elige 2-3 dominios; forzamos los 14+ registrados
     cfg = cfg.model_copy(update={
-        "target_domains": list(selectors_registry.SELECTORS.keys())
+        "target_domains": selectors_registry.active_domains()
     })
     # F13 (run 2, 2026-07-10): palabras de ubicación/modalidad son INTENCIÓN,
     # no keywords de texto. Como must_include se busca literal en el card

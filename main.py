@@ -500,7 +500,7 @@ if parse_btn and user_prompt.strip():
 
             # Force all registered domains — AI only picks 2-3; we want all 14
             cfg = cfg.model_copy(update={
-                "target_domains": list(selectors_registry.SELECTORS.keys())
+                "target_domains": selectors_registry.active_domains()
             })
 
             # Apply God Mode overrides if set

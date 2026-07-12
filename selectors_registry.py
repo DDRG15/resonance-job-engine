@@ -92,6 +92,11 @@ class DomainSelectors:
     # Pagination support (for future multi-page extension)
     next_page_btn: Optional[str] = None
 
+    # Phase 31b (2026-07-11): board retirado del scraping activo pero su config
+    # se conserva para recuperación futura. active=False → no se scrapea, no
+    # cuenta en la cobertura, pero el registro queda documentado.
+    active: bool = True
+
     # Phase 31 (board recovery, 2026-07-11): cómo construir la query del SRP.
     #   "phrase"  — el título completo va al template (default histórico).
     #   "keyword" — el título se reduce a UNA palabra clave. Para boards cuyo
@@ -161,6 +166,10 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Wait for job-item before extracting — salary often injected via XHR.
     "trueup.io": DomainSelectors(
         domain               = "trueup.io",
+        # RETIRADO 2026-07-11: el ?q= sirve landing de filtros + login; hrefs son
+        # /co/<company>/jobs (páginas de empresa). Cambió el endpoint + auth.
+        # Config conservada para eventual reverse-engineering. Ver PLAN_BOARD_RECOVERY.
+        active               = False,
         search_url_template  = "https://trueup.io/jobs?q={title}&remote=true",
         wait_for_selector    = "div.job-item",
         last_verified        = "2026-05-07",
@@ -480,6 +489,9 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Graceful timeout → [] if blocked by auth wall.
     "welcometothejungle.com": DomainSelectors(
         domain               = "welcometothejungle.com",
+        # RETIRADO 2026-07-11: muro de login + "subí tu CV para que te matcheemos".
+        # Los jobs no son accesibles sin auth. Config conservada.
+        active               = False,
         search_url_template  = "https://www.welcometothejungle.com/en/jobs?query={title}&remote=true",
         wait_for_selector    = "article[data-testid='job-card']",
         last_verified        = "2026-05-10",
@@ -546,39 +558,32 @@ SELECTORS: dict[str, DomainSelectors] = {
     ),
 
     # ── PostHog Cool Tech Jobs ────────────────────────────────────────────────
-    # Curated list by PostHog — no keyword search, {title} param ignored.
-    # Next.js static page. Selectors may need God Mode adjustment.
+    # Curated list — cada job es un <a class="group"> hacia /careers/ o un ATS
+    # externo (ashbyhq). Phase 31b (2026-07-11): el card ES el anchor; título =
+    # texto del anchor; empresa NO está en el listado (vive en el destino
+    # externo → recuperación completa = roadmap). Recuperación básica: title+URL.
     "posthog.com": DomainSelectors(
         domain               = "posthog.com",
         search_url_template  = "https://posthog.com/cool-tech-jobs?q={title}",
-        wait_for_selector    = "main",
-        last_verified        = "2026-05-10",
-        null_threshold       = 5,
+        wait_for_selector    = "a[class*='group']",
+        last_verified        = "2026-07-11",
+        null_threshold       = 8,
         job_card = [
-            "li[class*='job']",
-            "div[class*='job']",
-            "article",
-            "li",
+            "a[href*='/careers/']",
+            "a[href*='ashbyhq']",
+            "a[class*='group']",
         ],
         link = [
-            "a[href*='jobs']",
-            "a[href*='careers']",
-            "li a",
+            # el card ES el <a>; el scraper cae a card.get_attribute('href')
+            "a[href]",
         ],
         title = [
+            "span",
             "h2",
             "h3",
-            "span[class*='title']",
         ],
-        company = [
-            "span[class*='company']",
-            "p[class*='company']",
-            "strong",
-        ],
-        salary = [
-            "span[class*='salary']",
-            "span[class*='compensation']",
-        ],
+        company = [],
+        salary = [],
     ),
 
     # ── Jobspresso ────────────────────────────────────────────────────────────
@@ -622,6 +627,10 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Static/Next.js. Limited listings but high-signal tech roles.
     "greenhouse.com": DomainSelectors(
         domain               = "greenhouse.com",
+        # RETIRADO 2026-07-11: es el sitio de marketing del ATS Greenhouse
+        # (Platform/Solutions/AI recruiting), NO un aggregator de empleos. Mal
+        # configurado desde el inicio — greenhouse.com no agrega jobs scrapeables.
+        active               = False,
         search_url_template  = "https://www.greenhouse.com/careers/opportunities?q={title}",
         wait_for_selector    = "main",
         last_verified        = "2026-05-10",
@@ -749,6 +758,16 @@ def get_selectors(domain: str) -> Optional[DomainSelectors]:
 
 def list_supported_domains() -> list[str]:
     return list(SELECTORS.keys())
+
+
+def active_domains() -> list[str]:
+    """Dominios que se scrapean activamente (Phase 31b — excluye retirados).
+
+    Un board retirado (active=False) conserva su config para recuperación
+    futura pero no se scrapea ni cuenta en la cobertura. Este es el listado
+    que api.py/main.py usan para poblar target_domains.
+    """
+    return [k for k, sel in SELECTORS.items() if sel.active]
 
 
 def is_selector_stale(sel: DomainSelectors, warn_after_days: int = 30) -> bool:

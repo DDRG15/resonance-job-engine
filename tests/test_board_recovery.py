@@ -43,6 +43,25 @@ class TestBuildQuery:
         assert sr.SELECTORS["remoteok.com"].query_style == "phrase"
 
 
+class TestActiveDomains:
+    def test_retired_boards_excluded(self):
+        # Phase 31b: greenhouse/wttj/trueup retirados (config conservada)
+        active = set(sr.active_domains())
+        for retired in ("greenhouse.com", "welcometothejungle.com", "trueup.io"):
+            assert retired not in active
+            assert retired in sr.SELECTORS          # config sigue existiendo
+            assert sr.SELECTORS[retired].active is False
+
+    def test_working_boards_active(self):
+        active = set(sr.active_domains())
+        for live in ("remoteok.com", "workingnomads.com", "builtin.com",
+                     "arc.dev", "remotivated.com", "posthog.com"):
+            assert live in active
+
+    def test_active_is_subset_of_all(self):
+        assert set(sr.active_domains()).issubset(set(sr.SELECTORS.keys()))
+
+
 class TestZeroCardsVerdict:
     def test_explicit_no_results_is_empty(self):
         html = "<html><body><h1>No jobs found for your search</h1></body></html>"

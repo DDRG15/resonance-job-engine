@@ -108,9 +108,13 @@ def test_title_has_at_least_one_selector(board):
     )
 
 
-def test_company_has_at_least_one_selector(board):
-    assert len(board.company) >= 1, (
-        f"{board.domain}: company fallback chain must have at least one entry"
+def test_company_selector_optional_since_phase31b(board):
+    # Phase 31b (2026-07-11): company es OPCIONAL. Un board que no publica la
+    # empresa en el listado (posthog, arc anonimizado) puede tener company=[]
+    # — el extractor pone un placeholder y conserva el job (title+URL sirven).
+    # Antes company>=1 era obligatorio y una company stale nuleaba el board.
+    assert isinstance(board.company, list), (
+        f"{board.domain}: company debe ser una lista (puede ser vacía)"
     )
 
 
