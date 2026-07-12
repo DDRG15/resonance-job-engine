@@ -102,4 +102,6 @@ class TestRunFullPipeline:
             _make_job("Data Scientist", n=4),
         ]
         t1, t2, t3, t4, s = self._run(jobs)
-        assert len(t1) + len(t2) + len(t3) + len(t4) == len(jobs)
+        # AUDIT NEW #1: el pre-filtro de título puede descartar off-topic
+        # (ej. "Marketing Manager") → la suma es <= entrada, nunca inventa jobs.
+        assert len(t1) + len(t2) + len(t3) + len(t4) <= len(jobs)

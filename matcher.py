@@ -22,9 +22,58 @@ import re
 from typing import Optional
 
 import config
+import metrics
 from models import JobResult, SearchConfig, TieredJob
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# AUDIT NEW #1 (2026-07-10) — pre-filtro de relevancia de título
+# =============================================================================
+# El SRP genérico de un board devuelve TODOS sus cards; GEMA scrapeaba y
+# puntuaba File Clerk / Crypto Trader / Virtual Assistant junto con los
+# relevantes. No eran alucinaciones (URLs reales) pero eran ruido: se
+# colaban a Tier 3 y ensuciaban los resultados (queja de el usuario).
+# Fix conservador: un job se descarta SOLO si su título no comparte NINGÚN
+# token significativo con NINGÚN target_title NI skill del perfil. Un job
+# borderline (comparte aunque sea 1 token real) SIEMPRE se conserva.
+
+# Palabras que no discriminan un rol técnico — no cuentan como overlap.
+_STOPWORDS = frozenset({
+    "senior", "junior", "mid", "lead", "staff", "principal", "the", "a", "an",
+    "of", "and", "or", "for", "to", "in", "at", "remote", "hybrid", "onsite",
+    "on-site", "full", "time", "part", "contract", "permanent", "i", "ii",
+    "iii", "level", "entry", "experienced", "work", "home", "anywhere",
+})
+
+
+def _meaningful_tokens(text: str) -> set:
+    """Tokens en minúscula, sin stopwords ni tokens de 1 char."""
+    toks = re.split(r"[^a-z0-9]+", (text or "").lower())
+    return {t for t in toks if len(t) > 1 and t not in _STOPWORDS}
+
+
+def title_is_relevant(
+    title: str,
+    target_titles: list[str],
+    profile: Optional[dict] = None,
+) -> bool:
+    """True si el título comparte ≥1 token significativo con algún
+    target_title o skill del perfil. Conservador: sin señales de búsqueda
+    (target vacío) → todo es relevante (no filtrar a ciegas)."""
+    job_tokens = _meaningful_tokens(title)
+    if not job_tokens:
+        return True  # título raro/vacío — no descartar por las dudas
+    search_tokens: set = set()
+    for t in (target_titles or []):
+        search_tokens |= _meaningful_tokens(t)
+    if profile:
+        for s in profile.get("core_skills", []) or []:
+            search_tokens |= _meaningful_tokens(str(s))
+    if not search_tokens:
+        return True  # sin criterio de búsqueda → no filtrar
+    return bool(job_tokens & search_tokens)
 
 
 # =============================================================================
@@ -434,8 +483,16 @@ def bucket_jobs(
     full pass that populates all display data.
     """
     tier1, tier2, tier3, tier4 = [], [], [], []
+    filtered_off_topic = 0
 
     for job in jobs:
+        # AUDIT NEW #1: descartar ruido off-topic ANTES de puntuar (File Clerk,
+        # Crypto Trader…). Conservador: solo cae si NO comparte ningún token
+        # significativo con la búsqueda ni el perfil.
+        if not title_is_relevant(job.title, search_config.target_titles, profile):
+            filtered_off_topic += 1
+            continue
+
         tiered = score_job(job, search_config, profile=profile)
         if tiered.tier == "Tier 1":
             tier1.append(tiered)
@@ -453,7 +510,9 @@ def bucket_jobs(
                 logger.warning("[DB] Could not update tier for %s: %s", job.url, exc)
 
     logger.info(
-        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d",
-        len(tier1), len(tier2), len(tier3), len(tier4),
+        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic descartados=%d",
+        len(tier1), len(tier2), len(tier3), len(tier4), filtered_off_topic,
     )
+    if filtered_off_topic:
+        metrics.emit("jobs_filtered_off_topic", filtered_off_topic)
     return tier1, tier2, tier3, tier4

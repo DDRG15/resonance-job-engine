@@ -288,17 +288,21 @@ def test_score_job_inline_tier4_on_text_salary():
 
 def test_bucket_jobs_distributes_into_four_tiers():
     jobs = [
-        _job("Backend Engineer", salary_raw="$150k", url_id=100),        # Tier 1
-        _job("Backend Engineer", salary_raw="$80k", url_id=101),          # Tier 2
-        _job("Product Designer", salary_raw="$40k", url_id=102),          # Tier 3
-        _job("SRE Lead", salary_raw="Competitive + equity", url_id=103),  # Tier 4
+        _job("Backend Engineer", salary_raw="$150k", url_id=100),          # Tier 1
+        _job("Backend Engineer", salary_raw="$80k", url_id=101),            # Tier 2
+        _job("Backend Engineer", salary_raw="Competitive + equity", url_id=103),  # Tier 4
+        _job("File Clerk", salary_raw="$40k", url_id=102),                  # off-topic → filtrado
     ]
     config = _config(titles=["Backend Engineer"], min_salary=130_000)
     t1, t2, t3, t4 = bucket_jobs(jobs, config)
 
+    # Tier 4 (salario en texto) se puebla; los tiers relevantes distribuyen.
     assert len(t4) >= 1
     total = len(t1) + len(t2) + len(t3) + len(t4)
-    assert total == len(jobs)
+    # AUDIT NEW #1: "File Clerk" es off-topic → descartado ANTES de puntuar.
+    assert total == len(jobs) - 1
+    all_titles = [tj.job.title for tj in (t1 + t2 + t3 + t4)]
+    assert "File Clerk" not in all_titles
 
 
 def test_bucket_jobs_calls_db_update_tier_per_job():
