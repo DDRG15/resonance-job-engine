@@ -208,6 +208,9 @@ SELECTORS: dict[str, DomainSelectors] = {
     # WordPress-based board. Stable traditional HTML — minimal JS hydration.
     "remote.co": DomainSelectors(
         domain               = "remote.co",
+        # RETIRADO 2026-07-11: ERR_HTTP2_PROTOCOL_ERROR consistente (URL/conexión
+        # muerta). Incierto, no rescatable ahora. Revisar template a futuro.
+        active               = False,
         search_url_template  = "https://remote.co/remote-jobs/search/?search_keywords={title}",
         wait_for_selector    = "li.job_listing",
         last_verified        = "2026-05-07",
@@ -244,6 +247,8 @@ SELECTORS: dict[str, DomainSelectors] = {
     # null_threshold=3: strict — WWR cards are very consistent; nulls = drift.
     "weworkremotely.com": DomainSelectors(
         domain               = "weworkremotely.com",
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (roadmap).
+        active               = False,
         search_url_template  = "https://weworkremotely.com/remote-jobs/search?term={title}",
         wait_for_selector    = "li.feature",
         last_verified        = "2026-05-07",
@@ -380,6 +385,8 @@ SELECTORS: dict[str, DomainSelectors] = {
     # gracefully. No action needed — zero results is the expected outcome.
     "wellfound.com": DomainSelectors(
         domain               = "wellfound.com",
+        # RETIRADO 2026-07-11: HTTP 403 Cloudflare JS Challenge. Reactivar con camoufox (roadmap).
+        active               = False,
         search_url_template  = "https://wellfound.com/jobs?q={title}&remote=true",
         wait_for_selector    = "div[class*='JobListing']",
         last_verified        = "2026-05-10",
@@ -700,6 +707,8 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Selectors verified 2026-05-25 — run God Mode if null_rate trips.
     "startup.jobs": DomainSelectors(
         domain               = "startup.jobs",
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (roadmap).
+        active               = False,
         search_url_template  = "https://startup.jobs/?q={title}&remote=true",
         wait_for_selector    = "div.css-1wts5rl",
         last_verified        = "2026-05-25",
