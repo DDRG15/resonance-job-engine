@@ -511,30 +511,31 @@ SELECTORS: dict[str, DomainSelectors] = {
     ),
 
     # ── Remotivated ───────────────────────────────────────────────────────────
-    # Emerging remote job board. Best-effort selectors — verify after first run.
+    # Remote job board. Phase 31b (verif. 2026-07-11): migró a <article> cards;
+    # company/title/link confirmados en vivo (h3 title, [class*='company']).
     "remotivated.com": DomainSelectors(
         domain               = "remotivated.com",
         search_url_template  = "https://remotivated.com/jobs?q={title}",
-        wait_for_selector    = ".job-card",
-        last_verified        = "2026-05-10",
+        wait_for_selector    = "article",
+        last_verified        = "2026-07-11",
         null_threshold       = 5,
         job_card = [
+            "article",
             ".job-card",
             "div[class*='job']",
-            "li[class*='job']",
-            "article",
         ],
         link = [
             "a[href*='/jobs/']",
-            "h2 a",
             "h3 a",
+            "h2 a",
         ],
         title = [
-            "h2",
             "h3",
+            "h2",
             ".job-title",
         ],
         company = [
+            "[class*='company']",
             ".company",
             "span[class*='company']",
         ],
