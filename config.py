@@ -75,6 +75,13 @@ LLM_FALLBACK_MAX_BOARDS_PER_RUN: int = int(os.getenv("LLM_FALLBACK_MAX_BOARDS_PE
 # ≈ ~6k tokens leaves room for the system prompt + output. Truncated, not chunked.
 LLM_FALLBACK_MAX_INPUT_CHARS: int = int(os.getenv("LLM_FALLBACK_MAX_INPUT_CHARS", "20000"))
 
+# NEW #6 (auditoría 07-10) — replayability del drift: cuando el fallback LLM
+# recupera 0 jobs de un board drifteado, guardamos {url, html/texto enviado,
+# output} a este dir para debuggear offline por qué falló (builtin/greenhouse
+# recuperaron 0 en runs reales y no se podía investigar). Feeds Phase 30.
+DRIFT_QUARANTINE_DIR: str = os.getenv("DRIFT_QUARANTINE_DIR", "drift_quarantine")
+DRIFT_QUARANTINE_MAX_FILES: int = int(os.getenv("DRIFT_QUARANTINE_MAX_FILES", "50"))
+
 
 # =============================================================================
 # Scheduler / cron (B4)

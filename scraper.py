@@ -51,6 +51,7 @@ WEBHOOK INTEGRATION:
 
 import asyncio
 import functools
+import json
 import logging
 import os
 import queue
@@ -473,6 +474,40 @@ def _zero_cards_verdict(page_html_lower: str) -> str:
         return "empty"
     signal_hits = sum(1 for s in _JOB_PAGE_SIGNALS if s in body)
     return "drift" if signal_hits >= 4 else "empty"
+
+
+def _snapshot_drift_failure(domain: str, srp_url: str, sent_text: str,
+                            llm_output: object, reason: str) -> None:
+    """NEW #6 (auditoría 07-10) — replayability: cuando el fallback LLM no puede
+    recuperar un board drifteado, dejar un snapshot para debug offline.
+    Fail-safe: cualquier error acá jamás rompe el scrape. Feeds Phase 30."""
+    try:
+        import pathlib
+        d = pathlib.Path(config.DRIFT_QUARANTINE_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        # Cap de archivos: no crecer sin límite (borra los más viejos).
+        existing = sorted(d.glob("drift_*.json"), key=lambda p: p.stat().st_mtime)
+        while len(existing) >= config.DRIFT_QUARANTINE_MAX_FILES:
+            try:
+                existing.pop(0).unlink()
+            except OSError:
+                break
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        payload = {
+            "domain": domain,
+            "srp_url": srp_url,
+            "reason": reason,
+            "captured_at": ts,
+            "sent_text_len": len(sent_text),
+            "sent_text": sent_text[:8000],   # muestra, no el input entero
+            "llm_output": str(llm_output)[:4000],
+        }
+        (d / f"drift_{domain}_{ts}.json").write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        metrics.emit("drift_snapshot_saved", 1, domain=domain)
+    except Exception as exc:
+        logger.debug("[DRIFT-SNAPSHOT] no se pudo guardar para %s: %s", domain, exc)
 
 
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
@@ -1330,6 +1365,11 @@ class GemaScraper:
             self._log(
                 f"[LLM-FALLBACK] {domain}: LLM recovered 0 usable jobs "
                 f"(no distinct per-card URLs)."
+            )
+            # NEW #6: snapshot para debug offline de por qué el heal falló.
+            _snapshot_drift_failure(
+                domain, srp_url, clean_text, result.jobs,
+                reason="llm_recovered_0_usable",
             )
             return []
 
