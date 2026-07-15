@@ -521,6 +521,26 @@ class TestGodModeReset:
 # F8 — persistencia: cron y config sobreviven reinicios del server
 # =============================================================================
 
+class TestStateLock:
+    def test_state_lock_is_reentrant(self, client):
+        # NEW #4: debe ser RLock — put_config anida el lock (endpoint →
+        # _apply_pending_schedule → _persist_state). Un Lock plano haría
+        # deadlock. Verificamos la reentrancia directamente.
+        lock = api_module.app.state.state_lock
+        assert lock.acquire(blocking=False)
+        assert lock.acquire(blocking=False)  # reentrante: 2da toma del mismo hilo
+        lock.release()
+        lock.release()
+
+    def test_config_confirm_under_lock_does_not_deadlock(self, client):
+        # Camino que anida el lock 3 niveles — si algo se rompe, cuelga/falla.
+        client.put("/api/scheduler", json={
+            "enabled": True, "mode": "cron", "cron_days": ["sat"], "cron_hour": 9,
+        })
+        _put_config(client)  # endpoint → _apply_pending_schedule → _persist_state
+        assert client.get("/api/scheduler").json()["enabled"] is True
+
+
 class TestPersistence:
     def _reboot(self, tmp_path, monkeypatch):
         """Simula un reinicio: nuevo TestClient = nuevo lifespan, mismo disco."""

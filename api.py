@@ -18,6 +18,7 @@ en PHASE_FIX_ → sección B6.0.
 import io
 import json
 import asyncio
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -53,7 +54,9 @@ API_STATE_FILE = Path(__file__).parent / "api_state.json"
 
 
 def _persist_state() -> None:
-    """Guarda config confirmada + schedule (activo o armado) a disco (F8)."""
+    """Guarda config confirmada + schedule a disco (F8).
+    NEW #4: se llama SIEMPRE dentro de un endpoint que ya tiene state_lock
+    (o en startup single-thread) — no re-lockea acá."""
     sched: SchedulerService = app.state.sched
     schedule = None
     if app.state.pending_schedule is not None:
@@ -123,6 +126,12 @@ async def lifespan(app: FastAPI):
     app.state.notion = NotionClient()
     app.state.sheets = SheetsClient()
     app.state.runs = RunManager(app.state.db, app.state.notion, app.state.sheets)
+    # NEW #4 (auditoría 07-10): las mutaciones de estado de sesión llegan desde
+    # 3 caminos concurrentes (endpoints en el threadpool de FastAPI + worker del
+    # RunManager + _fire del scheduler). RLock reentrante: los endpoints compuestos
+    # (put_config, reset…) llaman a helpers (_apply_pending_schedule, _persist_state)
+    # que también toman el lock — la reentrancia evita auto-deadlock.
+    app.state.state_lock = threading.RLock()
     # Estado de sesión server-side (equivalente a st.session_state)
     app.state.current_config: Optional[SearchConfig] = None
     app.state.audit_report: Optional[str] = None
@@ -243,12 +252,13 @@ def put_config(body: dict):
         cfg = SearchConfig(**body)
     except Exception as exc:
         raise HTTPException(422, f"Invalid configuration: {exc}")
-    app.state.current_config = cfg
-    # Igual que el Confirm de main.py: sincroniza el config del scheduler
-    app.state.sched.update_config(cfg, app.state.profile)
-    # F3: si el cron quedó armado antes de tener búsqueda, se activa acá
-    _apply_pending_schedule()
-    _persist_state()  # F8
+    with app.state.state_lock:  # NEW #4: secuencia read-modify-write atómica
+        app.state.current_config = cfg
+        # Igual que el Confirm de main.py: sincroniza el config del scheduler
+        app.state.sched.update_config(cfg, app.state.profile)
+        # F3: si el cron quedó armado antes de tener búsqueda, se activa acá
+        _apply_pending_schedule()
+        _persist_state()  # F8
     return {"config": cfg.model_dump(mode="json")}
 
 
@@ -396,11 +406,12 @@ def load_vault_entry(vault_id: str):
     entry = next((e for e in entries if e.vault_id == vault_id), None)
     if entry is None:
         raise HTTPException(404, "vault entry no encontrada")
-    app.state.current_config = entry.config
-    app.state.audit_report = None
-    app.state.db.increment_vault_usage(vault_id)
-    _apply_pending_schedule()  # F3: cargar del vault también cuenta como config
-    _persist_state()  # F8
+    with app.state.state_lock:  # NEW #4
+        app.state.current_config = entry.config
+        app.state.audit_report = None
+        app.state.db.increment_vault_usage(vault_id)
+        _apply_pending_schedule()  # F3: cargar del vault también cuenta como config
+        _persist_state()  # F8
     return {"config": entry.config.model_dump(mode="json"), "label": entry.label}
 
 
@@ -484,15 +495,16 @@ def reset_session():
     F8: también limpia el estado persistido — un reset es un reset,
     no vuelve solo después del próximo boot.
     """
-    app.state.runs.reset()
-    app.state.current_config = None
-    app.state.audit_report = None
-    app.state.profile = None
-    app.state.godmode = {"custom_xpath": None, "custom_css": None}
-    app.state.pending_schedule = None
-    if app.state.sched.enabled:
-        app.state.sched.disable()
-    _persist_state()
+    with app.state.state_lock:  # NEW #4: limpieza atómica de todo el estado
+        app.state.runs.reset()
+        app.state.current_config = None
+        app.state.audit_report = None
+        app.state.profile = None
+        app.state.godmode = {"custom_xpath": None, "custom_css": None}
+        app.state.pending_schedule = None
+        if app.state.sched.enabled:
+            app.state.sched.disable()
+        _persist_state()
     return {"reset": True}
 
 
@@ -566,37 +578,38 @@ def update_scheduler(body: SchedulerUpdate):
     valid = {"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
     days_str = ",".join(d for d in body.cron_days if d in valid) or "tue"
 
-    if not body.enabled:
+    with app.state.state_lock:  # NEW #4: mutación de scheduler atómica
+        if not body.enabled:
+            app.state.pending_schedule = None
+            if sched.enabled:
+                sched.disable()
+            _persist_state()  # F8
+            return _scheduler_state(sched)
+
+        cfg = app.state.current_config
+        if cfg is None:
+            # F3: sin config todavía → queda ARMADO; se activa al confirmar
+            app.state.pending_schedule = {
+                "mode": body.mode,
+                "interval_hours": body.interval_hours,
+                "cron_days_str": days_str,
+                "cron_hour": body.cron_hour,
+                "cron_minute": body.cron_minute,
+                "retain_cv": body.retain_cv,
+            }
+            _persist_state()  # F8
+            return _scheduler_state(sched)
+
+        if body.mode == "interval":
+            sched.enable(body.interval_hours, cfg, app.state.profile, app.state.db)
+        else:
+            sched.enable_cron(
+                days_str, body.cron_hour, cfg, app.state.profile, app.state.db,
+                retain_profile=body.retain_cv, minute=body.cron_minute,
+            )
         app.state.pending_schedule = None
-        if sched.enabled:
-            sched.disable()
         _persist_state()  # F8
         return _scheduler_state(sched)
-
-    cfg = app.state.current_config
-    if cfg is None:
-        # F3: sin config todavía → queda ARMADO; se activa al confirmar
-        app.state.pending_schedule = {
-            "mode": body.mode,
-            "interval_hours": body.interval_hours,
-            "cron_days_str": days_str,
-            "cron_hour": body.cron_hour,
-            "cron_minute": body.cron_minute,
-            "retain_cv": body.retain_cv,
-        }
-        _persist_state()  # F8
-        return _scheduler_state(sched)
-
-    if body.mode == "interval":
-        sched.enable(body.interval_hours, cfg, app.state.profile, app.state.db)
-    else:
-        sched.enable_cron(
-            days_str, body.cron_hour, cfg, app.state.profile, app.state.db,
-            retain_profile=body.retain_cv, minute=body.cron_minute,
-        )
-    app.state.pending_schedule = None
-    _persist_state()  # F8
-    return _scheduler_state(sched)
 
 
 # =============================================================================
