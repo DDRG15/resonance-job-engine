@@ -225,6 +225,16 @@ class SchedulerService:
             logger.warning("[SCHEDULER] No SearchConfig set — skipping fire.")
             return
 
+        # NEW #3 (auditoría 07-10): gate de proceso compartido con la UI manual.
+        # Si hay un scrape manual (o previo) vivo, el cron NO lanza un segundo
+        # Playwright — saltea esta corrida (la próxima del cron lo reintentará).
+        from scraper import try_acquire_scrape_gate
+        if not try_acquire_scrape_gate():
+            logger.warning(
+                "[SCHEDULER] Scrape manual en curso — corrida del cron pospuesta."
+            )
+            return
+
         self.is_running = True
         logger.info("[SCHEDULER] Auto-scrape firing...")
 
@@ -290,6 +300,8 @@ class SchedulerService:
                     daemon=True,
                 ).start()
             finally:
+                from scraper import release_scrape_gate
+                release_scrape_gate()  # NEW #3: libera el gate compartido
                 self.is_running = False
 
         threading.Thread(target=_run, daemon=True).start()

@@ -56,6 +56,7 @@ import os
 import queue
 import random
 import re
+import threading
 import time
 from datetime import datetime, timezone
 from enum import Enum
@@ -1547,6 +1548,34 @@ def run_full_pipeline(
     summary.tier3_count = len(tier3)
 
     return tier1, tier2, tier3, tier4, summary
+
+
+# =============================================================================
+# NEW #3 (auditoría 07-10) — Gate de scraping a nivel proceso.
+# UN solo scrape a la vez a través de TODOS los caminos: la UI manual (via
+# RunManager) y el cron (via SchedulerService). Antes cada camino tenía su
+# propio guard independiente → el cron podía disparar sobre una corrida manual
+# viva = 2 sesiones Playwright simultáneas (doble RAM, resultados corruptos,
+# rate-limits duplicados), y en silencio. Este lock es el punto único de
+# coordinación. Los callers usan acquire NO bloqueante y deciden qué hacer en
+# contención (manual → 409; cron → saltear con log).
+# =============================================================================
+
+_SCRAPE_GATE = threading.Lock()
+
+
+def try_acquire_scrape_gate() -> bool:
+    """Intenta tomar el gate sin bloquear. True si lo tomó, False si ya hay
+    otra corrida activa. El caller que reciba True DEBE liberar en un finally."""
+    return _SCRAPE_GATE.acquire(blocking=False)
+
+
+def release_scrape_gate() -> None:
+    """Libera el gate. Idempotente: liberar dos veces no explota."""
+    try:
+        _SCRAPE_GATE.release()
+    except RuntimeError:
+        pass  # ya estaba liberado
 
 
 def run_scrape_session(

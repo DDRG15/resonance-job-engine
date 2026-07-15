@@ -28,7 +28,7 @@ from integrations.webhook_client import send_discord_alert
 from matcher import bucket_jobs
 from models import ScrapeRunSummary, SearchConfig
 from nlp_engine import reset_rate_limit_flags
-from scraper import run_scrape_session
+from scraper import run_scrape_session, try_acquire_scrape_gate, release_scrape_gate
 
 # Marca interna de fin de corrida en el log_queue — el stream SSE la consume
 # y emite el evento `done`; nunca se muestra al usuario.
@@ -127,6 +127,12 @@ class RunManager:
         with self._lock:
             if self.is_running:
                 raise RunInProgressError("scrape already running")
+            # NEW #3: gate de proceso — si el cron (u otra corrida) tiene el
+            # gate, no arrancamos un segundo Playwright. El worker lo libera.
+            if not try_acquire_scrape_gate():
+                raise RunInProgressError(
+                    "otra corrida (cron o manual) está activa — esperá a que termine"
+                )
             self.run_id = str(uuid.uuid4())
             self.log_queue = queue.Queue()
             self.logs = []
@@ -243,4 +249,5 @@ class RunManager:
                 crashed.errors.append(f"pipeline crashed: {exc}")
                 self.summary = crashed
         finally:
+            release_scrape_gate()  # NEW #3: libera el gate para el próximo scrape
             log(DONE_SENTINEL)
