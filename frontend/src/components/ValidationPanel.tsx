@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { postScrape, putConfig } from '../api'
-import type { SearchConfigDto } from '../types'
+import type { AuditVerdict, SearchConfigDto } from '../types'
 
 interface Props {
   config: SearchConfigDto
   auditReport: string | null
+  auditVerdict: AuditVerdict | null
   ttlHours: number
   isRunning: boolean
   onScrapeStarted: (runId: string) => void
@@ -15,7 +16,7 @@ interface Props {
 // El JSON es editable; Confirmar lo re-valida vía Pydantic (PUT /api/config,
 // el gate final) y arranca la corrida (POST /api/scrape).
 export default function ValidationPanel({
-  config, auditReport, ttlHours, isRunning, onScrapeStarted, onReparse,
+  config, auditReport, auditVerdict, ttlHours, isRunning, onScrapeStarted, onReparse,
 }: Props) {
   const [jsonText, setJsonText] = useState(JSON.stringify(config, null, 2))
   const [busy, setBusy] = useState(false)
@@ -30,10 +31,13 @@ export default function ValidationPanel({
     setError(null)
   }
 
-  const clean =
-    auditReport !== null &&
-    (auditReport.toLowerCase().includes('no issues detected') ||
-      auditReport.toLowerCase().includes('looks accurate'))
+  // NEW #5: el veredicto lo decide el backend (fuente única, testeada). El
+  // front ya no hace substring-matching frágil sobre la prosa del LLM.
+  // "clean" → verde; "issues" → ámbar (revisar); skipped/unavailable → neutro.
+  const auditClass =
+    auditVerdict === 'clean' ? 'audit-ok'
+      : auditVerdict === 'issues' ? 'audit-warn'
+        : 'audit-neutral'
 
   async function handleConfirm() {
     setBusy(true)
@@ -66,7 +70,7 @@ export default function ValidationPanel({
         pedido, y confirmá para arrancar.
       </p>
       {auditReport && (
-        <div className={clean ? 'audit-ok' : 'audit-warn'}>
+        <div className={auditClass}>
           <span>
             <b>AI Auditor (cross-check):</b> {auditReport}
           </span>

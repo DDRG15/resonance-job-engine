@@ -14,7 +14,7 @@ import Sidebar from './components/Sidebar'
 import StatsBoard from './components/StatsBoard'
 import StatTiles from './components/StatTiles'
 import ValidationPanel from './components/ValidationPanel'
-import type { ParseResponse, ResultsResponse, SearchConfigDto } from './types'
+import type { AuditVerdict, ParseResponse, ResultsResponse, SearchConfigDto } from './types'
 
 export default function App() {
   const qc = useQueryClient()
@@ -29,6 +29,7 @@ export default function App() {
   // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
   const [auditReport, setAuditReport] = useState<string | null>(null)
+  const [auditVerdict, setAuditVerdict] = useState<AuditVerdict | null>(null)
   const [ttlHours, setTtlHours] = useState(0)
   const [runId, setRunId] = useState<string | null>(null)
   const [results, setResults] = useState<ResultsResponse | null>(null)
@@ -51,6 +52,7 @@ export default function App() {
   function handleParsed(result: ParseResponse) {
     setConfig(result.config)
     setAuditReport(result.audit_report)
+    setAuditVerdict(result.audit_verdict)
     refresh()
   }
 
@@ -58,6 +60,7 @@ export default function App() {
     const { config: cfg } = await loadVaultEntry(vaultId)
     setConfig(cfg)
     setAuditReport(null)
+    setAuditVerdict(null)
     refresh()
   }
 
@@ -74,6 +77,7 @@ export default function App() {
   function handleReset() {
     setConfig(null)
     setAuditReport(null)
+    setAuditVerdict(null)
     setRunId(null)
     setResults(null)
     refresh()
@@ -115,12 +119,14 @@ export default function App() {
           <ValidationPanel
             config={config}
             auditReport={auditReport}
+            auditVerdict={auditVerdict}
             ttlHours={ttlHours}
             isRunning={runId !== null && results === null}
             onScrapeStarted={handleScrapeStarted}
             onReparse={() => {
               setConfig(null)
               setAuditReport(null)
+              setAuditVerdict(null)
             }}
           />
         )}

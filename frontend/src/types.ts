@@ -30,9 +30,12 @@ export interface SearchConfigDto {
   custom_css: string | null
 }
 
+export type AuditVerdict = 'clean' | 'issues' | 'skipped' | 'unavailable'
+
 export interface ParseResponse {
   config: SearchConfigDto
   audit_report: string
+  audit_verdict: AuditVerdict
 }
 
 export interface VaultEntry {

@@ -204,6 +204,8 @@ class TestParse:
         body = r.json()
         assert body["audit_report"].startswith("audit ok")
         assert body["config"]["target_titles"] == ["python dev"]
+        # NEW #5: veredicto estructurado — "no issues detected" → clean
+        assert body["audit_verdict"] == "clean"
 
     def test_parse_forces_all_active_domains(self, client, fake_nlp):
         # Phase 31b: fuerza los dominios ACTIVOS (retirados excluidos)

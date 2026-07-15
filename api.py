@@ -36,6 +36,7 @@ from integrations import NotionClient, SheetsClient
 from models import SearchConfig, SearchVaultEntry
 from nlp_engine import (
     generate_and_audit_config,
+    classify_audit_verdict,
     extract_cv_text,
     generate_ephemeral_profile,
 )
@@ -239,7 +240,11 @@ def parse_prompt(body: ParseRequest):
         entry = SearchVaultEntry(label=body.vault_label.strip(), config=cfg)
         app.state.db.save_to_vault(entry)
 
-    return {"config": cfg.model_dump(mode="json"), "audit_report": audit_report}
+    return {
+        "config": cfg.model_dump(mode="json"),
+        "audit_report": audit_report,
+        "audit_verdict": classify_audit_verdict(audit_report),  # NEW #5
+    }
 
 
 # =============================================================================
@@ -268,6 +273,7 @@ def get_config():
     return {
         "config": cfg.model_dump(mode="json") if cfg else None,
         "audit_report": app.state.audit_report,
+        "audit_verdict": classify_audit_verdict(app.state.audit_report or ""),  # NEW #5
     }
 
 

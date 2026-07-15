@@ -727,6 +727,31 @@ def _build_caller_chain() -> list[tuple[str, callable]]:
 # Zero-Cost AI Consensus Model — Generate + Audit Orchestrator
 # =============================================================================
 
+def classify_audit_verdict(audit_report: str) -> str:
+    """NEW #5 (auditoría 07-10): clasifica el reporte del auditor en un veredicto
+    ESTRUCTURADO y determinista — fuente única de verdad para la UI.
+
+    Antes: el frontend hacía substring-matching sobre la prosa del LLM, frágil
+    con salidas degeneradas ("Config", "Config has critical issues"). Ahora la
+    clasificación vive acá, testeada, y la UI solo lee el veredicto.
+
+    Retorna: "clean" | "issues" | "skipped" | "unavailable".
+    Sesgo conservador: ante duda → "issues" (que el humano revise), nunca "clean".
+    """
+    if not audit_report or not audit_report.strip():
+        return "unavailable"
+    low = audit_report.strip().lower()
+    if low.startswith("audit skipped"):
+        return "skipped"
+    if low.startswith("audit unavailable"):
+        return "unavailable"
+    # Marcadores explícitos de aprobación que el prompt del auditor pide
+    if "no issues detected" in low or "looks accurate" in low:
+        return "clean"
+    # Cualquier otra cosa con contenido → tratar como hallazgo (revisar)
+    return "issues"
+
+
 def generate_and_audit_config(
     user_prompt: str,
     log_callback=None,
