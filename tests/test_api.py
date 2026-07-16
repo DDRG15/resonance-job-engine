@@ -502,6 +502,40 @@ class TestScheduler:
 # /api/godmode + /api/reset
 # =============================================================================
 
+class TestManualReview:
+    def test_empty_review_pile(self, client):
+        body = client.get("/api/review").json()
+        assert body["jobs"] == []
+        assert body["stats"] == {"pending": 0, "resolved": 0}
+
+    def test_review_flow_list_and_resolve(self, client):
+        # sembramos directo en la DB (el salvage real corre en el scraper)
+        from models import JobResult
+        db = api_module.app.state.db
+        db.add_to_manual_review(
+            JobResult(title="Senior Python Engineer", company="Encora",
+                      url="https://builtin.com/job/bad-relative",
+                      source_domain="builtin.com"),
+            "https://builtin.com/jobs/remote?search=python",
+            reason="url_no_verificable_titulo_real",
+        )
+        body = client.get("/api/review").json()
+        assert len(body["jobs"]) == 1
+        assert body["stats"]["pending"] == 1
+        h = body["jobs"][0]["review_hash"]
+        # el humano corrige la URL
+        r = client.post(f"/api/review/{h}/resolve",
+                        json={"resolved_url": "https://builtin.com/job/real-123"})
+        assert r.status_code == 200
+        after = client.get("/api/review").json()
+        assert after["jobs"] == []
+        assert after["stats"] == {"pending": 0, "resolved": 1}
+
+    def test_resolve_unknown_404(self, client):
+        r = client.post("/api/review/nope/resolve", json={"resolved_url": None})
+        assert r.status_code == 404
+
+
 class TestGodModeReset:
     def test_godmode_stored(self, client):
         r = client.put("/api/godmode", json={"custom_xpath": "//h2"})

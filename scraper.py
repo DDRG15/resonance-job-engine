@@ -1359,6 +1359,12 @@ class GemaScraper:
                 f"fabricated urls not present in source."
             )
             metrics.emit("llm_fallback_hallucinated_url", len(dropped), domain=domain)
+            # Phase 30a: NO tirar a la basura los que son rescatables. Un job
+            # cuya URL no está en la fuente PERO cuyo título SÍ aparece en el
+            # texto = título+empresa reales, solo la URL falló (relativa/alucinada)
+            # → pila de revisión manual con el SRP como pista. Si el título
+            # tampoco está en la fuente, el LLM lo inventó entero → descarte.
+            self._salvage_dropped_jobs(dropped, clean_text, domain, srp_url)
         recovered = [j for j in recovered if j.url.rstrip("/") in present]
 
         if not recovered:
@@ -1388,6 +1394,34 @@ class GemaScraper:
             f"{ingested} new enqueued via LLM."
         )
         return recovered
+
+    def _salvage_dropped_jobs(self, dropped, source_text, domain, srp_url) -> None:
+        """Phase 30a — rescata a revisión manual los jobs con URL mala pero
+        title+company reales; descarta solo los verdaderamente inventados.
+
+        Discriminador: el título aparece (normalizado) en el texto fuente que le
+        dimos al LLM. Si sí → real, la URL falló, salvar. Si no → alucinación
+        completa, descartar. Fail-safe: cualquier error acá no rompe el scrape."""
+        norm_source = " ".join(source_text.lower().split())
+        saved = trashed = 0
+        for j in dropped:
+            title_norm = " ".join((j.title or "").lower().split())
+            if title_norm and title_norm in norm_source:
+                try:
+                    if self.db.add_to_manual_review(
+                        j, srp_url, reason="url_no_verificable_titulo_real"
+                    ):
+                        saved += 1
+                except Exception as exc:
+                    logger.debug("[SALVAGE] no se pudo guardar %r: %s", j.title, exc)
+            else:
+                trashed += 1
+        if saved:
+            self._log(
+                f"[SALVAGE] {domain}: {saved} job(s) reales con URL mala → "
+                f"revisión manual. {trashed} inventado(s) descartado(s)."
+            )
+            metrics.emit("jobs_salvaged_to_review", saved, domain=domain)
 
     # =========================================================================
     # Card Extraction — Surface Metadata from SRP DOM

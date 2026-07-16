@@ -127,6 +127,19 @@ export interface RegistryJob {
   location_raw: string | null
 }
 
+export interface ReviewJob {
+  review_hash: string
+  title: string
+  company: string
+  source_domain: string
+  original_url: string | null
+  srp_url: string | null
+  reason: string | null
+  captured_at: string
+  resolved: number
+  resolved_url: string | null
+}
+
 export interface CvProfile {
   [key: string]: unknown
   role?: string

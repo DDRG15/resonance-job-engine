@@ -9,6 +9,7 @@ import DbViewer from './components/DbViewer'
 import Header from './components/Header'
 import PipelineConsole from './components/PipelineConsole'
 import Results from './components/Results'
+import ReviewPanel from './components/ReviewPanel'
 import SetupWizard from './components/SetupWizard'
 import Sidebar from './components/Sidebar'
 import StatsBoard from './components/StatsBoard'
@@ -25,6 +26,11 @@ export default function App() {
   const vaultQ = useQuery({ queryKey: ['vault'], queryFn: getVault })
   const schedQ = useQuery({ queryKey: ['scheduler'], queryFn: getScheduler })
   const cvQ = useQuery({ queryKey: ['cv'], queryFn: getCvProfile })
+  const reviewQ = useQuery({
+    queryKey: ['review'],
+    queryFn: () =>
+      fetch('/api/review').then((r) => r.json() as Promise<{ stats: { pending: number } }>),
+  })
 
   // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
@@ -35,6 +41,7 @@ export default function App() {
   const [results, setResults] = useState<ResultsResponse | null>(null)
   const [showDb, setShowDb] = useState(false)
   const [showStats, setShowStats] = useState(false)
+  const [showReview, setShowReview] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -100,8 +107,10 @@ export default function App() {
         onLoadVault={(id) => void handleLoadVault(id)}
         onChanged={refresh}
         onKill={handleReset}
-        onOpenDb={() => { setShowDb(true); setShowStats(false) }}
-        onOpenStats={() => { setShowStats(true); setShowDb(false) }}
+        onOpenDb={() => { setShowDb(true); setShowStats(false); setShowReview(false) }}
+        onOpenStats={() => { setShowStats(true); setShowDb(false); setShowReview(false) }}
+        onOpenReview={() => { setShowReview(true); setShowDb(false); setShowStats(false) }}
+        reviewPending={reviewQ.data?.stats.pending ?? 0}
       />
       <main>
         {backendDown && (
@@ -113,6 +122,9 @@ export default function App() {
         <Header status={status} />
         {showStats && <StatsBoard onClose={() => setShowStats(false)} />}
         {showDb && <DbViewer onClose={() => setShowDb(false)} />}
+        {showReview && (
+          <ReviewPanel onClose={() => setShowReview(false)} onChanged={refresh} />
+        )}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />
         {config && (

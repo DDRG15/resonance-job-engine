@@ -52,10 +52,37 @@ CREATE TABLE IF NOT EXISTS search_vault (
 );
 """
 
+# Phase 30a — Pila de revisión manual. Jobs con title+company REALES pero URL
+# no verificable (relativa/alucinada por el LLM fallback). Se rescatan acá en vez
+# de tirarlos (principio: no descartar data salvageable). Key = hash(title|company
+# |domain) porque NO tienen URL confiable — separado del dedup principal.
+#
+# SEAM PARA 30b: se guardan las TRES URLs — original_url (la mala que produjo el
+# LLM), srp_url (la pista: el listado donde apareció), y resolved_url (la que el
+# humano corrige). Con las tres, 30b puede DIFERENCIARLAS y aprender el patrón de
+# transformación por board (ej. "url real = srp_url + slug relativo") sin migrar
+# el schema. Sin estos 3 campos, 30b no tendría de dónde aprender.
+_DDL_MANUAL_REVIEW = """
+CREATE TABLE IF NOT EXISTS manual_review (
+    review_hash     TEXT PRIMARY KEY,
+    title           TEXT NOT NULL,
+    company         TEXT NOT NULL,
+    source_domain   TEXT NOT NULL,
+    original_url    TEXT,
+    srp_url         TEXT,
+    reason          TEXT,
+    captured_at     TEXT NOT NULL,
+    resolved        INTEGER DEFAULT 0,
+    resolved_url    TEXT,
+    resolved_at     TEXT
+);
+"""
+
 _DDL_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_registry_domain  ON seen_jobs_registry(source_domain);",
     "CREATE INDEX IF NOT EXISTS idx_registry_scraped ON seen_jobs_registry(scraped_at);",
     "CREATE INDEX IF NOT EXISTS idx_vault_created    ON search_vault(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_review_resolved  ON manual_review(resolved);",
 ]
 
 
@@ -105,6 +132,7 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             conn.execute(_DDL_SEEN_REGISTRY)
             conn.execute(_DDL_SEARCH_VAULT)
+            conn.execute(_DDL_MANUAL_REVIEW)  # Phase 30a
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
             # Migration: add location_raw column to existing DBs that predate this field
@@ -395,6 +423,76 @@ class GemaDatabase:
     def delete_vault_entry(self, vault_id: str) -> None:
         with _get_connection(self.db_path) as conn:
             conn.execute("DELETE FROM search_vault WHERE vault_id = ?", (vault_id,))
+
+    # =========================================================================
+    # Phase 30a — Pila de revisión manual (salvage-to-manual-review)
+    # =========================================================================
+
+    @staticmethod
+    def compute_review_hash(title: str, company: str, domain: str) -> str:
+        """Key de la pila de revisión: hash(title|company|domain) normalizado.
+        NO usa URL (estos jobs no tienen una confiable). Idempotente: el mismo
+        job rescatado dos veces cae en la misma fila (INSERT OR IGNORE)."""
+        canonical = "|".join(
+            p.strip().lower() for p in (title or "", company or "", domain or "")
+        )
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def add_to_manual_review(
+        self, job: "JobResult", srp_url: Optional[str], reason: str
+    ) -> bool:
+        """Rescata un job (title+company reales, URL no verificable) a la pila.
+        Retorna True si se insertó, False si ya existía (idempotente).
+        SEAM 30b: original_url = la URL mala del LLM; srp_url = la pista."""
+        review_hash = self.compute_review_hash(
+            job.title, job.company, job.source_domain
+        )
+        with _get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                """INSERT OR IGNORE INTO manual_review
+                   (review_hash, title, company, source_domain, original_url,
+                    srp_url, reason, captured_at, resolved)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (review_hash, job.title, job.company, job.source_domain,
+                 job.url, srp_url, reason, datetime.now(timezone.utc).isoformat()),
+            )
+            return cur.rowcount > 0
+
+    def get_manual_review(self, include_resolved: bool = False,
+                          limit: int = 500) -> list[dict]:
+        """Filas de la pila, pendientes primero, más nuevas primero."""
+        query = "SELECT * FROM manual_review"
+        if not include_resolved:
+            query += " WHERE resolved = 0"
+        query += " ORDER BY resolved ASC, captured_at DESC LIMIT ?"
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(query, (max(1, min(int(limit), 1000)),)).fetchall()
+        return [dict(r) for r in rows]
+
+    def resolve_manual_review(self, review_hash: str,
+                             resolved_url: Optional[str]) -> bool:
+        """Marca una fila como resuelta. resolved_url = la URL que el humano
+        corrigió (o None si la descartó como no-rescatable). Retorna True si
+        actualizó una fila. SEAM 30b: la diferencia original_url↔resolved_url↔
+        srp_url es lo que 30b aprenderá por board."""
+        with _get_connection(self.db_path) as conn:
+            cur = conn.execute(
+                """UPDATE manual_review
+                   SET resolved = 1, resolved_url = ?, resolved_at = ?
+                   WHERE review_hash = ?""",
+                (resolved_url, datetime.now(timezone.utc).isoformat(), review_hash),
+            )
+            return cur.rowcount > 0
+
+    def get_review_stats(self) -> dict:
+        with _get_connection(self.db_path) as conn:
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM manual_review WHERE resolved = 0"
+            ).fetchone()[0]
+            resolved = conn.execute(
+                "SELECT COUNT(*) FROM manual_review WHERE resolved = 1"
+            ).fetchone()[0]
+        return {"pending": pending, "resolved": resolved}
 
     # =========================================================================
     # Stats for Streamlit Dashboard

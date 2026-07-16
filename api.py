@@ -446,6 +446,33 @@ def registry_jobs(limit: int = 200, hours: Optional[int] = None):
     return {"jobs": app.state.db.get_recent_jobs(limit=limit, hours=hours)}
 
 
+# =============================================================================
+# Phase 30a — Pila de revisión manual (salvage-to-manual-review)
+# =============================================================================
+
+class ReviewResolve(BaseModel):
+    # None → el humano descarta el job como no-rescatable; str → la URL real.
+    resolved_url: Optional[str] = None
+
+
+@app.get("/api/review")
+def list_review(include_resolved: bool = False):
+    """Jobs rescatados: title+company reales pero URL no verificable. El humano
+    corrige la URL o los descarta. `srp_url` es la pista (dónde apareció)."""
+    return {
+        "jobs": app.state.db.get_manual_review(include_resolved=include_resolved),
+        "stats": app.state.db.get_review_stats(),
+    }
+
+
+@app.post("/api/review/{review_hash}/resolve")
+def resolve_review(review_hash: str, body: ReviewResolve):
+    ok = app.state.db.resolve_manual_review(review_hash, body.resolved_url)
+    if not ok:
+        raise HTTPException(404, "entrada de revisión no encontrada")
+    return {"resolved": True, "review_hash": review_hash}
+
+
 @app.post("/api/cv")
 def upload_cv(file: UploadFile = File(...)):
     file_bytes = file.file.read()

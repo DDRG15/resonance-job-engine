@@ -19,11 +19,14 @@ interface Props {
   onKill: () => void
   onOpenDb: () => void
   onOpenStats: () => void
+  onOpenReview: () => void
+  reviewPending: number
 }
 
 export default function Sidebar({
   status, stats, vault, scheduler, profile,
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb, onOpenStats,
+  onOpenReview, reviewPending,
 }: Props) {
   // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
   // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
@@ -99,6 +102,9 @@ export default function Sidebar({
               Estadísticas
             </button>
           </div>
+          <button type="button" className="btn mini" onClick={onOpenReview}>
+            Revisión manual{reviewPending > 0 ? ` (${reviewPending})` : ''}
+          </button>
         </div>
       )}
 
