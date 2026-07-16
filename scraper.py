@@ -510,6 +510,81 @@ def _snapshot_drift_failure(domain: str, srp_url: str, sent_text: str,
         logger.debug("[DRIFT-SNAPSHOT] no se pudo guardar para %s: %s", domain, exc)
 
 
+# =============================================================================
+# Phase 30b — Cerebro puro: aprender a reparar URLs desde las resoluciones
+# manuales de 30a. Funciones puras y testeadas (disciplina Phase 29): el brain
+# decide, el wiring solo aplica. Nunca inventa — cada reparación se re-verifica
+# contra la fuente (grounding de 27.5) antes de aceptarse.
+# =============================================================================
+
+# Patrón que sabemos derivar de forma segura y determinista.
+_PATTERN_RELATIVE_TO_HTTPS = "relative_to_https"
+
+
+def _host_of(domain: str) -> str:
+    """Normaliza el host para construir URLs absolutas (sin esquema)."""
+    return domain.strip().lower().rstrip("/")
+
+
+def learn_url_patterns(resolved_rows: list[dict]) -> dict[str, str]:
+    """Analiza las filas RESUELTAS de manual_review (con resolved_url humano) y
+    deriva, POR BOARD, la regla de reparación de URL.
+
+    Hoy detecta el caso más común y seguro: el LLM produjo una URL RELATIVA
+    ('/job/123') y el humano la resolvió como 'https://{host}/job/123' — o sea,
+    la URL real es la relativa prependada con el host del board. La regla queda
+    `{domain: "relative_to_https"}`.
+
+    Conservador: una regla se adopta para un board SOLO si TODAS sus resoluciones
+    con URL relativa concuerdan con el patrón (una contradicción lo descarta).
+    Seguro incluso con 1 muestra porque la aplicación se re-verifica contra la
+    fuente (grounding) — una regla mala no puede meter basura, a lo sumo no repara.
+    """
+    from urllib.parse import urlparse
+
+    # domain -> {"agree": int, "disagree": int}
+    tally: dict[str, dict[str, int]] = {}
+    for row in resolved_rows:
+        if not row.get("resolved"):
+            continue
+        orig = (row.get("original_url") or "").strip()
+        resolved = (row.get("resolved_url") or "").strip()
+        domain = (row.get("source_domain") or "").strip().lower()
+        if not orig or not resolved or not domain:
+            continue
+        # solo nos interesa el caso original relativo
+        if not orig.startswith("/"):
+            continue
+        host = _host_of(domain)
+        expected = f"https://{host}{orig}"
+        # comparar por path (tolerante a www. y a trailing slash)
+        exp_path = urlparse(expected).path.rstrip("/")
+        res_path = urlparse(resolved).path.rstrip("/")
+        res_host = urlparse(resolved).netloc.lower().lstrip("www.")
+        d = tally.setdefault(domain, {"agree": 0, "disagree": 0})
+        if res_path == exp_path and host.lstrip("www.") in res_host:
+            d["agree"] += 1
+        else:
+            d["disagree"] += 1
+
+    patterns: dict[str, str] = {}
+    for domain, t in tally.items():
+        # regla adoptada solo si hay acuerdo y CERO contradicciones
+        if t["agree"] >= 1 and t["disagree"] == 0:
+            patterns[domain] = _PATTERN_RELATIVE_TO_HTTPS
+    return patterns
+
+
+def repair_url(pattern: Optional[str], bad_url: str, domain: str) -> Optional[str]:
+    """Aplica una regla aprendida a una URL mala. Retorna la URL reparada o None
+    si la regla no aplica. Pura — no verifica grounding (eso lo hace el caller)."""
+    if pattern == _PATTERN_RELATIVE_TO_HTTPS:
+        u = (bad_url or "").strip()
+        if u.startswith("/"):
+            return f"https://{_host_of(domain)}{u}"
+    return None
+
+
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
     """
     Returns DomainSelectors for a domain, applying God Mode overrides.
@@ -615,6 +690,19 @@ class GemaScraper:
         self.profile   = profile  # ephemeral CV profile; passed to bucket_jobs post-scrape
         self.circuit   = CircuitBreaker()
         self.summary   = ScrapeRunSummary()
+
+        # Phase 30b: aprender reglas de reparación de URL desde las resoluciones
+        # manuales (30a). Se computa UNA vez por corrida desde la verdad (las
+        # resoluciones humanas) — sin estado stale, self-correcting. Fail-safe.
+        self._url_patterns: dict[str, str] = {}
+        try:
+            self._url_patterns = learn_url_patterns(
+                self.db.get_manual_review(include_resolved=True)
+            )
+            if self._url_patterns:
+                logger.info("[30b] Reglas de URL aprendidas: %s", self._url_patterns)
+        except Exception as exc:
+            logger.debug("[30b] no se pudieron cargar patrones: %s", exc)
 
         # Semaphore: max N concurrent tabs (default 3 — see SRE analysis)
         self._sem = asyncio.Semaphore(config.SCRAPER_CONCURRENCY)
@@ -1352,7 +1440,15 @@ class GemaScraper:
         # which the LLM copied when it couldn't find a real one) is NOT in the
         # source, so it is rejected. This makes url hallucination impossible.
         present = {u.rstrip("/") for u in re.findall(r"https?://[^\s)]+", clean_text)}
-        dropped = [j for j in recovered if j.url.rstrip("/") not in present]
+        kept, dropped, repaired_n = self._ground_and_repair(recovered, present, domain)
+
+        if repaired_n:
+            self._log(
+                f"[30b] {domain}: {repaired_n} URL(s) reparadas automáticamente "
+                f"(regla aprendida) — no entran a revisión manual."
+            )
+            metrics.emit("url_auto_repaired", repaired_n, domain=domain)
+
         if dropped:
             self._log(
                 f"[LLM-FALLBACK] {domain}: dropped {len(dropped)} job(s) with "
@@ -1365,7 +1461,7 @@ class GemaScraper:
             # → pila de revisión manual con el SRP como pista. Si el título
             # tampoco está en la fuente, el LLM lo inventó entero → descarte.
             self._salvage_dropped_jobs(dropped, clean_text, domain, srp_url)
-        recovered = [j for j in recovered if j.url.rstrip("/") in present]
+        recovered = kept
 
         if not recovered:
             self._log(
@@ -1394,6 +1490,33 @@ class GemaScraper:
             f"{ingested} new enqueued via LLM."
         )
         return recovered
+
+    def _ground_and_repair(self, recovered, present, domain):
+        """Phase 30b — parte los jobs recuperados en (kept, dropped, repaired_n).
+
+        - url ya en la fuente → kept (grounding OK).
+        - url no en la fuente → intentar reparar con la regla aprendida (30b);
+          la reparación se ACEPTA solo si la url reparada TAMBIÉN está en la
+          fuente (hereda el grounding anti-alucinación — no puede meter basura).
+        - si no se puede reparar → dropped (irá a la pila de 30a o a la basura).
+
+        Es la costura de sinergia 30a↔30b: 30b repara lo que aprendió, achicando
+        lo que 30a tiene que salvar; 30a alimenta a 30b con las resoluciones.
+        Método aislado y puro-ish para poder testear la sinergia sin la ruta LLM."""
+        pattern = self._url_patterns.get(domain)
+        kept, dropped, repaired_n = [], [], 0
+        for j in recovered:
+            if j.url.rstrip("/") in present:
+                kept.append(j)
+                continue
+            repaired = repair_url(pattern, j.url, domain)
+            if repaired and repaired.rstrip("/") in present:
+                j.url = repaired
+                kept.append(j)
+                repaired_n += 1
+            else:
+                dropped.append(j)
+        return kept, dropped, repaired_n
 
     def _salvage_dropped_jobs(self, dropped, source_text, domain, srp_url) -> None:
         """Phase 30a — rescata a revisión manual los jobs con URL mala pero
