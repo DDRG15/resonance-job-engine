@@ -565,19 +565,20 @@ SELECTORS: dict[str, DomainSelectors] = {
     ),
 
     # ── PostHog Cool Tech Jobs ────────────────────────────────────────────────
-    # Curated list — cada job es un <a class="group"> hacia /careers/ o un ATS
-    # externo (ashbyhq). Phase 31b (2026-07-11): el card ES el anchor; título =
-    # texto del anchor; empresa NO está en el listado (vive en el destino
-    # externo → recuperación completa = roadmap). Recuperación básica: title+URL.
+    # Curated list — cada job es un <a> hacia /careers/ (PostHog propio) o un ATS
+    # externo (jobs.ashbyhq.com/<empresa>/). posthog-full (2026-07-16): el
+    # job_card usa UN selector COMBINADO (grupo CSS) para capturar AMBOS tipos en
+    # una pasada — un fallback chain paraba en el primer match (/careers/) y
+    # perdía todos los ashbyhq externos (Supabase, Infisical, Chroma...). La
+    # empresa se deriva de la URL (derive_company_from_url): ashbyhq slug o PostHog.
     "posthog.com": DomainSelectors(
         domain               = "posthog.com",
         search_url_template  = "https://posthog.com/cool-tech-jobs?q={title}",
         wait_for_selector    = "a[class*='group']",
-        last_verified        = "2026-07-11",
+        last_verified        = "2026-07-16",
         null_threshold       = 8,
         job_card = [
-            "a[href*='/careers/']",
-            "a[href*='ashbyhq']",
+            "a[href*='/careers/'], a[href*='ashbyhq']",  # combinado — ambos tipos
             "a[class*='group']",
         ],
         link = [

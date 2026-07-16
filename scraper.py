@@ -585,6 +585,70 @@ def repair_url(pattern: Optional[str], bad_url: str, domain: str) -> Optional[st
     return None
 
 
+# =============================================================================
+# posthog full (2026-07-16) — derivar la empresa desde la URL del job.
+# Muchos boards agregadores (posthog) linkean a ATS externos cuya URL lleva la
+# empresa en el slug: jobs.ashbyhq.com/<empresa>/<id>. Y los jobs propios del
+# board viven en /careers/. Sacamos la empresa de la URL — 0 page-loads extra,
+# determinista — cuando el selector de empresa del card no encontró nada.
+# Generalizable a cualquier board que linkee a estos ATS.
+# =============================================================================
+
+# host del ATS → índice del segmento de path que contiene la empresa.
+# ALLOWLIST CERRADA (con pinzas — solo hosts con estructura de URL VERIFICADA
+# y estable donde el 1er segmento ES la empresa). Un host fuera de acá → None →
+# placeholder de 31b, nunca una empresa adivinada. NO agregar sin verificar en
+# vivo el patrón real del ATS (ej. workable usa apply.workable.com/<empresa>/j/
+# y otras variantes → excluido hasta confirmar).
+_ATS_COMPANY_SLUG = {
+    "jobs.ashbyhq.com":  0,   # verificado en vivo 2026-07-16: /<empresa>/<id>
+    "boards.greenhouse.io": 0,  # estructura documentada: /<empresa>/jobs/<id>
+    "job-boards.greenhouse.io": 0,
+    "jobs.lever.co":     0,   # estructura documentada: /<empresa>/<id>
+}
+
+# Board propio → nombre de la empresa cuando el job es del board mismo
+# (ej. posthog.com/careers/... = trabajar EN PostHog).
+_OWN_CAREERS_COMPANY = {
+    "posthog.com": "PostHog",
+}
+
+
+def _prettify_slug(slug: str) -> str:
+    """'infisical' → 'Infisical'; 'my-company' → 'My Company'."""
+    parts = [p for p in re.split(r"[-_]+", slug.strip()) if p]
+    return " ".join(w.capitalize() for w in parts) if parts else slug
+
+
+def derive_company_from_url(url: str, source_domain: str = "") -> Optional[str]:
+    """Extrae el nombre de la empresa desde la URL del job. Pura, determinista.
+    Retorna None si la URL no matchea ningún patrón conocido (el caller cae al
+    placeholder de Phase 31b). Nunca lanza."""
+    from urllib.parse import urlparse
+    try:
+        u = (url or "").strip()
+        if not u:
+            return None
+        parsed = urlparse(u)
+        host = parsed.netloc.lower().lstrip("www.")
+        path_parts = [p for p in parsed.path.split("/") if p]
+
+        # ATS externo con la empresa en el slug
+        if host in _ATS_COMPANY_SLUG:
+            idx = _ATS_COMPANY_SLUG[host]
+            if len(path_parts) > idx:
+                return _prettify_slug(path_parts[idx])
+
+        # Job propio del board (/careers/...)
+        dom = (source_domain or host).lower().lstrip("www.")
+        if dom in _OWN_CAREERS_COMPANY and path_parts and path_parts[0] == "careers":
+            return _OWN_CAREERS_COMPANY[dom]
+
+        return None
+    except Exception:
+        return None
+
+
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
     """
     Returns DomainSelectors for a domain, applying God Mode overrides.
@@ -1695,6 +1759,11 @@ class GemaScraper:
                 logger.debug("[NULL CARD] %s — title vacío", url)
                 return None
 
+            if not company:
+                # posthog full: la empresa suele estar en la URL del job (ATS
+                # externo: jobs.ashbyhq.com/<empresa>/, o /careers/ propio del
+                # board). 0 page-loads extra, determinista.
+                company = derive_company_from_url(url, domain)
             if not company:
                 logger.debug("[NO COMPANY] %s — board no publica empresa", url)
                 company = "(empresa no listada)"
