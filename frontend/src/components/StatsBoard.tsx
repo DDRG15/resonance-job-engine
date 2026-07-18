@@ -115,11 +115,15 @@ export default function StatsBoard({ onClose }: Props) {
               <div className="day-chart">
                 {stats.by_day.map((d) => (
                   <div className="day-col" key={d.day} title={`${d.day}: ${d.count}`}>
-                    <div
-                      className="day-fill"
-                      style={{ height: `${Math.max(4, (d.count / maxDay) * 100)}%` }}
-                    />
-                    <span className="day-lbl">{d.day.slice(5)}</span>
+                    {/* riel con altura propia: la barra mide % SOLO del riel,
+                        nunca del label — así no se montan (fix pulido 07-17) */}
+                    <div className="day-track">
+                      <div
+                        className="day-fill"
+                        style={{ height: `${Math.max(4, (d.count / maxDay) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="day-lbl">{d.day.slice(8)}</span>
                   </div>
                 ))}
               </div>

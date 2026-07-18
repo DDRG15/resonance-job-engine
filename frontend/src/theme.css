@@ -405,10 +405,10 @@ details.warn-details .warn-list {
 .btn.mini.primary:disabled { opacity: .45; }
 
 /* ── F19: board de estadísticas ── */
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .stats-card {
   background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 12px; padding: 15px 17px;
+  border-radius: 12px; padding: 16px 18px;
 }
 .stats-wide { grid-column: 1 / -1; }
 .stats-title {
@@ -428,17 +428,22 @@ details.warn-details .warn-list {
 .tier-legend i { width: 9px; height: 9px; border-radius: 2px; }
 .tier-legend b { font-family: var(--mono); }
 .day-chart {
-  display: flex; align-items: flex-end; gap: 4px; height: 110px;
+  display: flex; gap: 5px; height: 128px;
   padding-top: 6px;
 }
-.day-col { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+.day-col { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+/* riel: el área de la barra tiene SU altura; el label vive en su propia fila
+   debajo — la barra ya no puede montarse sobre el texto (pulido 07-17) */
+.day-track {
+  flex: 1; width: 100%; display: flex; align-items: flex-end; justify-content: center;
+}
 .day-fill {
   width: 100%; max-width: 22px; background: var(--accent);
   border-radius: 3px 3px 0 0; min-height: 4px;
 }
 .day-lbl {
-  font-family: var(--mono); font-size: 8.5px; color: var(--faint);
-  margin-top: 4px; transform: rotate(-45deg); white-space: nowrap;
+  font-family: var(--mono); font-size: 9.5px; color: var(--faint);
+  margin-top: 6px; line-height: 1; white-space: nowrap;
 }
 .source-row {
   display: grid; grid-template-columns: 150px 1fr 44px;
