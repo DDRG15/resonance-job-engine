@@ -78,6 +78,7 @@ from board_strategy import (
 from selectors_registry import DomainSelectors, get_selectors
 from database import GemaDatabase
 from integrations.cookie_vault import CookieVault
+from integrations.session_jar import SessionJar
 from integrations.webhook_client import WebhookClient
 from matcher import score_job
 from models import JobResult, SearchConfig, ScrapeRunSummary, TieredJob
@@ -1007,6 +1008,19 @@ class GemaScraper:
             for pattern in _BLOCKED:
                 await context.route(pattern, lambda r, _p=pattern: r.abort())
 
+            # Cookie jar auto-persistente (idea de el usuario 07-18): reusar el
+            # clearance anti-bot (cf_clearance…) capturado en corridas previas —
+            # SIN credenciales. Se inyecta ANTES del vault manual para que el
+            # vault (login autoritativo) gane si hay colisión. Al final del run
+            # se captura el estado nuevo. Ver integrations/session_jar.py.
+            jar = SessionJar()
+            for domain in domains:
+                reused = await jar.inject(domain, context)
+                if reused:
+                    self._log(
+                        f"[JAR] Reusé {reused} cookies de sesión para {domain}"
+                    )
+
             # Inject session cookies for login-gated domains (wellfound, arc.dev, etc.)
             # CookieVault loads from cookies/<domain>.json — silently skips if file absent
             vault = CookieVault()
@@ -1114,6 +1128,14 @@ class GemaScraper:
                 await writer_task
 
             finally:
+                # Cookie jar: capturar el clearance nuevo (best-effort) ANTES de
+                # cerrar el context, para reusarlo la próxima corrida.
+                try:
+                    saved = await jar.capture(context, domains)
+                    if saved:
+                        self._log(f"[JAR] Guardé {saved} cookies de sesión para reuso.")
+                except Exception as jar_exc:
+                    logger.debug("[JAR] captura falló (best-effort): %s", jar_exc)
                 await context.close()
                 await browser.close()
 

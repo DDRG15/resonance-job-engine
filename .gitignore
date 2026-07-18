@@ -39,6 +39,8 @@ credentials/*.p12
 # Session cookies — gitkeep the directory, ignore the actual cookie files
 cookies/*.json
 !cookies/README.md
+# Cookie jar auto-persistente (SessionJar) — clearance anti-bot, nunca al repo
+cookies/session/
 
 # camoufox Firefox binary — ~530MB, downloaded at runtime via `python -m camoufox fetch`
 .camoufox/
@@ -138,7 +140,7 @@ legacy/
 INVENTORY.md
 LLM_PROVIDERS.md
 
-# B6 � frontend React
+# B6 � frontend React
 node_modules/
 frontend/dist/
 !frontend/package.json
