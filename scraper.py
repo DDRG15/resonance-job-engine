@@ -650,6 +650,39 @@ def derive_company_from_url(url: str, source_domain: str = "") -> Optional[str]:
         return None
 
 
+# =============================================================================
+# FIX 1 live-test 07-18 — salario desde el TEXTO del card.
+# Hallazgo: 1 de 68 jobs con salario; 3 boards sin selector de salario y el
+# resto con cards que no lo publican como elemento — pero HN (y otros) llevan
+# el monto EN EL TEXTO ("$120k", "$60k-$80k"). Sin salary_raw el matcher pierde
+# los puntos de salario → Tier 1 = 0. Este fallback regex puebla salary_raw a
+# 0 page-loads. Conservador: exige símbolo de moneda o sufijo k/moneda — un
+# número suelto ("2026", "30 días") NUNCA matchea.
+# =============================================================================
+
+_SALARY_TOKEN = (
+    r"(?:"
+    r"[$€£]\s?\d{1,3}(?:[.,]\d{3})+(?:\s?[kK])?"      # $120,000 · €50.000
+    r"|[$€£]\s?\d{2,3}\s?[-–—]\s?\d{2,3}\s?[kK]\b"    # $60-80k
+    r"|[$€£]\s?\d{2,3}\s?[kK]\b"                        # $60k
+    r"|\b\d{2,3}\s?[kK]\s?(?:USD|EUR|GBP)\b"            # 120k USD
+    r"|\b(?:USD|EUR|GBP)\s?\d{2,3}\s?[kK]?\b"           # USD 120k · EUR 90
+    r")"
+)
+_SALARY_RX = re.compile(
+    rf"{_SALARY_TOKEN}(?:\s?(?:[-–—~]|to|a)\s?{_SALARY_TOKEN})?", re.IGNORECASE
+)
+
+
+def extract_salary_from_text(text: Optional[str]) -> Optional[str]:
+    """Extrae el primer patrón de salario del texto ('$60k - $80k', '$120,000',
+    '120k USD'…) o None. Pura, determinista, nunca lanza."""
+    if not text:
+        return None
+    m = _SALARY_RX.search(text)
+    return m.group(0).strip() if m else None
+
+
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
     """
     Returns DomainSelectors for a domain, applying God Mode overrides.
@@ -1789,6 +1822,19 @@ class GemaScraper:
             if not company:
                 logger.debug("[NO COMPANY] %s — board no publica empresa", url)
                 company = "(empresa no listada)"
+
+            if not salary:
+                # FIX 1 live-test 07-18: el salario suele vivir en el TEXTO del
+                # card (HN: "$120k"), no en un elemento con clase .salary.
+                # Primero el título (gratis); si no, el texto del card (DOM
+                # local, ~ms). Sin esto Tier 1/4 quedan en 0.
+                salary = extract_salary_from_text(title)
+            if not salary:
+                try:
+                    card_text = (await card.inner_text() or "")[:600]
+                    salary = extract_salary_from_text(card_text)
+                except Exception:
+                    pass
 
             return JobResult(
                 title=title,
