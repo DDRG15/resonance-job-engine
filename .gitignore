@@ -101,7 +101,8 @@ IMPROVEMENTS_*.md
 scripts/scan_fixtures.py
 tests/fixtures/
 tests/test_migrations.py
-tools/
+tools/*
+!tools/watchdog.py
 
 # Job search session results — scraped data with personal context
 
