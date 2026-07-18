@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { ResultsResponse, TieredJobDto } from '../types'
+import JobDrawer, { type DrawerSelection } from './JobDrawer'
 
 function scoreClass(score: number): string {
   if (score >= 80) return 's1'
@@ -6,14 +8,38 @@ function scoreClass(score: number): string {
   return 's3'
 }
 
-function JobCard({ tj, showScore }: { tj: TieredJobDto; showScore: boolean }) {
+function JobCard({
+  tj, showScore, onOpen,
+}: {
+  tj: TieredJobDto
+  showScore: boolean
+  onOpen: () => void
+}) {
   const meta =
     tj.job.source_domain + (tj.job.location_raw ? ` · ${tj.job.location_raw}` : '')
-  const hasDetails = tj.match_reasons.length > 0 || tj.miss_reasons.length > 0
   return (
-    <div className="job">
+    // F15b (pulido 07-17): el card entero abre el drawer lateral de detalle
+    // (patrón Atera/Kimi) — reemplaza el expand inline <details>. El link del
+    // título sigue yendo directo a la oferta (stopPropagation).
+    <div
+      className="job job-clickable"
+      onClick={onOpen}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+    >
       <div className="t">
-        <a href={tj.job.url} target="_blank" rel="noopener noreferrer">
+        <a
+          href={tj.job.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
           {tj.job.title || '—'}
         </a>
         <small>{meta}</small>
@@ -30,31 +56,19 @@ function JobCard({ tj, showScore }: { tj: TieredJobDto; showScore: boolean }) {
       ) : (
         <div className="manual">MANUAL</div>
       )}
-      {hasDetails && (
-        <details className="job-details">
-          <summary>Detalles del match</summary>
-          <div className="reasons">
-            {tj.match_reasons.length > 0 && (
-              <div className="ok">✓ {tj.match_reasons.join(' | ')}</div>
-            )}
-            {tj.miss_reasons.length > 0 && (
-              <div className="bad">✗ {tj.miss_reasons.join(' | ')}</div>
-            )}
-          </div>
-        </details>
-      )}
     </div>
   )
 }
 
 function TierSection({
-  jobs, badge, badgeClass, title, showScore = true,
+  jobs, badge, badgeClass, title, showScore = true, onSelect,
 }: {
   jobs: TieredJobDto[]
   badge: string
   badgeClass: string
   title: string
   showScore?: boolean
+  onSelect: (sel: DrawerSelection) => void
 }) {
   if (jobs.length === 0) return null
   return (
@@ -65,7 +79,12 @@ function TierSection({
         <span className="count">{jobs.length} jobs</span>
       </div>
       {jobs.map((tj) => (
-        <JobCard tj={tj} showScore={showScore} key={tj.job.url} />
+        <JobCard
+          tj={tj}
+          showScore={showScore}
+          key={tj.job.url}
+          onOpen={() => onSelect({ tj, badge, badgeClass, tierTitle: title })}
+        />
       ))}
     </div>
   )
@@ -73,6 +92,7 @@ function TierSection({
 
 // Fase 4 — resultados por tier + errores del run (fail-loud) + export.
 export default function Results({ results }: { results: ResultsResponse }) {
+  const [selected, setSelected] = useState<DrawerSelection | null>(null)
   if (!results.tiers) return null
   const { tiers, summary } = results
   const total =
@@ -94,12 +114,22 @@ export default function Results({ results }: { results: ResultsResponse }) {
           ))}
         </div>
       )}
-      <TierSection jobs={tiers.tier1} badge="Tier 1" badgeClass="b1" title="Alta prioridad" />
-      <TierSection jobs={tiers.tier2} badge="Tier 2" badgeClass="b2" title="Explorar" />
-      <TierSection jobs={tiers.tier3} badge="Tier 3" badgeClass="b3" title="Reciclaje" />
+      <TierSection
+        jobs={tiers.tier1} badge="Tier 1" badgeClass="b1" title="Alta prioridad"
+        onSelect={setSelected}
+      />
+      <TierSection
+        jobs={tiers.tier2} badge="Tier 2" badgeClass="b2" title="Explorar"
+        onSelect={setSelected}
+      />
+      <TierSection
+        jobs={tiers.tier3} badge="Tier 3" badgeClass="b3" title="Reciclaje"
+        onSelect={setSelected}
+      />
       <TierSection
         jobs={tiers.tier4} badge="Tier 4" badgeClass="b4"
         title="Revisión manual — salario en texto" showScore={false}
+        onSelect={setSelected}
       />
       {total > 0 && (
         <div className="export">
@@ -108,6 +138,7 @@ export default function Results({ results }: { results: ResultsResponse }) {
           </a>
         </div>
       )}
+      {selected && <JobDrawer sel={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

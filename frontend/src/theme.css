@@ -232,13 +232,42 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .score.s2 .bar i { background: var(--t2); } .score.s2 b { color: var(--t2-ink); }
 .score.s3 .bar i { background: var(--t3); } .score.s3 b { color: var(--t3-ink); }
 .manual { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--t4-ink); text-align: right; }
-.job-details { grid-column: 1 / -1; }
-.job-details summary { font-size: 11.5px; color: var(--faint); cursor: pointer; }
-.job-details summary:hover { color: var(--accent); }
-.job-details .reasons { font-size: 12px; margin-top: 6px; line-height: 1.7; }
-.job-details .ok  { color: var(--t1-ink); }
-.job-details .bad { color: var(--t2-ink); }
 .export { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+/* ── F15b: drawer lateral de detalle (patrón Atera/Kimi, pulido 07-17).
+   Reemplaza el expand inline .job-details — ese bloque CSS se retiró junto
+   con su markup. ── */
+.job-clickable { cursor: pointer; }
+.job-clickable:hover { border-color: rgba(45, 212, 191, .55); background: var(--surface2); }
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, .45); z-index: 60;
+  animation: drawer-fade .15s ease;
+}
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw);
+  background: var(--surface); border-left: 1px solid var(--border);
+  z-index: 61; padding: 20px 22px; overflow-y: auto;
+  box-shadow: -18px 0 40px rgba(0, 0, 0, .35);
+  animation: drawer-slide .18s ease;
+}
+@keyframes drawer-slide { from { transform: translateX(30px); opacity: 0; } }
+@keyframes drawer-fade { from { opacity: 0; } }
+.drawer-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.drawer-tier-title { flex: 1; font-size: 12px; color: var(--muted); }
+.drawer-job-title { font-size: 17px; font-weight: 650; margin: 0 0 2px; line-height: 1.35; }
+.drawer-company { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
+.drawer-score { margin-bottom: 16px; }
+.drawer-fields { border-top: 1px solid var(--border); margin-bottom: 16px; }
+.drawer-field {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+.drawer-field span { color: var(--faint); }
+.drawer-field b { font-weight: 550; text-align: right; overflow-wrap: anywhere; }
+.drawer-reasons { font-size: 12px; line-height: 1.8; margin-bottom: 18px; }
+.drawer-reasons .ok  { color: var(--t1-ink); }
+.drawer-reasons .bad { color: var(--t2-ink); }
+.drawer-cta .btn { display: block; width: 100%; text-align: center; }
 
 /* ── Controles del sidebar (cron B4, TTL, toggles) ── */
 .seg { display: flex; background: var(--surface); border: 1px solid var(--border);
