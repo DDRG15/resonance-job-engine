@@ -39,6 +39,10 @@ class TestBuildQuery:
         # el board que motivó el fix debe quedar en modo keyword
         assert sr.SELECTORS["builtin.com"].query_style == "keyword"
 
+    def test_arc_is_registered_as_keyword(self):
+        # FIX 4 live-test 07-18: breaker abierto por queries multi-palabra
+        assert sr.SELECTORS["arc.dev"].query_style == "keyword"
+
     def test_default_boards_stay_phrase(self):
         assert sr.SELECTORS["remoteok.com"].query_style == "phrase"
 

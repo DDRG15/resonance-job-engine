@@ -425,8 +425,12 @@ SELECTORS: dict[str, DomainSelectors] = {
         domain               = "arc.dev",
         search_url_template  = "https://arc.dev/remote-jobs?q={title}",
         wait_for_selector    = "div[data-testid='job-card']",
-        last_verified        = "2026-05-30",
+        last_verified        = "2026-07-18",
         null_threshold       = 3,
+        # FIX 4 live-test 07-18: títulos multi-palabra ("SRE (Site Reliability
+        # Engineer)") → 0 resultados → nulls → breaker abierto (run #1). Mismo
+        # patrón que builtin (31a): buscar con 1 keyword técnico.
+        query_style          = "keyword",
         job_card = [
             "div[data-testid='job-card']",
             "div[class*='job-card']",
