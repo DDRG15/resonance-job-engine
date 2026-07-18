@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { deleteCv, postCv } from '../api'
+import { useToast } from '../toast'
 import type { CvProfile } from '../types'
 
 interface Props {
@@ -14,6 +15,7 @@ export default function CVUpload({ profile, onChanged }: Props) {
   const [busy, setBusy] = useState(false)
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   async function handleFile(file: File) {
     setBusy(true)
@@ -22,6 +24,8 @@ export default function CVUpload({ profile, onChanged }: Props) {
       await postCv(file)
       setFileName(file.name)
       onChanged()
+      // F17 restante (pulido 07-17): confirmar la carga que pasaba en silencio
+      toast(`CV procesado — perfil activo (${file.name})`, 'success')
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -33,6 +37,7 @@ export default function CVUpload({ profile, onChanged }: Props) {
     await deleteCv()
     setFileName(null)
     onChanged()
+    toast('Perfil descartado — los scores vuelven a ser genéricos', 'info')
   }
 
   return (

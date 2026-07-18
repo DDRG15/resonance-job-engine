@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { postParse } from '../api'
+import { useToast } from '../toast'
 import type { CvProfile, ParseResponse } from '../types'
 
 interface Props {
@@ -35,13 +36,22 @@ export default function CommandCenter({ profile, onParsed }: Props) {
   const [vaultLabel, setVaultLabel] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const toast = useToast()
 
   async function handleParse() {
     setBusy(true)
     setError(null)
     try {
-      const result = await postParse(prompt, vaultLabel.trim() || undefined)
+      const label = vaultLabel.trim()
+      const result = await postParse(prompt, label || undefined)
       onParsed(result)
+      // F17 restante (pulido 07-17): confirmar lo que antes pasaba en silencio
+      toast(
+        label
+          ? `Configuración lista y guardada en el Vault: «${label}»`
+          : 'Configuración lista — revisá la validación',
+        'success',
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
