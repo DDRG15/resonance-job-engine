@@ -88,7 +88,15 @@ TRANSLATION RULES:
 - "no hybrid" → must_exclude: ["Hybrid"]
 - "no on-site" → must_exclude: ["On-site"]
 - "$90k" / "90000" / "90K" → min_salary: 90000
-- If no domains mentioned → target_domains: ["himalayas.app","trueup.io"]"""
+- If no domains mentioned → target_domains: ["himalayas.app","trueup.io"]
+
+STRICT RULES (live-test 2026-07-18):
+- must_exclude: ONLY exclusions the user EXPLICITLY requested ("no X",
+  "excluir X", "sin X"). NEVER infer or add exclusions the user did not state.
+  The translation examples above are translations, not defaults to inject.
+- must_include: ONLY words expected to appear in JOB TITLES (e.g. "Remote").
+  Do NOT stuff technology lists here — technologies belong to the CV profile
+  scoring, not to must_include."""
 
 _RETRY_INJECT = """Your previous response failed validation:
 ERROR: {error}
@@ -111,11 +119,18 @@ YOUR TASK:
 Compare the two carefully. In exactly 1-2 sentences, state whether the JSON
 perfectly captures the user's intent. Point out any of the following issues:
 
-    - Missed keywords (skills, tools, seniority levels the user mentioned)
-    - Hallucinated assumptions (things added that the user did NOT say)
+    - Hallucinated assumptions (things added that the user did NOT say —
+      especially must_exclude entries the user never requested)
     - Incorrect salary parsing (wrong number, wrong currency)
     - Missing exclusions (the user said 'no X' but X is not in must_exclude)
     - Missing or wrong target_domains
+
+MATCHER SEMANTICS — do NOT advise against these (live-test 2026-07-18):
+    - must_include is scored ONLY against the job TITLE + company + salary text
+      (cards have no description). Filling it with technology lists TANKS every
+      score. An EMPTY must_include is valid and often optimal — do NOT flag
+      technologies "missing" from must_include as an issue.
+    - Technologies/skills are scored from the CV profile, not from must_include.
 
 If the JSON is accurate and complete, say: "Config looks accurate. No issues detected."
 If there are issues, be specific: name the exact field and what is wrong or missing.
