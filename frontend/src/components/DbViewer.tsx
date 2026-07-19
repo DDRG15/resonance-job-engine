@@ -56,6 +56,11 @@ const COLUMNS: ColumnDef<RegistryJob>[] = [
     cell: (c) => c.getValue<number | null>() ?? '—',
   },
   {
+    accessorKey: 'salary_raw',
+    header: 'Salario',
+    cell: (c) => c.getValue<string | null>() || '—',
+  },
+  {
     accessorKey: 'location_raw',
     header: 'Ubicación',
     cell: (c) => c.getValue<string | null>() || '—',

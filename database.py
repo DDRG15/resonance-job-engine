@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS seen_jobs_registry (
     scraped_at      TEXT NOT NULL,
     tier            TEXT,
     match_score     INTEGER,
-    location_raw    TEXT
+    location_raw    TEXT,
+    salary_raw      TEXT
 );
 """
 
@@ -135,19 +136,25 @@ class GemaDatabase:
             conn.execute(_DDL_MANUAL_REVIEW)  # Phase 30a
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
-            # Migration: add location_raw column to existing DBs that predate this field
-            try:
-                conn.execute("ALTER TABLE seen_jobs_registry ADD COLUMN location_raw TEXT")
-                logger.info("Migration: added location_raw column to seen_jobs_registry")
-            except Exception as exc:
-                # AUDIT #7: distinguish the expected case (column already exists) from
-                # a real ALTER failure (lock, disk, permission). Swallowing the latter
-                # lets every subsequent INSERT fail silently — scream instead.
-                if "duplicate column" in str(exc).lower():
-                    pass  # expected — column already exists on a migrated DB
-                else:
-                    logger.error("[DB MIGRATION] ALTER seen_jobs_registry failed unexpectedly: %s", exc)
-                    raise
+            # Migrations: add columns to existing DBs that predate these fields.
+            # FIX 2 live-test 07-18: salary_raw — el salario solo vivía en los
+            # resultados de cada corrida; sin columna no hay diff histórico.
+            for mig_col, mig_sql in (
+                ("location_raw", "ALTER TABLE seen_jobs_registry ADD COLUMN location_raw TEXT"),
+                ("salary_raw",   "ALTER TABLE seen_jobs_registry ADD COLUMN salary_raw TEXT"),
+            ):
+                try:
+                    conn.execute(mig_sql)
+                    logger.info("Migration: added %s column to seen_jobs_registry", mig_col)
+                except Exception as exc:
+                    # AUDIT #7: distinguish the expected case (column already exists) from
+                    # a real ALTER failure (lock, disk, permission). Swallowing the latter
+                    # lets every subsequent INSERT fail silently — scream instead.
+                    if "duplicate column" in str(exc).lower():
+                        pass  # expected — column already exists on a migrated DB
+                    else:
+                        logger.error("[DB MIGRATION] ALTER seen_jobs_registry failed unexpectedly: %s", exc)
+                        raise
         logger.info("Database initialized: %s", self.db_path)
 
     def backup(self) -> str:
@@ -338,11 +345,12 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             conn.execute(
                 """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at, location_raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     job_hash, job.url, job.title, job.company,
                     job.source_domain, job.scraped_at.isoformat(), job.location_raw,
+                    job.salary_raw,
                 ),
             )
 
@@ -353,15 +361,15 @@ class GemaDatabase:
                 self.compute_hash(j.url),
                 j.url, j.title, j.company,
                 j.source_domain, j.scraped_at.isoformat(),
-                j.location_raw,
+                j.location_raw, j.salary_raw,
             )
             for j in jobs
         ]
         with _get_connection(self.db_path) as conn:
             conn.executemany(
                 """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at, location_raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
         logger.info("Batch-registered %d jobs.", len(records))
@@ -624,6 +632,7 @@ class GemaDatabase:
                 self.compute_hash(j.url),
                 j.url, j.title, j.company,
                 j.source_domain, j.scraped_at.isoformat(),
+                j.location_raw, j.salary_raw,
             )
             for j in jobs
         ]
@@ -631,8 +640,8 @@ class GemaDatabase:
             conn.execute("PRAGMA busy_timeout = 5000;")
             conn.executemany(
                 """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
+                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
 

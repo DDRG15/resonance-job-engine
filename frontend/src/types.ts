@@ -125,6 +125,7 @@ export interface RegistryJob {
   tier: string | null
   match_score: number | null
   location_raw: string | null
+  salary_raw: string | null
 }
 
 export interface ReviewJob {
