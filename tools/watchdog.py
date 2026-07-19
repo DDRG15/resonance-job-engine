@@ -70,9 +70,12 @@ _LOG_MARKERS = [
 
 # Heurística de peligro para líneas SIN marcador conocido — que nada se escape.
 # CRÍTICO: fallas duras / trazas. WARN: señales blandas.
+# NOTA (live test 07-18): NO usar `\b5\d\d\b` a secas acá — los milisegundos de
+# los timestamps de logging (",534") matchean y todo INFO se vuelve CRIT. El 5xx
+# real ya lo cubre _LOG_MARKERS (exige contexto error/internal).
 _DANGER_CRIT = re.compile(
     r"\btraceback\b|\bexception\b|\bcritical\b|\bfatal\b|\bpanic\b|"
-    r"\bunhandled\b|\b5\d\d\b|segfault|\bassert(ionerror)?\b", re.I)
+    r"\bunhandled\b|segfault|\bassert(ionerror)?\b", re.I)
 _DANGER_WARN = re.compile(
     r"\berror\b|\bfail(ed|ure)?\b|\btimed?out\b|\btimeout\b|refused|denied|"
     r"\b403\b|\b429\b|unauthorized|forbidden|retry|dropped|null|drift|"

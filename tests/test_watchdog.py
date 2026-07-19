@@ -57,6 +57,14 @@ class TestParseLine:
         ev = wd.parse_line("connection refused after 3 retries")
         assert ev.severity == wd.WARN and not ev.classified
 
+    def test_timestamp_milliseconds_not_critical(self):
+        # live test 07-18: ",534" de los ms del timestamp matcheaba \b5dd\b
+        # y todo INFO se volvía CRIT. Regresión cubierta.
+        ev = wd.parse_line(
+            "2026-07-18 19:15:49,534 INFO scraper: [GEMA] Blitz run starting."
+        )
+        assert ev.severity != wd.CRITICAL
+
 
 class TestDigestNoLoss:
     def test_reconciles_every_line(self):
