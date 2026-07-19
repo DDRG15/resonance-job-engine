@@ -18,10 +18,20 @@ en PHASE_FIX_ → sección B6.0.
 import io
 import json
 import asyncio
+import logging
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
+
+# FIX 3 live-test 07-18: sin esto, el root logger no tiene handler a INFO y
+# Python solo emite WARNING+ — los [CARDS]/[JAR]/[NULL-SRP] del pipeline (que
+# _log ya manda a logger.info) y el SessionJar NUNCA llegaban al log del server,
+# dejando ciego al watchdog. basicConfig es no-op si ya hay handlers (tests).
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile, File
@@ -651,10 +661,14 @@ def update_scheduler(body: SchedulerUpdate):
 
 @app.get("/api/status")
 def status():
+    # FIX 5 live-test 07-18: la tarjeta decía "17 boards · 15 stale" contando
+    # los REGISTRADOS — engañoso (queja de el usuario). Se scrapean solo los activos;
+    # el stale se calcula SOLO sobre ellos (un retirado stale no alarma a nadie).
+    active = set(selectors_registry.active_domains())
     stale = [
         sel.domain
         for sel in selectors_registry.SELECTORS.values()
-        if selectors_registry.is_selector_stale(sel)
+        if sel.domain in active and selectors_registry.is_selector_stale(sel)
     ]
     warnings = config.validate_config()
     providers = sum(
@@ -664,6 +678,7 @@ def status():
     runs: RunManager = app.state.runs
     return {
         "boards": len(selectors_registry.SELECTORS),
+        "boards_active": len(active),
         "stale_selectors": stale,
         "providers_configured": providers,
         "warnings": warnings,

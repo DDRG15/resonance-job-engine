@@ -2,6 +2,7 @@
 
 export interface Status {
   boards: number
+  boards_active: number
   stale_selectors: string[]
   providers_configured: number
   warnings: string[]

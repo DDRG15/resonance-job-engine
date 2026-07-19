@@ -51,6 +51,7 @@ const RESULTS: ResultsResponse = {
 
 const STATUS: Status = {
   boards: 17,
+  boards_active: 10,
   stale_selectors: ['remoteok.com'],
   providers_configured: 7,
   warnings: [],
@@ -118,8 +119,9 @@ describe('CommandCenter — F10 Usar mi perfil', () => {
 describe('Header', () => {
   it('muestra los datos reales del live status', () => {
     render(<Header status={STATUS} />)
-    expect(screen.getByText(/17 boards · 7 LLM en cadena/)).toBeInTheDocument()
-    expect(screen.getByText(/1 selectores stale/)).toBeInTheDocument()
+    // FIX 5 live-test 07-18: activos primero, registrados entre paréntesis
+    expect(screen.getByText(/10 boards activos \(17 reg\.\)/)).toBeInTheDocument()
+    expect(screen.getByText(/1 selectores stale \(activos\)/)).toBeInTheDocument()
     expect(screen.getByText('Atención')).toBeInTheDocument()
   })
 })

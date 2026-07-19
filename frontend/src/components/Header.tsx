@@ -34,10 +34,14 @@ export default function Header({ status }: { status: Status | null }) {
             )}
           </div>
           <div className="big">
-            {status.boards} boards · {status.providers_configured} LLM en cadena
+            {status.boards_active} boards activos ({status.boards} reg.) ·{' '}
+            {status.providers_configured} LLM en cadena
           </div>
           <div className="sub">
-            {status.stale_selectors.length} selectores stale ·{' '}
+            {status.stale_selectors.length > 0
+              ? `${status.stale_selectors.length} selectores stale (activos)`
+              : 'selectores al día'}{' '}
+            ·{' '}
             {status.scheduler.enabled
               ? `próxima corrida: ${status.scheduler.next_run}`
               : 'scheduler en pausa'}
