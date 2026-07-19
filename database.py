@@ -374,12 +374,19 @@ class GemaDatabase:
             )
         logger.info("Batch-registered %d jobs.", len(records))
 
-    def update_tier(self, url: str, tier: str, match_score: int) -> None:
-        """Backfills tier and match_score after the matcher has run."""
+    def update_tier(self, url: str, tier: str, match_score: int,
+                    salary_raw: Optional[str] = None) -> None:
+        """Backfills tier and match_score after the matcher has run.
+
+        FIX 2b live-test 07-18: también backfillea salary_raw si viene — un job
+        RE-procesado (hash existente, INSERT OR IGNORE no-op) que ahora sí trae
+        salario (FIX 1: extraído del texto) actualiza la fila vieja. COALESCE:
+        nunca pisa un salario ya guardado con NULL."""
         with _get_connection(self.db_path) as conn:
             conn.execute(
-                "UPDATE seen_jobs_registry SET tier=?, match_score=? WHERE job_hash=?",
-                (tier, match_score, self.compute_hash(url)),
+                "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
+                "salary_raw=COALESCE(?, salary_raw) WHERE job_hash=?",
+                (tier, match_score, salary_raw, self.compute_hash(url)),
             )
 
     # =========================================================================
