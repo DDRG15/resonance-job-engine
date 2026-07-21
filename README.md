@@ -98,10 +98,32 @@ Groq and Gemini for normal use; OpenRouter, Cohere, Cerebras, SambaNova, and Mis
 
 ---
 
+## What Changed in v2.3 -- React UI, resilience, and observability
+
+**React + FastAPI is the primary interface; Streamlit is the legacy fallback.**
+The command center is now a Vite + React + TypeScript front end talking to a FastAPI backend (`api.py`) over HTTP/SSE. The engine is untouched -- FastAPI is a thin adapter that wraps the existing scraper/matcher/nlp_engine/database, and the API imports the engine, never the reverse. FastAPI serves the built front end, so the whole thing runs as one process on **port 8000**. Run with `--workers 1` (the scheduler is an in-process singleton). `main.py` (Streamlit) still works as a fallback until full parity.
+
+**Automatic cookie jar for anti-bot clearance.**
+`SessionJar` captures the browser's session cookies after each scrape and reuses them next run, so Cloudflare's `cf_clearance` (issued once the browser passes the challenge) survives without exporting anything or using credentials. It is separate from the manual `CookieVault` and injected before it, so a hand-exported login cookie always wins. Best-effort: `cf_clearance` is bound to IP + User-Agent, so it helps on the same machine over hours/days, and an expired cookie never breaks the run. Files live in `cookies/session/` (gitignored).
+
+**Salvage-to-manual-review, and a learning loop.**
+The anti-hallucination guard used to drop any LLM-recovered job whose URL was not in the source. But many had a real title and company -- only the URL failed. Now those land in a manual-review pile (`/api/review`) with the search page as a hint, instead of the trash; the truly fabricated ones (title not in source either) are still discarded. A pure, tested learning layer then derives per-board URL-repair rules from the human resolutions and auto-repairs future drops -- each repair re-checked against the same grounding, so it can never introduce a fabricated URL.
+
+**Salary from the card text.**
+Most boards do not expose salary as a CSS element, but many carry it in the card text (`$120k`, `$60k-$80k`). A conservative regex fallback populates `salary_raw` from the title/card text when the selector finds nothing -- currency or a `k`/currency suffix is required, so a bare number never matches. `salary_raw` now persists in the registry for cross-run diffs.
+
+**The circuit breaker measures board health, not individual cards.**
+A per-card extraction failure (a malformed or promoted card with no href/title) no longer trips the breaker. The verdict is now SRP-level: a board that returns cards and extracts at least one job is healthy, even if several cards fail; only cards-present-but-none-extracted counts as drift. This closes the same class of bug as the company-required regression -- a healthy board dying from individual bad cards.
+
+**A token-frugal watchdog for live monitoring.**
+`tools/watchdog.py` tails the server log, classifies every line (structured metrics + log markers, with a catch-all that heuristically flags anything that looks like a problem), and emits a compact digest that reconciles -- every line is accounted for, nothing is silently dropped. It surfaces critical errors, mute boards (cards but zero extracted), and per-board counts, so a human (or a monitoring model) reads a distilled summary instead of the raw firehose.
+
+---
+
 ## Capabilities
 
-**17 boards scraped concurrently:**
-himalayas.app, trueup.io, remote.co, weworkremotely.com, remoteok.com, workingnomads.com, news.ycombinator.com, wellfound.com, arc.dev, builtin.com, welcometothejungle.com, remotivated.com, posthog.com, greenhouse.com, jobspresso.co, python.org, startup.jobs
+**17 boards registered; 10 active, scraped concurrently.**
+Active: remoteok.com, workingnomads.com, news.ycombinator.com, arc.dev, builtin.com, remotivated.com, posthog.com, jobspresso.co, python.org, himalayas.app. Retired (config kept, `active=False`): greenhouse.com, welcometothejungle.com, trueup.io (stale selectors) and weworkremotely.com, wellfound.com, startup.jobs, remote.co (anti-bot / dead URL) -- awaiting the cookie jar or a camoufox pass. A board is retired, not deleted, so recovering it is a one-flag change once verified live.
 
 **7-provider LLM fallback chain.**
 The LLM is used only as a *fallback* (on selector drift) and for prompt->config parsing -- never on the main scrape path. When it is invoked, rate-limit or outage on any single provider does not stop the run: the chain falls to the next automatically. Groq and Gemini serve normal use; OpenRouter, Cohere, Cerebras, SambaNova, and Mistral are deep backup. Six independent fallback layers behind the primary mean the probability of all seven being down during a scrape is operationally zero.
@@ -118,7 +140,9 @@ Any board can change its HTML structure. When a domain's selectors are more than
 
 | Layer | Technology |
 |---|---|
-| UI | Streamlit 1.57 |
+| UI (primary) | React 18 + Vite + TypeScript + Tailwind (served by FastAPI) |
+| API | FastAPI 0.116 + Uvicorn (run with `--workers 1`) |
+| UI (legacy fallback) | Streamlit 1.57 |
 | Browser automation | Playwright 1.50 + playwright-stealth 2.0 |
 | Firefox bypass | camoufox 0.4.11 |
 | LLM providers | Groq + Gemini (normal); OpenRouter, Cohere, Cerebras, SambaNova, Mistral (backup) |
@@ -155,9 +179,22 @@ cp .env.example .env
 docker compose up --build
 ```
 
-Open http://localhost:8501. The setup wizard appears on first run if no LLM key is configured -- paste your key and click Save. The UI loads immediately after.
+Open http://localhost:8000 (the React UI, served by FastAPI). The setup wizard appears on first run if no LLM key is configured -- paste your key and click Save. The UI loads immediately after.
 
 First boot downloads the Playwright base image and the camoufox Firefox binary. Total: approximately 1.3 GB. Subsequent starts are near-instant.
+
+**Running from source (dev):**
+
+```bash
+# backend + engine (serves the built front end)
+uvicorn api:app --port 8000 --workers 1
+# front end dev server (optional, hot-reload) — proxies /api to :8000
+cd frontend && npm install && npm run dev
+```
+
+`--workers 1` is mandatory: the scheduler is an in-process singleton, so multiple
+workers would fire duplicate cron runs. The legacy Streamlit UI (`streamlit run
+main.py`, port 8501) still works as a fallback.
 
 ### 3. Upload your CV
 
@@ -266,35 +303,40 @@ news.ycombinator.com/jobs does not support URL-level keyword filtering. The scra
 
 ```
 gema/
-|-- main.py                  # Streamlit UI -- command center
-|-- scraper.py               # Playwright async engine + camoufox routing
+|-- api.py                   # FastAPI backend -- thin adapter over the engine (primary UI)
+|-- run_manager.py           # server-side run state (replaces Streamlit session_state)
+|-- frontend/                # React + Vite + TypeScript front end (built -> served by api.py)
+|   |-- src/                 # components, types, theme
+|   `-- package.json
+|-- main.py                  # Streamlit UI -- legacy fallback command center
+|-- scraper.py               # Playwright async engine + camoufox routing + SRP-level breaker
 |-- camoufox_scraper.py      # remoteok.com Firefox scraper
 |-- nlp_engine.py            # LLM extraction, CV parsing, ephemeral profile generation
 |-- matcher.py               # 115-point scoring + tier bucketing
 |-- models.py                # Pydantic v2 contracts
 |-- config.py                # Centralized env var loading (single source of truth)
-|-- database.py              # SQLite WAL-mode async registry
+|-- database.py              # SQLite WAL-mode async registry (+ manual_review pile)
 |-- board_probe.py           # Pre-scrape domain recon -> writes access_vector to the registry
 |-- board_strategy.py        # Per-board strategy registry (protection, vector, extraction, health)
 |-- metrics.py               # Structured metric emission (observability)
-|-- cookie_vault.py          # Session cookie injection
 |-- scheduler_service.py     # APScheduler BackgroundScheduler singleton
 |-- setup_wizard.py          # First-run wizard -- no keys configured -> guided setup
 |-- gema_industrial.py       # Headless batch scraper (CLI)
-|-- selectors_registry.py    # 16 domain scraping contracts
+|-- selectors_registry.py    # domain scraping contracts (active + retired)
 |-- integrations/
+|   |-- cookie_vault.py      # manual session cookie injection (login-gated boards)
+|   |-- session_jar.py       # automatic cookie jar -- persists cf_clearance across runs
 |   |-- webhook_client.py    # Discord + Slack webhook delivery
 |   |-- notion_client.py     # Notion API push
 |   `-- sheets_client.py     # Google Sheets append
+|-- tools/
+|   `-- watchdog.py          # token-frugal live-monitor -- tails the log, emits a digest
 |-- scripts/
 |   |-- build_beta.bat       # Builds sealed Docker image + assembles dist/ package
 |   |-- start_gema.bat       # Beta launcher (double-click)
 |   `-- docker-compose.beta.yml  # Compose file for pre-packaged distribution
-|-- cookies/                 # Session cookies (gitignored)
-|-- tests/
-|   |-- conftest.py
-|   |-- test_extraction.py
-|   `-- test_cookie_vault.py
+|-- cookies/                 # manual cookies + session/ auto-jar (both gitignored)
+|-- tests/                   # pytest suite (LLM callers mocked; no real API calls)
 |-- .env.example
 |-- requirements.txt
 `-- Dockerfile

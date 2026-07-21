@@ -1,12 +1,40 @@
-# cookies/ — Session Cookie Vault
+# cookies/ — Session Cookies
 
-This directory stores exported browser session cookies for login-gated job boards.
+Two mechanisms live here, kept separate on purpose:
 
-**All `*.json` files here are gitignored and NEVER committed to GitHub.**
+1. **CookieVault (manual)** — `cookies/<domain>.json` files you export from Chrome
+   for login-gated boards. You manage these by hand. Documented below.
+2. **SessionJar (automatic)** — `cookies/session/<domain>.json`, written by GEMA
+   itself. Do NOT touch these. See the next section.
+
+**All `*.json` files here (and the whole `session/` subdir) are gitignored and
+NEVER committed to GitHub.**
 
 ---
 
-## Supported Boards
+## `cookies/session/` — automatic cookie jar (do not edit)
+
+GEMA captures the browser's session/clearance cookies AFTER each scrape and reuses
+them on the next run, so anti-bot clearance (Cloudflare `cf_clearance`, `__cf_bm`,
+etc.) survives without you exporting anything or using credentials. Cloudflare
+issues `cf_clearance` after the browser passes the challenge once; persisting it
+skips the challenge next time.
+
+- Written and read automatically by `integrations/session_jar.py`. One file per
+  board, in Playwright cookie format.
+- Fine print (by design, not a bug): `cf_clearance` is tied to IP + User-Agent, so
+  it has a limited lifetime and does not transfer between machines/IPs — it helps
+  on the same machine over hours/days. Best-effort: an expired cookie simply
+  doesn't help, it never breaks the scrape.
+- Safe to delete the whole `session/` folder any time; GEMA rebuilds it on the
+  next run. Keep it out of the repo (already gitignored).
+
+The manual `CookieVault` (below) is injected AFTER the jar, so a hand-exported
+login cookie always wins over an auto-captured one for the same board.
+
+---
+
+## Supported Boards (manual CookieVault)
 
 | Board | File | Why needed |
 |-------|------|------------|
