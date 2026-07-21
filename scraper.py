@@ -1705,6 +1705,14 @@ class GemaScraper:
         self._log(f"[CARDS] {domain}: {len(card_elements)} cards found on SRP.")
         self.summary.total_urls_found += len(card_elements)
 
+        # FIX A live-test 07-18: veredicto de salud a nivel SRP, no por-card. Un
+        # card individual que no parsea (sin href, o extracción None) es falla de
+        # calidad de dato, NO del board (Phase 31b: un board sano no muere por
+        # cards malas sueltas). arc.dev devuelve 10 cards, ~4 no parsean (slots
+        # promovidos/malformados) → antes 3 nulls por-card → breaker abría con el
+        # board SANO extrayendo jobs. Ahora se cuentan y se juzgan al final.
+        extracted_ok = 0
+        extraction_failed = 0
         for card in card_elements:
             if self._abort_event.is_set():
                 break
@@ -1722,7 +1730,7 @@ class GemaScraper:
                     pass
 
             if not href:
-                self.circuit.record_null(domain, sel.null_threshold)
+                extraction_failed += 1   # falla por-card, no del board
                 continue
 
             canonical = (
@@ -1756,15 +1764,11 @@ class GemaScraper:
             job = await self._extract_card_metadata(card, canonical, domain, sel)
 
             if job is None:
-                self.circuit.record_null(domain, sel.null_threshold)
-                if self.circuit.is_open(domain):
-                    self._log(
-                        f"[CIRCUIT OPEN] {domain}: consecutive nulls exceeded "
-                        f"threshold ({sel.null_threshold}). Activate God Mode."
-                    )
+                extraction_failed += 1   # falla por-card, no del board
                 continue
 
             self.circuit.record_success(domain)
+            extracted_ok += 1
 
             # ── Step 5: Enqueue for DB write (non-blocking) ──────────────────
             await self._write_q.put(job)
@@ -1778,6 +1782,21 @@ class GemaScraper:
                         await self.webhook.notify_tier1(tiered)
                 except Exception as exc:
                     logger.warning("[WEBHOOK SCORE] Inline scoring error: %s", exc)
+
+        # FIX A: veredicto SRP-level. Solo es drift real si HABÍA cards pero
+        # NINGUNA se extrajo Y hubo fallas (selectores href/title stale sobre un
+        # listado presente) → cuenta al breaker UNA vez. Si se extrajo ≥1, el
+        # board está sano (record_success ya lo sostuvo) — cero castigo aunque
+        # varias cards fallen. Si nada se extrajo pero tampoco hubo fallas (todo
+        # dedup/ya-visto), NO es drift.
+        if extracted_ok == 0 and extraction_failed > 0:
+            self._log(
+                f"[NULL-SRP] {domain}: {len(card_elements)} cards pero 0 "
+                f"extraídas ({extraction_failed} fallas) — posible drift."
+            )
+            self.circuit.record_null(domain, sel.null_threshold)
+        if extraction_failed:
+            metrics.emit("card_extraction_failures", extraction_failed, domain=domain)
 
         return jobs
 
