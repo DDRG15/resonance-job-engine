@@ -139,6 +139,33 @@ legacy/
 
 # Internal project maps + provider reference — local context, not for GitHub
 INVENTORY.md
+
+# =============================================================================
+# Excepciones v3 (2026-09-01) — la documentación de la nueva dirección SÍ se
+# versiona.
+#
+# Las reglas de arriba se escribieron cuando todo vivía en la raíz y los
+# reportes eran contexto privado de sesión. docs/ es otra cosa: es lo que hace
+# que alguien entienda el proyecto sin preguntar. Un repo que esconde su propia
+# arquitectura obliga a leer 1966 líneas de scraper.py para saber qué hace.
+# Los ~60 .md históricos de la raíz siguen ignorados exactamente como estaban.
+# =============================================================================
+!docs/
+!docs/**
+
+# El harness de eval y su corpus son código y datos de test, no scaffolding.
+# tools/* y tests/fixtures/ se ignoraron cuando eran andamiaje de Copilot que se
+# purgó (ver arriba); el corpus de la Fase 7 se cura a mano y perderlo cuesta
+# horas de trabajo humano irrecuperable.
+!tools/eval_extraction.py
+
+# git no re-incluye archivos dentro de un directorio excluido, así que hay que
+# reabrir tests/fixtures/ y volver a excluir su contenido antes de destapar solo
+# el corpus. El resto (utils.py, cassettes/) sigue ignorado como estaba.
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/extraction_corpus/
+!tests/fixtures/extraction_corpus/**
 LLM_PROVIDERS.md
 
 # B6 � frontend React
