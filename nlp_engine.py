@@ -8,7 +8,9 @@ SRE: Groq primary + Gemini fallback, exponential backoff, Pydantic validation,
 import json
 import logging
 import re
+import time
 import requests
+from dataclasses import replace
 from typing import Any, Optional
 
 from pydantic import ValidationError
@@ -20,6 +22,7 @@ from tenacity import (
 
 import config
 from models import SearchConfig, ExtractionResult, ExtractedJob
+from graph.instrumentation import LLMCallResult, usage_from, finish_reason_from
 
 logger = logging.getLogger(__name__)
 
@@ -239,13 +242,39 @@ if config.GEMINI_API_KEY:
 
 # =============================================================================
 # LLM Callers
+#
+# Every caller returns an LLMCallResult, not a str. The v2 shape returned the text
+# and threw away resp.usage at the return statement, which is why nothing on the LLM
+# side was ever measured — there was no field to put a number in. Fase 2 of the
+# LangGraph migration changed the shape; the metrics that consume it land in Fase 4.
 # =============================================================================
 
+def _result(text: str, *, provider: str, model: str, t0: float, resp: Any) -> LLMCallResult:
+    """
+    Build the call record. `t0` is a time.perf_counter() taken immediately before the
+    request, so latency covers the request and nothing else.
+
+    Usage and finish reason are best-effort by contract (see graph/instrumentation.py):
+    a provider that changes its response shape costs us a number, never a completion.
+    """
+    prompt_tokens, completion_tokens = usage_from(provider, resp)
+    return LLMCallResult(
+        text=text,
+        provider=provider,
+        model=model,
+        latency_ms=(time.perf_counter() - t0) * 1000,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        finish_reason=finish_reason_from(provider, resp),
+    )
+
+
 @_backoff
-def _call_groq(messages: list[dict]) -> str:
+def _call_groq(messages: list[dict]) -> LLMCallResult:
     global _groq_rate_limited
     if _groq_rate_limited:
         raise _ProviderRateLimited("Groq rate-limited this session — skipping")
+    t0 = time.perf_counter()
     try:
         resp = _get_groq_client().chat.completions.create(
             model=config.GROQ_MODEL,
@@ -254,7 +283,10 @@ def _call_groq(messages: list[dict]) -> str:
             max_tokens=512,
             response_format={"type": "json_object"},
         )
-        return resp.choices[0].message.content.strip()
+        return _result(
+            resp.choices[0].message.content.strip(),
+            provider="groq", model=config.GROQ_MODEL, t0=t0, resp=resp,
+        )
     except Exception as e:
         if _is_rate_limit(e):
             _groq_rate_limited = True
@@ -264,11 +296,12 @@ def _call_groq(messages: list[dict]) -> str:
 
 
 @_backoff
-def _call_gemini(messages: list[dict]) -> str:
+def _call_gemini(messages: list[dict]) -> LLMCallResult:
     global _gemini_rate_limited
     if _gemini_rate_limited:
         raise _ProviderRateLimited("Gemini rate-limited this session — skipping")
     import google.generativeai as genai
+    t0 = time.perf_counter()
     try:
         model = genai.GenerativeModel(
             model_name=config.GEMINI_MODEL,
@@ -283,7 +316,10 @@ def _call_gemini(messages: list[dict]) -> str:
             ),
             request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
         )
-        return resp.text.strip()
+        return _result(
+            resp.text.strip(),
+            provider="gemini", model=config.GEMINI_MODEL, t0=t0, resp=resp,
+        )
     except Exception as e:
         if _is_rate_limit(e):
             _gemini_rate_limited = True
@@ -295,10 +331,11 @@ def _call_gemini(messages: list[dict]) -> str:
 # Plain-text callers for the auditor (no JSON mode — free-form 1-2 sentence response)
 
 @_backoff
-def _call_groq_plain(prompt: str) -> str:
+def _call_groq_plain(prompt: str) -> LLMCallResult:
     global _groq_rate_limited
     if _groq_rate_limited:
         raise _ProviderRateLimited("Groq rate-limited this session — skipping")
+    t0 = time.perf_counter()
     try:
         resp = _get_groq_client().chat.completions.create(
             model=config.GROQ_MODEL,
@@ -306,7 +343,10 @@ def _call_groq_plain(prompt: str) -> str:
             temperature=0.2,
             max_tokens=128,
         )
-        return resp.choices[0].message.content.strip()
+        return _result(
+            resp.choices[0].message.content.strip(),
+            provider="groq", model=config.GROQ_MODEL, t0=t0, resp=resp,
+        )
     except Exception as e:
         if _is_rate_limit(e):
             _groq_rate_limited = True
@@ -316,11 +356,12 @@ def _call_groq_plain(prompt: str) -> str:
 
 
 @_backoff
-def _call_gemini_plain(prompt: str) -> str:
+def _call_gemini_plain(prompt: str) -> LLMCallResult:
     global _gemini_rate_limited
     if _gemini_rate_limited:
         raise _ProviderRateLimited("Gemini rate-limited this session — skipping")
     import google.generativeai as genai
+    t0 = time.perf_counter()
     try:
         model = genai.GenerativeModel(model_name=config.GEMINI_MODEL)
         resp = model.generate_content(
@@ -328,7 +369,10 @@ def _call_gemini_plain(prompt: str) -> str:
             generation_config=genai.GenerationConfig(temperature=0.2, max_output_tokens=128),
             request_options={"timeout": config.LLM_REQUEST_TIMEOUT},  # AUDIT #5: no unbounded hang
         )
-        return resp.text.strip()
+        return _result(
+            resp.text.strip(),
+            provider="gemini", model=config.GEMINI_MODEL, t0=t0, resp=resp,
+        )
     except Exception as e:
         if _is_rate_limit(e):
             _gemini_rate_limited = True
@@ -342,12 +386,13 @@ def _call_gemini_plain(prompt: str) -> str:
 # =============================================================================
 
 @_backoff
-def _call_openrouter(messages: list[dict]) -> str:
+def _call_openrouter(messages: list[dict]) -> LLMCallResult:
     global _openrouter_rate_limited
     if _openrouter_rate_limited:
         raise _ProviderRateLimited("OpenRouter rate-limited this session — skipping")
     if not config.OPENROUTER_API_KEY:
         raise _ProviderRateLimited("OpenRouter API key not configured")
+    t0 = time.perf_counter()
     try:
         resp = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -368,8 +413,12 @@ def _call_openrouter(messages: list[dict]) -> str:
             print("  [RATE LIMIT] OpenRouter hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited("OpenRouter 429")
         resp.raise_for_status()
-        text = resp.json()["choices"][0]["message"]["content"].strip()
-        return json.dumps(_extract_json_from_text(text))
+        data = resp.json()
+        text = data["choices"][0]["message"]["content"].strip()
+        return _result(
+            json.dumps(_extract_json_from_text(text)),
+            provider="openrouter", model=config.OPENROUTER_MODEL, t0=t0, resp=data,
+        )
     except _ProviderRateLimited:
         raise
     except Exception as e:
@@ -381,12 +430,13 @@ def _call_openrouter(messages: list[dict]) -> str:
 
 
 @_backoff
-def _call_cohere(messages: list[dict]) -> str:
+def _call_cohere(messages: list[dict]) -> LLMCallResult:
     global _cohere_rate_limited
     if _cohere_rate_limited:
         raise _ProviderRateLimited("Cohere rate-limited this session — skipping")
     if not config.COHERE_API_KEY:
         raise _ProviderRateLimited("Cohere API key not configured")
+    t0 = time.perf_counter()
     try:
         system_msg = next((m["content"] for m in messages if m["role"] == "system"), None)
         turns = [m for m in messages if m["role"] != "system"]
@@ -419,8 +469,12 @@ def _call_cohere(messages: list[dict]) -> str:
             print("  [RATE LIMIT] Cohere hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited("Cohere 429")
         resp.raise_for_status()
-        text = resp.json()["text"].strip()
-        return json.dumps(_extract_json_from_text(text))
+        data = resp.json()
+        text = data["text"].strip()
+        return _result(
+            json.dumps(_extract_json_from_text(text)),
+            provider="cohere", model=config.COHERE_MODEL, t0=t0, resp=data,
+        )
     except _ProviderRateLimited:
         raise
     except Exception as e:
@@ -434,12 +488,13 @@ def _call_cohere(messages: list[dict]) -> str:
 # Plain-text callers for the auditor (OpenRouter & Cohere — no JSON mode)
 
 @_backoff
-def _call_openrouter_plain(prompt: str) -> str:
+def _call_openrouter_plain(prompt: str) -> LLMCallResult:
     global _openrouter_rate_limited
     if _openrouter_rate_limited:
         raise _ProviderRateLimited("OpenRouter rate-limited this session — skipping")
     if not config.OPENROUTER_API_KEY:
         raise _ProviderRateLimited("OpenRouter API key not configured")
+    t0 = time.perf_counter()
     try:
         resp = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
@@ -460,7 +515,11 @@ def _call_openrouter_plain(prompt: str) -> str:
             print("  [RATE LIMIT] OpenRouter hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited("OpenRouter 429")
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        data = resp.json()
+        return _result(
+            data["choices"][0]["message"]["content"].strip(),
+            provider="openrouter", model=config.OPENROUTER_MODEL, t0=t0, resp=data,
+        )
     except _ProviderRateLimited:
         raise
     except Exception as e:
@@ -472,12 +531,13 @@ def _call_openrouter_plain(prompt: str) -> str:
 
 
 @_backoff
-def _call_cohere_plain(prompt: str) -> str:
+def _call_cohere_plain(prompt: str) -> LLMCallResult:
     global _cohere_rate_limited
     if _cohere_rate_limited:
         raise _ProviderRateLimited("Cohere rate-limited this session — skipping")
     if not config.COHERE_API_KEY:
         raise _ProviderRateLimited("Cohere API key not configured")
+    t0 = time.perf_counter()
     try:
         resp = requests.post(
             "https://api.cohere.ai/v1/chat",
@@ -498,7 +558,11 @@ def _call_cohere_plain(prompt: str) -> str:
             print("  [RATE LIMIT] Cohere hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited("Cohere 429")
         resp.raise_for_status()
-        return resp.json()["text"].strip()
+        data = resp.json()
+        return _result(
+            data["text"].strip(),
+            provider="cohere", model=config.COHERE_MODEL, t0=t0, resp=data,
+        )
     except _ProviderRateLimited:
         raise
     except Exception as e:
@@ -532,14 +596,15 @@ _OAI_ORDER = ("cerebras", "sambanova", "mistral")
 _oai_rate_limited: dict[str, bool] = {name: False for name in _OAI_PROVIDERS}
 
 
-def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_tokens: int) -> str:
-    """Raw OpenAI-compatible chat call for a registered provider. Returns the
-    assistant text. Trips the provider's session rate-limit flag on 429."""
+def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_tokens: int) -> LLMCallResult:
+    """Raw OpenAI-compatible chat call for a registered provider. Returns the call
+    record. Trips the provider's session rate-limit flag on 429."""
     prov = _OAI_PROVIDERS[name]
     if _oai_rate_limited[name]:
         raise _ProviderRateLimited(f"{name} rate-limited this session — skipping")
     if not prov["key"]:
         raise _ProviderRateLimited(f"{name} API key not configured")
+    t0 = time.perf_counter()
     try:
         resp = requests.post(
             prov["url"],
@@ -560,7 +625,11 @@ def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_to
             print(f"  [RATE LIMIT] {name} hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited(f"{name} 429")
         resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
+        data = resp.json()
+        return _result(
+            data["choices"][0]["message"]["content"].strip(),
+            provider=name, model=prov["model"], t0=t0, resp=data,
+        )
     except _ProviderRateLimited:
         raise
     except Exception as e:
@@ -572,19 +641,21 @@ def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_to
 
 
 def _make_oai_json_caller(name: str):
-    """JSON-mode caller (config generation): returns json.dumps of extracted JSON."""
+    """JSON-mode caller (config generation): normalizes the text to json.dumps of the
+    extracted JSON. dataclasses.replace() rewrites only the text — latency and usage were
+    measured around the actual request and must survive the normalization."""
     @_backoff
-    def _caller(messages: list[dict]) -> str:
-        text = _call_oai_raw(name, messages, temperature=0.0, max_tokens=1024)
-        return json.dumps(_extract_json_from_text(text))
+    def _caller(messages: list[dict]) -> LLMCallResult:
+        call = _call_oai_raw(name, messages, temperature=0.0, max_tokens=1024)
+        return replace(call, text=json.dumps(_extract_json_from_text(call.text)))
     _caller.__name__ = f"_call_{name}"
     return _caller
 
 
 def _make_oai_plain_caller(name: str):
-    """Plain-text caller (auditor cross-check): returns the raw completion."""
+    """Plain-text caller (auditor cross-check): returns the completion untouched."""
     @_backoff
-    def _caller(prompt: str) -> str:
+    def _caller(prompt: str) -> LLMCallResult:
         return _call_oai_raw(name, [{"role": "user", "content": prompt}], temperature=0.2, max_tokens=128)
     _caller.__name__ = f"_call_{name}_plain"
     return _caller
@@ -661,8 +732,12 @@ def parse_prompt_to_config(
 
         for attempt in range(1, config.LLM_MAX_RETRIES + 1):
             try:
-                raw_response = caller(messages)
-                _log(f"[NLP] Response received. Validating schema (attempt {attempt})...")
+                call = caller(messages)
+                raw_response = call.text
+                _log(
+                    f"[NLP] Response received from {call.provider} in {call.latency_ms:.0f}ms"
+                    f" (tokens: {call.total_tokens}). Validating schema (attempt {attempt})..."
+                )
                 result = _parse_and_validate(raw_response)
                 _log("[NLP] SearchConfig validated successfully.")
                 return result
@@ -855,8 +930,12 @@ def generate_and_audit_config(
     for auditor_name, auditor_caller in auditor_chain:
         _log(f"[AUDIT] Step 2/2 — Sending to {auditor_name} for cross-audit...")
         try:
-            audit_report = auditor_caller(audit_prompt)
-            _log(f"[AUDIT] {auditor_name} audit complete.")
+            audit_call = auditor_caller(audit_prompt)
+            audit_report = audit_call.text
+            _log(
+                f"[AUDIT] {auditor_name} audit complete"
+                f" in {audit_call.latency_ms:.0f}ms (tokens: {audit_call.total_tokens})."
+            )
             logger.info("[AUDIT REPORT] %s", audit_report)
             return search_config, audit_report
         except Exception as exc:
@@ -1020,10 +1099,13 @@ CV TEXT:
 
     for llm_name, caller in callers:
         try:
-            raw = caller(messages)
-            parsed = _extract_json_from_text(raw)
+            call = caller(messages)
+            parsed = _extract_json_from_text(call.text)
             profile = _sanitize_profile(parsed)
-            logger.info("[CV] Profile parsed via %s.", llm_name)
+            logger.info(
+                "[CV] Profile parsed via %s in %.0fms (tokens: %s).",
+                llm_name, call.latency_ms, call.total_tokens,
+            )
             return profile
         except Exception as exc:
             # Malformada o proveedor caído — mismo trato que el config path:
@@ -1290,8 +1372,13 @@ def extract_jobs_from_text(
 
         for attempt in range(1, config.LLM_MAX_RETRIES + 1):
             try:
-                raw_response = caller(messages)
-                _log(f"[EXTRACT] Response received. Validating (attempt {attempt})...")
+                call = caller(messages)
+                raw_response = call.text
+                _log(
+                    f"[EXTRACT] Response received from {call.provider}"
+                    f" in {call.latency_ms:.0f}ms (tokens: {call.total_tokens})."
+                    f" Validating (attempt {attempt})..."
+                )
 
                 # Strip markdown fences if LLM ignored the "no fences" rule
                 cleaned = raw_response.strip()

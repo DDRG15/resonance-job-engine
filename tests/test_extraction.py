@@ -9,7 +9,7 @@ Coverage:
     5. _score_skill_overlap     — bonus capped at 15 pts max
 
 No real HTTP requests or LLM API calls are made. All LLM callers are replaced
-with unittest.mock objects that return pre-defined JSON strings.
+with unittest.mock objects that return pre-defined LLMCallResult records.
 """
 
 import json
@@ -20,6 +20,7 @@ import pytest
 
 from models import ExtractionResult, JobResult
 from matcher import _score_skill_overlap
+from graph.instrumentation import LLMCallResult
 
 
 # =============================================================================
@@ -59,10 +60,20 @@ VALID_LLM_RESPONSE = json.dumps({
 def test_extract_jobs_from_text_parses_valid_response():
     """
     Confirms extract_jobs_from_text returns a populated ExtractionResult when
-    the LLM caller returns a valid JSON string. The caller chain is replaced
+    the LLM caller returns a valid response. The caller chain is replaced
     by a single MagicMock — no real Groq or Gemini call is made.
+
+    Fase 2 (migración v3): los callers devuelven LLMCallResult, no str. El mock
+    replica esa forma; el texto que se valida es el mismo de siempre.
     """
-    mock_caller = MagicMock(return_value=VALID_LLM_RESPONSE)
+    mock_caller = MagicMock(return_value=LLMCallResult(
+        text=VALID_LLM_RESPONSE,
+        provider="mock",
+        model="mock-model",
+        latency_ms=1.0,
+        prompt_tokens=10,
+        completion_tokens=20,
+    ))
 
     with patch("nlp_engine._build_caller_chain", return_value=[("MockLLM", mock_caller)]):
         from nlp_engine import extract_jobs_from_text
