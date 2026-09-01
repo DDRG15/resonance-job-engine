@@ -9,11 +9,32 @@ streamlit==1.57.0
 starlette==0.47.3      # pinned — B6: resuelto por fastapi 0.116.1 (rango <0.48); conserva el fix de 0.42.0 (DEFAULT_EXCLUDED_CONTENT_TYPES; 0.41.3 rompía el startup)
 
 # ── Data Validation (Contract Layer) ─────────────────────────────────────────
-pydantic==2.7.1
+pydantic==2.13.5       # v3 (2026-09-01): subido desde 2.7.1 — NO fue una elección.
+                       # langgraph 0.6.7 exige pydantic>=2.7.4 vía langchain-core 1.6.1
+                       # y el install lo reemplaza solo. Medido antes de aceptarlo: la
+                       # suite da 827 passed / 7 failed en 2.13.5, y esos MISMOS 7 fallan
+                       # igual en 2.7.1 (test_api.py, contaminación entre tests por
+                       # llamadas de red reales a Notion/Sheets contra el deadline de 10s
+                       # de _wait_run_done — pasan aislados). O sea: el bump no cambió
+                       # nada observable. Si algún día se saca langgraph, esto puede
+                       # volver a 2.7.1 sin tocar código.
 
 # ── NLP / LLM APIs ───────────────────────────────────────────────────────────
 groq==0.37.1           # F11 (live test 07-10): 0.11.0 pasaba 'proxies' a httpx y httpx 0.28 (B6.1) lo eliminó — Groq quedaba fuera de la cadena con TypeError
 google-generativeai==0.8.3
+
+# ── Orchestration (v3 — el pipeline como state graph) ────────────────────────
+langgraph==1.2.11      # SOLO langgraph: nada de langchain, ni wrappers de chat model.
+                       # El plan pinneaba 0.6.7; pip-audit lo rechazó (PYSEC-2026-83, fix
+                       # en 1.0.10) junto a 3 vulns de langgraph-checkpoint y 2 de
+                       # langgraph-sdk. La rama 1.0.x las cierra todas.
+                       # Los 7 providers ya están normalizados a callable(messages)->str
+                       # con registry y factories en nlp_engine — init_chat_model no
+                       # aporta nada, y los wrappers no cubren cerebras/sambanova.
+                       # Decide el gate de pip-audit de build_beta.bat: el árbol de
+                       # langchain arrastra SQLAlchemy/jsonpatch y pinea tenacity contra
+                       # el 8.3.0 de abajo. Cada CVE ahí bloquea un build que no usa esas
+                       # features. langchain-core entra transitivo pero NO se importa.
 
 # ── Scraping Engine ───────────────────────────────────────────────────────────
 playwright==1.50.0
