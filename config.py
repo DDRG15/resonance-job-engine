@@ -52,6 +52,12 @@ LLM_RETRY_WAIT_MAX: float = 30.0  # seconds
 # Per-call request timeout. Groq/OpenRouter/Cohere already use 30s; Gemini's SDK
 # defaulted to unbounded → a hung call froze the extraction thread (AUDIT #5).
 LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
+# Cuánto queda fuera de la cadena un proveedor que devolvió 429 (v3, Fase 3).
+# Antes era un booleano por sesión: un solo 429 transitorio en la corrida del martes
+# mataba a Groq hasta el reinicio y empujaba todo a los fallbacks más lentos. Con una
+# ventana, la cuota se recupera sola y la cadena vuelve a su proveedor más rápido.
+# Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
+LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
 
 # =============================================================================

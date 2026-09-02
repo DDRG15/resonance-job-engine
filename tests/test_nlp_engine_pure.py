@@ -9,6 +9,8 @@ No LLM API calls are made. These functions have zero external dependencies:
     - _build_extraction_prompt — profile dict → system prompt string
 """
 
+import time
+
 import pytest
 import nlp_engine
 
@@ -168,26 +170,40 @@ def test_is_rate_limit_detects_ratelimit_in_class_name():
 # =============================================================================
 
 def test_reset_rate_limit_flags_clears_all():
-    # Set all flags to True
-    nlp_engine._groq_rate_limited = True
-    nlp_engine._gemini_rate_limited = True
-    nlp_engine._openrouter_rate_limited = True
-    nlp_engine._cohere_rate_limited = True
+    # v3 Fase 3: los cuatro booleanos + el dict _oai_rate_limited se unificaron en
+    # un solo mapa de cooldowns con ventana temporal.
+    for name in ("groq", "gemini", "openrouter", "cohere", "cerebras"):
+        nlp_engine._start_cooldown(name)
+    assert nlp_engine._cooldowns
 
     nlp_engine.reset_rate_limit_flags()
 
-    assert nlp_engine._groq_rate_limited is False
-    assert nlp_engine._gemini_rate_limited is False
-    assert nlp_engine._openrouter_rate_limited is False
-    assert nlp_engine._cohere_rate_limited is False
+    assert nlp_engine._cooldowns == {}
+    assert nlp_engine._is_cooling("groq") is False
+    assert nlp_engine._is_cooling("gemini") is False
 
 
 def test_reset_rate_limit_flags_idempotent():
     nlp_engine.reset_rate_limit_flags()
     nlp_engine.reset_rate_limit_flags()
 
-    assert nlp_engine._groq_rate_limited is False
-    assert nlp_engine._gemini_rate_limited is False
+    assert nlp_engine._cooldowns == {}
+
+
+def test_cooldown_expires_on_its_own():
+    # El punto entero de la ventana: un 429 transitorio no mata al proveedor por
+    # el resto de la sesión, como pasaba con el booleano de v2.
+    nlp_engine._cooldowns["groq"] = time.time() - 1     # venció hace un segundo
+    assert nlp_engine._is_cooling("groq") is False
+
+    nlp_engine._cooldowns["groq"] = time.time() + 30
+    assert nlp_engine._is_cooling("groq") is True
+    nlp_engine.reset_rate_limit_flags()
+
+
+def test_unknown_provider_is_never_cooling():
+    nlp_engine.reset_rate_limit_flags()
+    assert nlp_engine._is_cooling("proveedor-que-no-existe") is False
 
 
 # =============================================================================

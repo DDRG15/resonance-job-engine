@@ -26,7 +26,7 @@ class _FakeModel:
 def test_gemini_call_passes_request_timeout(monkeypatch):
     import google.generativeai as genai
     monkeypatch.setattr(genai, "GenerativeModel", _FakeModel)
-    monkeypatch.setattr(nlp_engine, "_gemini_rate_limited", False)
+    nlp_engine.reset_rate_limit_flags()   # v3: cooldowns, no booleanos por proveedor
 
     nlp_engine._call_gemini([{"role": "user", "content": "hi"}])
 

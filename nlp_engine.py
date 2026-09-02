@@ -23,6 +23,7 @@ from tenacity import (
 import config
 from models import SearchConfig, ExtractionResult, ExtractedJob
 from graph.instrumentation import LLMCallResult, usage_from, finish_reason_from
+from graph.llm_graph import ProvidersExhausted, run_llm_chain
 
 logger = logging.getLogger(__name__)
 
@@ -148,18 +149,33 @@ Your 1-2 sentence audit:"""
 
 
 # =============================================================================
-# Rate-limit circuit breaker — session-level flags
+# Rate-limit circuit breaker — cooldown windows (v3, Fase 3)
 # =============================================================================
 
 class _ProviderRateLimited(Exception):
-    """Raised when a provider returns HTTP 429. Signals permanent skip for this session."""
+    """Raised when a provider returns HTTP 429 or is still inside its cooldown window."""
 
 
-# These flip to True the moment a provider returns 429 — never reset within a run.
-_groq_rate_limited        = False
-_gemini_rate_limited      = False
-_openrouter_rate_limited  = False
-_cohere_rate_limited      = False
+# provider -> epoch en que vuelve a estar disponible. Reemplaza a los cuatro booleanos
+# de v2 más el dict _oai_rate_limited.
+#
+# El cambio no es de estructura, es de semántica. v2 escribía True y el proveedor quedaba
+# muerto hasta el reinicio del proceso: un 429 transitorio a las 9 de la mañana del martes
+# costaba Groq durante toda la corrida del cron y empujaba las siete llamadas siguientes a
+# los fallbacks lentos. Una ventana deja que la cuota se recupere sola.
+#
+# Sigue viviendo a nivel módulo, igual que los booleanos, porque tiene que sobrevivir
+# entre llamadas dentro de una misma corrida. En la Fase 6 pasa al RuntimeContext, que es
+# donde esa persistencia deja de depender de un accidente del sistema de imports.
+_cooldowns: dict[str, float] = {}
+
+
+def _is_cooling(name: str) -> bool:
+    return _cooldowns.get(name, 0.0) > time.time()
+
+
+def _start_cooldown(name: str) -> None:
+    _cooldowns[name] = time.time() + config.LLM_PROVIDER_COOLDOWN_S
 
 
 def _is_rate_limit(exc: Exception) -> bool:
@@ -271,9 +287,8 @@ def _result(text: str, *, provider: str, model: str, t0: float, resp: Any) -> LL
 
 @_backoff
 def _call_groq(messages: list[dict]) -> LLMCallResult:
-    global _groq_rate_limited
-    if _groq_rate_limited:
-        raise _ProviderRateLimited("Groq rate-limited this session — skipping")
+    if _is_cooling("groq"):
+        raise _ProviderRateLimited("Groq cooling down — skipping")
     t0 = time.perf_counter()
     try:
         resp = _get_groq_client().chat.completions.create(
@@ -289,17 +304,16 @@ def _call_groq(messages: list[dict]) -> LLMCallResult:
         )
     except Exception as e:
         if _is_rate_limit(e):
-            _groq_rate_limited = True
-            print("  [RATE LIMIT] Groq hit 429 — disabled for this session, falling back.")
+            _start_cooldown("groq")
+            print(f"  [RATE LIMIT] Groq 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Groq 429") from e
         raise
 
 
 @_backoff
 def _call_gemini(messages: list[dict]) -> LLMCallResult:
-    global _gemini_rate_limited
-    if _gemini_rate_limited:
-        raise _ProviderRateLimited("Gemini rate-limited this session — skipping")
+    if _is_cooling("gemini"):
+        raise _ProviderRateLimited("Gemini cooling down — skipping")
     import google.generativeai as genai
     t0 = time.perf_counter()
     try:
@@ -322,8 +336,8 @@ def _call_gemini(messages: list[dict]) -> LLMCallResult:
         )
     except Exception as e:
         if _is_rate_limit(e):
-            _gemini_rate_limited = True
-            print("  [RATE LIMIT] Gemini hit 429 — disabled for this session, falling back.")
+            _start_cooldown("gemini")
+            print(f"  [RATE LIMIT] Gemini 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Gemini 429") from e
         raise
 
@@ -332,9 +346,8 @@ def _call_gemini(messages: list[dict]) -> LLMCallResult:
 
 @_backoff
 def _call_groq_plain(prompt: str) -> LLMCallResult:
-    global _groq_rate_limited
-    if _groq_rate_limited:
-        raise _ProviderRateLimited("Groq rate-limited this session — skipping")
+    if _is_cooling("groq"):
+        raise _ProviderRateLimited("Groq cooling down — skipping")
     t0 = time.perf_counter()
     try:
         resp = _get_groq_client().chat.completions.create(
@@ -349,17 +362,16 @@ def _call_groq_plain(prompt: str) -> LLMCallResult:
         )
     except Exception as e:
         if _is_rate_limit(e):
-            _groq_rate_limited = True
-            print("  [RATE LIMIT] Groq hit 429 — disabled for this session, falling back.")
+            _start_cooldown("groq")
+            print(f"  [RATE LIMIT] Groq 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Groq 429") from e
         raise
 
 
 @_backoff
 def _call_gemini_plain(prompt: str) -> LLMCallResult:
-    global _gemini_rate_limited
-    if _gemini_rate_limited:
-        raise _ProviderRateLimited("Gemini rate-limited this session — skipping")
+    if _is_cooling("gemini"):
+        raise _ProviderRateLimited("Gemini cooling down — skipping")
     import google.generativeai as genai
     t0 = time.perf_counter()
     try:
@@ -375,8 +387,8 @@ def _call_gemini_plain(prompt: str) -> LLMCallResult:
         )
     except Exception as e:
         if _is_rate_limit(e):
-            _gemini_rate_limited = True
-            print("  [RATE LIMIT] Gemini hit 429 — disabled for this session, falling back.")
+            _start_cooldown("gemini")
+            print(f"  [RATE LIMIT] Gemini 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Gemini 429") from e
         raise
 
@@ -387,9 +399,8 @@ def _call_gemini_plain(prompt: str) -> LLMCallResult:
 
 @_backoff
 def _call_openrouter(messages: list[dict]) -> LLMCallResult:
-    global _openrouter_rate_limited
-    if _openrouter_rate_limited:
-        raise _ProviderRateLimited("OpenRouter rate-limited this session — skipping")
+    if _is_cooling("openrouter"):
+        raise _ProviderRateLimited("OpenRouter cooling down — skipping")
     if not config.OPENROUTER_API_KEY:
         raise _ProviderRateLimited("OpenRouter API key not configured")
     t0 = time.perf_counter()
@@ -409,8 +420,8 @@ def _call_openrouter(messages: list[dict]) -> LLMCallResult:
             timeout=30,
         )
         if resp.status_code == 429:
-            _openrouter_rate_limited = True
-            print("  [RATE LIMIT] OpenRouter hit 429 — disabled for this session, falling back.")
+            _start_cooldown("openrouter")
+            print(f"  [RATE LIMIT] OpenRouter 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("OpenRouter 429")
         resp.raise_for_status()
         data = resp.json()
@@ -423,17 +434,16 @@ def _call_openrouter(messages: list[dict]) -> LLMCallResult:
         raise
     except Exception as e:
         if _is_rate_limit(e):
-            _openrouter_rate_limited = True
-            print("  [RATE LIMIT] OpenRouter rate limit — disabled for this session, falling back.")
+            _start_cooldown("openrouter")
+            print(f"  [RATE LIMIT] OpenRouter rate limit — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("OpenRouter rate limit") from e
         raise
 
 
 @_backoff
 def _call_cohere(messages: list[dict]) -> LLMCallResult:
-    global _cohere_rate_limited
-    if _cohere_rate_limited:
-        raise _ProviderRateLimited("Cohere rate-limited this session — skipping")
+    if _is_cooling("cohere"):
+        raise _ProviderRateLimited("Cohere cooling down — skipping")
     if not config.COHERE_API_KEY:
         raise _ProviderRateLimited("Cohere API key not configured")
     t0 = time.perf_counter()
@@ -465,8 +475,8 @@ def _call_cohere(messages: list[dict]) -> LLMCallResult:
             timeout=30,
         )
         if resp.status_code == 429:
-            _cohere_rate_limited = True
-            print("  [RATE LIMIT] Cohere hit 429 — disabled for this session, falling back.")
+            _start_cooldown("cohere")
+            print(f"  [RATE LIMIT] Cohere 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Cohere 429")
         resp.raise_for_status()
         data = resp.json()
@@ -479,8 +489,8 @@ def _call_cohere(messages: list[dict]) -> LLMCallResult:
         raise
     except Exception as e:
         if _is_rate_limit(e):
-            _cohere_rate_limited = True
-            print("  [RATE LIMIT] Cohere rate limit — disabled for this session, falling back.")
+            _start_cooldown("cohere")
+            print(f"  [RATE LIMIT] Cohere rate limit — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Cohere rate limit") from e
         raise
 
@@ -489,9 +499,8 @@ def _call_cohere(messages: list[dict]) -> LLMCallResult:
 
 @_backoff
 def _call_openrouter_plain(prompt: str) -> LLMCallResult:
-    global _openrouter_rate_limited
-    if _openrouter_rate_limited:
-        raise _ProviderRateLimited("OpenRouter rate-limited this session — skipping")
+    if _is_cooling("openrouter"):
+        raise _ProviderRateLimited("OpenRouter cooling down — skipping")
     if not config.OPENROUTER_API_KEY:
         raise _ProviderRateLimited("OpenRouter API key not configured")
     t0 = time.perf_counter()
@@ -511,8 +520,8 @@ def _call_openrouter_plain(prompt: str) -> LLMCallResult:
             timeout=30,
         )
         if resp.status_code == 429:
-            _openrouter_rate_limited = True
-            print("  [RATE LIMIT] OpenRouter hit 429 — disabled for this session, falling back.")
+            _start_cooldown("openrouter")
+            print(f"  [RATE LIMIT] OpenRouter 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("OpenRouter 429")
         resp.raise_for_status()
         data = resp.json()
@@ -524,17 +533,16 @@ def _call_openrouter_plain(prompt: str) -> LLMCallResult:
         raise
     except Exception as e:
         if _is_rate_limit(e):
-            _openrouter_rate_limited = True
-            print("  [RATE LIMIT] OpenRouter rate limit — disabled for this session, falling back.")
+            _start_cooldown("openrouter")
+            print(f"  [RATE LIMIT] OpenRouter rate limit — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("OpenRouter rate limit") from e
         raise
 
 
 @_backoff
 def _call_cohere_plain(prompt: str) -> LLMCallResult:
-    global _cohere_rate_limited
-    if _cohere_rate_limited:
-        raise _ProviderRateLimited("Cohere rate-limited this session — skipping")
+    if _is_cooling("cohere"):
+        raise _ProviderRateLimited("Cohere cooling down — skipping")
     if not config.COHERE_API_KEY:
         raise _ProviderRateLimited("Cohere API key not configured")
     t0 = time.perf_counter()
@@ -554,8 +562,8 @@ def _call_cohere_plain(prompt: str) -> LLMCallResult:
             timeout=30,
         )
         if resp.status_code == 429:
-            _cohere_rate_limited = True
-            print("  [RATE LIMIT] Cohere hit 429 — disabled for this session, falling back.")
+            _start_cooldown("cohere")
+            print(f"  [RATE LIMIT] Cohere 429 — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Cohere 429")
         resp.raise_for_status()
         data = resp.json()
@@ -567,8 +575,8 @@ def _call_cohere_plain(prompt: str) -> LLMCallResult:
         raise
     except Exception as e:
         if _is_rate_limit(e):
-            _cohere_rate_limited = True
-            print("  [RATE LIMIT] Cohere rate limit — disabled for this session, falling back.")
+            _start_cooldown("cohere")
+            print(f"  [RATE LIMIT] Cohere rate limit — cooling down {config.LLM_PROVIDER_COOLDOWN_S}s, falling back.")
             raise _ProviderRateLimited("Cohere rate limit") from e
         raise
 
@@ -591,17 +599,17 @@ _OAI_PROVIDERS: dict[str, dict] = {
 # free tiers first). AIMLAPI + Novita removed 2026-07-05 (403 on their free tier).
 _OAI_ORDER = ("cerebras", "sambanova", "mistral")
 
-# Per-session rate-limit flags (parallels the module-global flags of the original
-# four; reset by reset_rate_limit_flags()).
-_oai_rate_limited: dict[str, bool] = {name: False for name in _OAI_PROVIDERS}
+# Los tres proveedores OAI usan el mismo mapa _cooldowns que los otros cuatro. v2 tenía
+# dos mecanismos en paralelo — booleanos por nombre y un dict aparte — y había que
+# acordarse de resetear los dos.
 
 
 def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_tokens: int) -> LLMCallResult:
     """Raw OpenAI-compatible chat call for a registered provider. Returns the call
     record. Trips the provider's session rate-limit flag on 429."""
     prov = _OAI_PROVIDERS[name]
-    if _oai_rate_limited[name]:
-        raise _ProviderRateLimited(f"{name} rate-limited this session — skipping")
+    if _is_cooling(name):
+        raise _ProviderRateLimited(f"{name} cooling down — skipping")
     if not prov["key"]:
         raise _ProviderRateLimited(f"{name} API key not configured")
     t0 = time.perf_counter()
@@ -621,7 +629,7 @@ def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_to
             timeout=config.LLM_REQUEST_TIMEOUT,
         )
         if resp.status_code == 429:
-            _oai_rate_limited[name] = True
+            _start_cooldown(name)
             print(f"  [RATE LIMIT] {name} hit 429 — disabled for this session, falling back.")
             raise _ProviderRateLimited(f"{name} 429")
         resp.raise_for_status()
@@ -634,7 +642,7 @@ def _call_oai_raw(name: str, messages: list[dict], *, temperature: float, max_to
         raise
     except Exception as e:
         if _is_rate_limit(e):
-            _oai_rate_limited[name] = True
+            _start_cooldown(name)
             print(f"  [RATE LIMIT] {name} rate limit — disabled for this session, falling back.")
             raise _ProviderRateLimited(f"{name} rate limit") from e
         raise
@@ -691,14 +699,14 @@ def _parse_and_validate(raw: str) -> SearchConfig:
 # =============================================================================
 
 def reset_rate_limit_flags() -> None:
-    """Resets all provider rate-limit flags. Call at the start of each new run."""
-    global _groq_rate_limited, _gemini_rate_limited, _openrouter_rate_limited, _cohere_rate_limited
-    _groq_rate_limited = False
-    _gemini_rate_limited = False
-    _openrouter_rate_limited = False
-    _cohere_rate_limited = False
-    for _name in _oai_rate_limited:
-        _oai_rate_limited[_name] = False
+    """
+    Clears every provider cooldown. Call at the start of each new run.
+
+    Conserva el nombre de v2 a propósito: lo llaman run_manager, main y
+    gema_industrial, y renombrarlo mezclaría un cambio de API con un cambio de
+    semántica en el mismo commit. Pasa a ser ctx.cooldowns.clear() en la Fase 6.
+    """
+    _cooldowns.clear()
 
 
 def parse_prompt_to_config(
@@ -719,98 +727,100 @@ def parse_prompt_to_config(
         if log_callback:
             log_callback(msg)
 
-    callers = _build_caller_chain()
-    last_error: Optional[Exception] = None
-
-    for llm_name, caller in callers:
-        _log(f"[NLP] Contacting {llm_name}...")
-        messages = [
+    state = _run_chain(
+        purpose="parse",
+        messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user",   "content": user_prompt},
-        ]
-        raw_response = ""
-
-        for attempt in range(1, config.LLM_MAX_RETRIES + 1):
-            try:
-                call = caller(messages)
-                raw_response = call.text
-                _log(
-                    f"[NLP] Response received from {call.provider} in {call.latency_ms:.0f}ms"
-                    f" (tokens: {call.total_tokens}). Validating schema (attempt {attempt})..."
-                )
-                result = _parse_and_validate(raw_response)
-                _log("[NLP] SearchConfig validated successfully.")
-                return result
-
-            except (ValueError, ValidationError) as schema_exc:
-                # ── Schema / JSON error — the LLM produced malformed output.
-                # Inject the error back into the conversation so the model can
-                # self-correct on the next attempt. This is appropriate because
-                # the LLM is capable of fixing its own output format mistakes.
-                last_error = schema_exc
-                _log(
-                    f"[NLP] Schema validation failed (attempt {attempt}/{config.LLM_MAX_RETRIES})"
-                    f" on {llm_name}: {schema_exc}"
-                )
-                if attempt < config.LLM_MAX_RETRIES:
-                    messages += [
-                        {"role": "assistant", "content": raw_response},
-                        {"role": "user", "content": _RETRY_INJECT.format(
-                            error=str(schema_exc), raw=raw_response
-                        )},
-                    ]
-                # Continue the for-loop to retry this LLM with corrective context
-
-            except Exception as network_exc:
-                # ── Network / API error — Groq/Gemini is down, rate-limited,
-                # or returned a non-retryable HTTP error (503, 401, etc.).
-                # Injecting this into the LLM conversation is WRONG: the model
-                # would hallucinate a JSON fix for a problem it did not cause.
-                # Instead: log, record the error, and BREAK immediately to
-                # fall through to the next LLM provider with a CLEAN history.
-                last_error = network_exc
-                _log(
-                    f"[NLP] Network/API error on {llm_name} (attempt {attempt}): "
-                    f"{type(network_exc).__name__}: {network_exc}. "
-                    f"Falling back to next provider."
-                )
-                break  # Exit retry loop for this LLM — try next provider
-
-    raise RuntimeError(f"All LLM attempts exhausted. Last error: {last_error}")
+        ],
+        parser=_parse_and_validate,
+        retry_inject=_RETRY_INJECT,
+        on_exhaustion="raise",
+        log=_log,
+    )
+    _log("[NLP] SearchConfig validated successfully.")
+    return state["parsed"]
 
 
 def _build_caller_chain() -> list[tuple[str, callable]]:
-    """Primary LLM first, fallback second, then OpenRouter and Cohere as final fallbacks."""
+    """
+    Primary LLM first, fallback second, then OpenRouter and Cohere as final fallbacks.
+
+    Ya NO filtra por cooldown. Antes lo hacía, y esa era la falla sutil: la cadena se
+    calculaba una vez al principio, así que un proveedor que se comía un 429 a mitad de
+    cadena seguía en la lista y se lo llamaba igual. Ahora la disponibilidad la evalúa
+    select_provider en el momento de usar cada uno. Acá solo queda el ORDEN, que es lo
+    único que esta función siempre debió decidir.
+
+    Devuelve (nombre, caller). El nombre es la clave del cooldown y la etiqueta del log.
+    """
     pool = {
-        "groq":   ("Groq (llama3-70b)", _call_groq),
-        "gemini": ("Gemini (flash)",     _call_gemini),
+        "groq":   _call_groq,
+        "gemini": _call_gemini,
     }
-    available = {
-        "groq":   bool(config.GROQ_API_KEY)   and not _groq_rate_limited,
-        "gemini": bool(config.GEMINI_API_KEY)  and not _gemini_rate_limited,
+    configured = {
+        "groq":   bool(config.GROQ_API_KEY),
+        "gemini": bool(config.GEMINI_API_KEY),
     }
     primary = config.PRIMARY_LLM
-    ordered = []
+    ordered: list[tuple[str, callable]] = []
     for key in ([primary] + [k for k in pool if k != primary]):
-        if available.get(key):
-            ordered.append(pool[key])
-    if bool(config.OPENROUTER_API_KEY) and not _openrouter_rate_limited:
-        ordered.append(("OpenRouter (free)", _call_openrouter))
-    if bool(config.COHERE_API_KEY) and not _cohere_rate_limited:
-        ordered.append(("Cohere (command-r-plus)", _call_cohere))
+        if configured.get(key):
+            ordered.append((key, pool[key]))
+    if config.OPENROUTER_API_KEY:
+        ordered.append(("openrouter", _call_openrouter))
+    if config.COHERE_API_KEY:
+        ordered.append(("cohere", _call_cohere))
     # Extra free-tier providers (deepest fallback), in deterministic order.
     for _name in _OAI_ORDER:
-        prov = _OAI_PROVIDERS[_name]
-        if prov["key"] and not _oai_rate_limited[_name]:
-            ordered.append((prov["label"], _OAI_JSON_CALLERS[_name]))
+        if _OAI_PROVIDERS[_name]["key"]:
+            ordered.append((_name, _OAI_JSON_CALLERS[_name]))
     if not ordered:
         raise RuntimeError(
-            "No LLM providers available. "
-            f"Groq={_groq_rate_limited}, Gemini={_gemini_rate_limited}, "
-            f"OpenRouter={_openrouter_rate_limited}, Cohere={_cohere_rate_limited}. "
+            "No LLM providers available — ninguna API key configurada. "
             "Will retry next run."
         )
     return ordered
+
+
+def _run_chain(
+    *,
+    purpose: str,
+    parser,
+    on_exhaustion: str,
+    messages: Optional[list[dict]] = None,
+    prompt: Optional[str] = None,
+    retry_inject: Optional[str] = None,
+    chain_override: Optional[list[tuple[str, callable]]] = None,
+    log=None,
+):
+    """
+    Adapter entre la cadena de proveedores de este módulo y el subgrafo.
+
+    Los cuatro entry points públicos difieren solo en lo que pasan por acá: qué prompt,
+    qué parser, si se permite autocorrección, y qué significa agotar la cadena. Ese era
+    el punto de la Fase 3 — el control de flujo dejó de ser algo que cada uno
+    reimplementaba a su manera.
+
+    `_cooldowns` se pasa POR REFERENCIA. Si acá se armara un dict nuevo por llamada, el
+    grafo olvidaría cada 429 apenas termina la invocación y volveríamos al problema que
+    el mapa existe para resolver.
+    """
+    pairs = chain_override if chain_override is not None else _build_caller_chain()
+    return run_llm_chain(
+        chain=[name for name, _ in pairs],
+        callers=dict(pairs),
+        parser=parser,
+        cooldowns=_cooldowns,
+        is_rate_limit=_is_rate_limit,
+        messages=messages,
+        prompt=prompt,
+        retry_inject=retry_inject,
+        on_exhaustion=on_exhaustion,
+        purpose=purpose,
+        max_attempts=config.LLM_MAX_RETRIES,
+        log=log,
+    )
 
 
 # =============================================================================
@@ -900,21 +910,19 @@ def generate_and_audit_config(
     # Build auditor chain: all available plain callers except the primary
     # generator. Cross-check independence — a provider cannot audit itself.
     _plain_pool = [
-        ("groq",       "Groq (llama3-70b)",      _call_groq_plain,       bool(config.GROQ_API_KEY)       and not _groq_rate_limited),
-        ("gemini",     "Gemini (flash)",          _call_gemini_plain,     bool(config.GEMINI_API_KEY)     and not _gemini_rate_limited),
-        ("openrouter", "OpenRouter (gemma-27b)",  _call_openrouter_plain, bool(config.OPENROUTER_API_KEY) and not _openrouter_rate_limited),
-        ("cohere",     "Cohere (command-r-plus)", _call_cohere_plain,     bool(config.COHERE_API_KEY)     and not _cohere_rate_limited),
+        ("groq",       _call_groq_plain,       bool(config.GROQ_API_KEY)),
+        ("gemini",     _call_gemini_plain,     bool(config.GEMINI_API_KEY)),
+        ("openrouter", _call_openrouter_plain, bool(config.OPENROUTER_API_KEY)),
+        ("cohere",     _call_cohere_plain,     bool(config.COHERE_API_KEY)),
     ]
     for _name in _OAI_ORDER:
-        prov = _OAI_PROVIDERS[_name]
         _plain_pool.append(
-            (_name, prov["label"], _OAI_PLAIN_CALLERS[_name],
-             bool(prov["key"]) and not _oai_rate_limited[_name])
+            (_name, _OAI_PLAIN_CALLERS[_name], bool(_OAI_PROVIDERS[_name]["key"]))
         )
     auditor_chain = [
         (name, caller)
-        for key, name, caller, available in _plain_pool
-        if available and key != config.PRIMARY_LLM
+        for name, caller, configured in _plain_pool
+        if configured and name != config.PRIMARY_LLM
     ]
 
     if not auditor_chain:
@@ -927,19 +935,25 @@ def generate_and_audit_config(
         config_json=search_config.model_dump_json(indent=2),
     )
 
-    for auditor_name, auditor_caller in auditor_chain:
-        _log(f"[AUDIT] Step 2/2 — Sending to {auditor_name} for cross-audit...")
-        try:
-            audit_call = auditor_caller(audit_prompt)
-            audit_report = audit_call.text
-            _log(
-                f"[AUDIT] {auditor_name} audit complete"
-                f" in {audit_call.latency_ms:.0f}ms (tokens: {audit_call.total_tokens})."
-            )
-            logger.info("[AUDIT REPORT] %s", audit_report)
-            return search_config, audit_report
-        except Exception as exc:
-            _log(f"[AUDIT] Warning — {auditor_name} failed: {exc}. Trying next auditor.")
+    # El auditor va por el mismo grafo, con tres diferencias que son toda su
+    # personalidad: entra por prompt plano en vez de messages, no autocorrige (una
+    # auditoría en prosa no tiene schema que reparar), y agotar la cadena no lanza —
+    # la auditoría es advisory y nunca bloqueó una config válida.
+    _log("[AUDIT] Step 2/2 — Cross-audit...")
+    state = _run_chain(
+        purpose="audit",
+        prompt=audit_prompt,
+        parser=lambda raw: raw,
+        retry_inject=None,
+        on_exhaustion="empty",
+        chain_override=auditor_chain,
+        log=_log,
+    )
+
+    if state.get("parsed"):
+        audit_report = state["parsed"]
+        logger.info("[AUDIT REPORT] %s", audit_report)
+        return search_config, audit_report
 
     audit_report = (
         "Audit unavailable: all auditor providers failed. "
@@ -1087,41 +1101,29 @@ Rules:
 CV TEXT:
 {raw_cv_text}"""
 
-    messages = [{"role": "user", "content": parse_prompt}]
-    last_error: Optional[Exception] = None
+    # Este path GANA autocorrección al pasar por el grafo. v2 no la tenía: cualquier
+    # excepción saltaba directo al proveedor siguiente, así que un JSON con una coma de
+    # más quemaba un proveedor entero en vez de pedirle que lo arreglara. No era una
+    # decisión, era la copia del loop que se olvidó de copiar esa parte.
     try:
-        callers = _build_caller_chain()
-    except RuntimeError as exc:
-        logger.warning("[CV] No LLM providers available: %s", exc)
-        if raise_on_failure:
-            raise
-        return _GENERIC_FALLBACK_PROFILE.copy()
-
-    for llm_name, caller in callers:
-        try:
-            call = caller(messages)
-            parsed = _extract_json_from_text(call.text)
-            profile = _sanitize_profile(parsed)
-            logger.info(
-                "[CV] Profile parsed via %s in %.0fms (tokens: %s).",
-                llm_name, call.latency_ms, call.total_tokens,
-            )
-            return profile
-        except Exception as exc:
-            # Malformada o proveedor caído — mismo trato que el config path:
-            # historial limpio, siguiente proveedor.
-            last_error = exc
-            logger.warning(
-                "[CV] %s failed (%s: %s) — trying next provider.",
-                llm_name, type(exc).__name__, exc,
-            )
-
-    logger.warning("[CV] ALL providers failed for CV profile. Last: %s", last_error)
-    if raise_on_failure:
-        raise RuntimeError(
-            f"análisis de CV: toda la cadena LLM falló — último error: {last_error}"
+        state = _run_chain(
+            purpose="profile",
+            messages=[{"role": "user", "content": parse_prompt}],
+            parser=lambda raw: _sanitize_profile(_extract_json_from_text(raw)),
+            retry_inject=_RETRY_INJECT,
+            on_exhaustion="raise",
+            log=lambda msg: logger.info("[CV] %s", msg),
         )
-    return _GENERIC_FALLBACK_PROFILE.copy()
+        return state["parsed"]
+    except RuntimeError as exc:
+        # Cubre tanto ProvidersExhausted como el RuntimeError de "sin proveedores
+        # configurados" que levanta _build_caller_chain.
+        logger.warning("[CV] ALL providers failed for CV profile: %s", exc)
+        if raise_on_failure:
+            raise RuntimeError(
+                f"análisis de CV: toda la cadena LLM falló — último error: {exc}"
+            ) from exc
+        return _GENERIC_FALLBACK_PROFILE.copy()
 
 
 def _build_extraction_prompt(profile: dict) -> str:
@@ -1358,71 +1360,45 @@ def extract_jobs_from_text(
     url_context = f"\nSOURCE URL: {source_url}" if source_url else ""
     user_message = f"Extract all job postings from the following text:{url_context}\n\n{sanitize_input(raw_text)}"
 
-    callers = _build_caller_chain()
-    last_error: Optional[Exception] = None
+    def _parse_extraction(raw: str) -> ExtractionResult:
+        # Strip markdown fences if LLM ignored the "no fences" rule
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = "\n".join(
+                line for line in cleaned.split("\n")
+                if not line.strip().startswith("```")
+            ).strip()
+        result = ExtractionResult(**json.loads(cleaned))
+        # Backfill source_url if the LLM left it null and we have it
+        if source_url:
+            for job in result.jobs:
+                if job.source_url is None:
+                    object.__setattr__(job, "source_url", source_url)
+        return result
 
-    for llm_name, caller in callers:
-        _log(f"[EXTRACT] Calling {llm_name}...")
-
-        messages = [
+    # on_exhaustion="empty" es deliberado y NO es la opción cómoda. Este path corre como
+    # fallback cuando los selectores CSS de un board ya driftearon; lanzar acá tiraría
+    # abajo una corrida entera por un board que de por sí venía degradado. Se devuelve
+    # vacío y el run sigue con los boards que sí funcionaron.
+    state = _run_chain(
+        purpose="extract",
+        messages=[
             {"role": "system", "content": extraction_prompt or _EXTRACTION_SYSTEM_PROMPT},
             {"role": "user",   "content": user_message},
-        ]
-        raw_response = ""
+        ],
+        parser=_parse_extraction,
+        retry_inject=_EXTRACTION_RETRY_INJECT,
+        on_exhaustion="empty",
+        log=_log,
+    )
 
-        for attempt in range(1, config.LLM_MAX_RETRIES + 1):
-            try:
-                call = caller(messages)
-                raw_response = call.text
-                _log(
-                    f"[EXTRACT] Response received from {call.provider}"
-                    f" in {call.latency_ms:.0f}ms (tokens: {call.total_tokens})."
-                    f" Validating (attempt {attempt})..."
-                )
+    result = state.get("parsed")
+    if result is None:
+        _log(
+            f"[EXTRACT] All attempts exhausted. Last error: {state.get('last_error')}."
+            f" Returning empty result."
+        )
+        return ExtractionResult(jobs=[])
 
-                # Strip markdown fences if LLM ignored the "no fences" rule
-                cleaned = raw_response.strip()
-                if cleaned.startswith("```"):
-                    cleaned = "\n".join(
-                        line for line in cleaned.split("\n")
-                        if not line.strip().startswith("```")
-                    ).strip()
-
-                data = json.loads(cleaned)
-
-                # Pydantic validates every field in every job object
-                result = ExtractionResult(**data)
-
-                # Backfill source_url if the LLM left it null and we have it
-                if source_url:
-                    for job in result.jobs:
-                        if job.source_url is None:
-                            object.__setattr__(job, "source_url", source_url)
-
-                _log(f"[EXTRACT] {len(result.jobs)} job(s) extracted and validated.")
-                return result
-
-            except (json.JSONDecodeError, ValueError, Exception) as exc:
-                from pydantic import ValidationError as PydanticValidationError
-                is_schema_error = isinstance(exc, (PydanticValidationError, ValueError, json.JSONDecodeError))
-
-                last_error = exc
-                _log(
-                    f"[EXTRACT] {'Schema' if is_schema_error else 'Network'} error "
-                    f"on attempt {attempt}/{config.LLM_MAX_RETRIES} ({llm_name}): {exc}"
-                )
-
-                if is_schema_error and attempt < config.LLM_MAX_RETRIES:
-                    # Inject the error for LLM self-correction
-                    messages += [
-                        {"role": "assistant", "content": raw_response},
-                        {"role": "user", "content": _EXTRACTION_RETRY_INJECT.format(
-                            error=str(exc), raw=raw_response
-                        )},
-                    ]
-                elif not is_schema_error:
-                    # Network error — break immediately, try next LLM
-                    break
-
-    _log(f"[EXTRACT] All attempts exhausted. Last error: {last_error}. Returning empty result.")
-    return ExtractionResult(jobs=[])
+    _log(f"[EXTRACT] {len(result.jobs)} job(s) extracted and validated.")
+    return result

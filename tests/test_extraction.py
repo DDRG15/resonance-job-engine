@@ -99,7 +99,12 @@ def test_extract_jobs_from_text_returns_empty_on_bad_json():
     Confirms extract_jobs_from_text returns ExtractionResult(jobs=[]) when
     the mocked LLM returns unparseable output — never raises to the caller.
     """
-    mock_caller = MagicMock(return_value="this is not json at all")
+    mock_caller = MagicMock(return_value=LLMCallResult(
+        text="this is not json at all",
+        provider="mock",
+        model="mock-model",
+        latency_ms=1.0,
+    ))
 
     with patch("nlp_engine._build_caller_chain", return_value=[("MockLLM", mock_caller)]):
         from nlp_engine import extract_jobs_from_text

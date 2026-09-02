@@ -24,4 +24,22 @@ Module map, and the phase that fills each one (see
 Nothing is re-exported here yet: the modules are skeletons until their phase lands.
 Import them by path (`from graph.llm_graph import ...`) rather than adding re-exports,
 so a half-built phase can never be imported by accident as if it were finished.
+
+CONVENTION FOR EVERY NODE IN THIS PACKAGE
+-----------------------------------------
+A node signature is `def node(state, config: RunnableConfig)`. Both halves are load
+bearing and LangGraph enforces them by signature inspection:
+
+  - The parameter MUST be spelled `config`. Any other name and the node is invoked with
+    one argument and dies with a TypeError at execution time, not at import — so it
+    presents as a graph bug rather than a typo.
+  - It MUST be annotated `RunnableConfig`. With a bare `dict` annotation LangGraph warns
+    and does not inject, which fails the same way while looking like it was configured.
+
+Import the type from `langgraph.types`, not from `langchain_core.runnables`. It is the
+same object reexported, and it keeps langchain out of the surface this project declares
+it uses.
+
+The consequence: inside a node, `config` is the runnable config, never GEMA's settings
+module. Modules here import the settings as `import config as app_config`.
 """
