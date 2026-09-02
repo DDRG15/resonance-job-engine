@@ -35,8 +35,12 @@ picks them up with no parser change:
     node_failed_total           labels: node, error_type
 """
 
+import functools
+import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, Callable, Optional
+
+import metrics
 
 
 @dataclass(frozen=True)
@@ -146,3 +150,133 @@ def finish_reason_from(provider: str, resp: Any) -> Optional[str]:
         return None
     except Exception:
         return None
+
+
+# =============================================================================
+# Emisión de métricas — Fase 4
+# =============================================================================
+
+def emit_llm_call_metrics(calls: list[dict]) -> None:
+    """
+    Emite las métricas de una resolución completa del subgrafo de proveedores.
+
+    `llm_fallback_depth` se emite UNA vez por resolución, con el índice del proveedor que
+    finalmente contestó. Emitirla por llamada convertiría un fallback de profundidad 3 en
+    tres eventos de profundidad creciente, y cualquier agregación por promedio o por conteo
+    diría algo distinto de lo que pasó.
+
+    Nunca lanza: la instrumentación no puede romper el camino que instrumenta.
+    """
+    try:
+        for c in calls:
+            provider = c.get("provider") or "unknown"
+            purpose = c.get("purpose") or "unknown"
+            outcome = c.get("outcome") or "unknown"
+
+            if c.get("latency_ms") is not None:
+                metrics.emit("llm_call_latency_ms", c["latency_ms"],
+                             provider=provider, purpose=purpose, outcome=outcome)
+            if c.get("prompt_tokens") is not None:
+                metrics.emit("llm_tokens_total", c["prompt_tokens"],
+                             provider=provider, direction="prompt")
+            if c.get("completion_tokens") is not None:
+                metrics.emit("llm_tokens_total", c["completion_tokens"],
+                             provider=provider, direction="completion")
+            if outcome == "rate_limit_error":
+                metrics.emit("llm_provider_cooldown_total", 1, provider=provider)
+            if (c.get("attempt") or 1) > 1:
+                metrics.emit("llm_self_correction_total", 1,
+                             provider=provider, purpose=purpose)
+
+        last = calls[-1] if calls else None
+        if last is not None and last.get("provider_index") is not None:
+            metrics.emit("llm_fallback_depth", last["provider_index"],
+                         purpose=last.get("purpose") or "unknown")
+    except Exception:
+        pass
+
+
+# =============================================================================
+# @traced_node — Fase 4
+# =============================================================================
+
+class NodeDegraded(Exception):
+    """Marca interna: un nodo falló y fue degradado. No se propaga fuera del grafo."""
+
+
+def traced_node(
+    name: str,
+    *,
+    graph: str = "run",
+    degrade: Optional[Callable[[Exception, dict], dict]] = None,
+):
+    """
+    Envuelve un nodo: mide, registra, emite métrica, y DEGRADA.
+
+    El degrade no es una comodidad, y por eso vive acá y no en cada call site.
+
+    LangGraph propaga una excepción que sale de una rama y mata el grafo entero. v2 usaba
+    asyncio.gather(return_exceptions=True), donde un board caído fallaba solo y los otros
+    nueve terminaban. Si los nodos del fan-out no degradaran, un board muerto tumbaría la
+    corrida completa — estrictamente peor que antes de la migración. Poner el try/except
+    dentro del decorador es lo que impide que alguien se olvide en un nodo y reintroduzca
+    esa regresión sin que ningún test lo note.
+
+    `degrade(exc, state) -> dict` decide qué devuelve el nodo caído. Por defecto anota el
+    error en `errors` y devuelve estado vacío, que es la semántica del fan-out. Un nodo
+    que NO deba degradar pasa `degrade=None` explícito... y entonces no usa este
+    decorador: la ausencia de degrade es una decisión, no un olvido.
+
+    Las trazas se escriben solo si el runtime trae `db`. Sin db el nodo igual corre y
+    emite métricas — la telemetría es aditiva, nunca un requisito.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapper(state: dict, config: Any = None) -> dict:
+            rt = (config or {}).get("configurable", {}) if config else {}
+            t0 = time.perf_counter()
+            queue_wait_ms = None
+            status, error = "ok", None
+            try:
+                result = fn(state, config)
+            except Exception as exc:
+                status = "failed"
+                error = f"{type(exc).__name__}: {exc}"
+                metrics.emit("node_failed_total", 1, node=name,
+                             error_type=type(exc).__name__)
+                if degrade is None:
+                    _record(rt, name, graph, state, t0, queue_wait_ms, status, error)
+                    raise
+                result = degrade(exc, state)
+            exec_ms = (time.perf_counter() - t0) * 1000
+            # Un nodo puede reportar cuánto de su tiempo fue espera de semáforo. Sin ese
+            # descuento, exec_ms de un nodo bloqueado mide la cola, no el trabajo.
+            if isinstance(result, dict):
+                queue_wait_ms = result.pop("_queue_wait_ms", None)
+            metrics.emit("node_exec_ms", exec_ms, node=name, graph=graph)
+            _record(rt, name, graph, state, t0, queue_wait_ms, status, error,
+                    exec_ms=exec_ms)
+            return result
+        return wrapper
+    return decorator
+
+
+def _record(rt, name, graph, state, t0, queue_wait_ms, status, error, exec_ms=None):
+    """Escribe la fila de node_traces si hay db. Nunca lanza."""
+    db = rt.get("db") if isinstance(rt, dict) else None
+    if db is None:
+        return
+    try:
+        db.record_node_trace(
+            node=name,
+            run_id=rt.get("run_id"),
+            graph=graph,
+            domain=(state or {}).get("domain"),
+            title=(state or {}).get("title"),
+            exec_ms=exec_ms if exec_ms is not None else (time.perf_counter() - t0) * 1000,
+            queue_wait_ms=queue_wait_ms,
+            status=status,
+            error=error,
+        )
+    except Exception:
+        pass

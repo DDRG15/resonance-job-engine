@@ -50,7 +50,38 @@ _METRIC_SEVERITY = {
     "url_auto_repaired":             INFO,   # 30b reparó una URL
     "llm_fallback_jobs_recovered":   INFO,
     "jobs_filtered_off_topic":       INFO,
+    # v3 Fase 4 — métricas del lado LLM y de nodos del grafo.
+    "node_failed_total":             CRITICAL,  # un nodo se cayó y degradó
+    "llm_provider_cooldown_total":   WARN,      # 429 real, el proveedor quedó fuera
+    "llm_self_correction_total":     INFO,      # el modelo tuvo que reparar su JSON
+    "llm_call_latency_ms":           INFO,
+    "llm_tokens_total":              INFO,
+    "node_exec_ms":                  INFO,
+    # llm_fallback_depth NO va acá: su severidad depende del VALOR, no del nombre.
+    # Ver _severity_by_value.
 }
+
+# Métricas cuya severidad depende del valor, no del nombre. _METRIC_SEVERITY es un
+# lookup por nombre y no puede expresar un umbral.
+#
+# El caso que lo motiva: llm_fallback_depth=0 significa que el proveedor primario
+# contestó — la corrida normal, ruido puro. Un 3 significa que tres proveedores fallaron
+# antes de que alguno respondiera, y eso es exactamente lo que hay que ver cuando la
+# corrida del martes tardó el triple.
+_METRIC_VALUE_THRESHOLDS = {
+    "llm_fallback_depth": ((3, CRITICAL), (1, WARN)),   # (mínimo, severidad), desc
+}
+
+
+def _severity_by_value(name: str, value: float) -> Optional[str]:
+    """Severidad por umbral de valor, o None si la métrica no usa umbrales."""
+    rules = _METRIC_VALUE_THRESHOLDS.get(name)
+    if not rules:
+        return None
+    for threshold, severity in rules:
+        if value >= threshold:
+            return severity
+    return INFO
 
 # Marcadores de log conocidos → (regex, severidad, etiqueta). Orden = prioridad.
 _LOG_MARKERS = [
@@ -116,11 +147,15 @@ def parse_line(line: str) -> Optional[Event]:
             obj = json.loads(m.group())
             name = obj.get("metric", "?")
             labels = obj.get("labels") or {}
+            value = float(obj.get("value", 1) or 0)
+            severity = _severity_by_value(name, value)
+            if severity is None:
+                severity = _METRIC_SEVERITY.get(name, INFO)
             return Event(
-                severity=_METRIC_SEVERITY.get(name, INFO),
+                severity=severity,
                 kind=f"metric:{name}",
                 domain=labels.get("domain"),
-                value=float(obj.get("value", 1) or 0),
+                value=value,
             )
         except Exception:
             pass  # JSON corrupto → sigue; se clasificará por marcador/heurística

@@ -24,6 +24,13 @@ import config
 
 logger = logging.getLogger(__name__)
 
+
+def _now_iso() -> str:
+    """UTC siempre. Un timestamp de telemetría en hora local no se puede correlacionar
+    con nada — ni entre máquinas, ni a través de un cambio de horario."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 # =============================================================================
 # Schema DDL
 # =============================================================================
@@ -79,11 +86,90 @@ CREATE TABLE IF NOT EXISTS manual_review (
 );
 """
 
+# =============================================================================
+# v3 Fase 4 — Instrumentación
+#
+# Hasta acá GEMA no podía responder "¿por qué esta corrida sacó menos jobs que la
+# anterior?" sin leer código: run_id, summary y tiers vivían solo en memoria y morían
+# con el proceso, y de los 19 call sites de metrics.emit ninguno era del lado LLM.
+#
+# Tres tablas, aditivas: la app vieja las ignora, así que el rollback de la rama no
+# necesita migración inversa y la telemetría acumulada sobrevive.
+# =============================================================================
+
+# tier4_count existe acá y NO en ScrapeRunSummary, que nunca lo llevó pese a que
+# bucket_jobs devuelve cuatro tiers — el payload del SSE y el reporte de Discord lo
+# recalculaban cada uno por su lado.
+_DDL_RUNS = """
+CREATE TABLE IF NOT EXISTS runs (
+    run_id             TEXT PRIMARY KEY,
+    started_at         TEXT NOT NULL,
+    completed_at       TEXT,
+    trigger            TEXT,
+    status             TEXT,
+    config_json        TEXT,
+    summary_json       TEXT,
+    tier1_count        INTEGER,
+    tier2_count        INTEGER,
+    tier3_count        INTEGER,
+    tier4_count        INTEGER,
+    domains_aborted    TEXT,
+    breaker_state_json TEXT,
+    error              TEXT
+);
+"""
+
+# exec_ms y queue_wait_ms van SEPARADOS a propósito. Send despacha todas las ramas del
+# fan-out a la vez y el semáforo las frena adentro del nodo, así que veinte nodos pueden
+# figurar "corriendo" mientras diecisiete esperan un tab de Chromium. Sumados, el número
+# miente sobre dónde se fue el tiempo.
+_DDL_NODE_TRACES = """
+CREATE TABLE IF NOT EXISTS node_traces (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id        TEXT,
+    node          TEXT NOT NULL,
+    graph         TEXT,
+    domain        TEXT,
+    title         TEXT,
+    started_at    TEXT,
+    exec_ms       REAL,
+    queue_wait_ms REAL,
+    status        TEXT,
+    error         TEXT
+);
+"""
+
+# provider_index ES la profundidad del fallback: un 3 significa que tres proveedores
+# fallaron antes de que el cuarto respondiera. Es la métrica que v2 no tenía y la que
+# contesta "¿por qué esta corrida tardó el triple?".
+_DDL_LLM_CALLS = """
+CREATE TABLE IF NOT EXISTS llm_calls (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id            TEXT,
+    trace_id          TEXT NOT NULL,
+    purpose           TEXT,
+    provider          TEXT,
+    model             TEXT,
+    provider_index    INTEGER,
+    attempt           INTEGER,
+    latency_ms        REAL,
+    prompt_tokens     INTEGER,
+    completion_tokens INTEGER,
+    outcome           TEXT,
+    error             TEXT,
+    created_at        TEXT NOT NULL
+);
+"""
+
 _DDL_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_registry_domain  ON seen_jobs_registry(source_domain);",
     "CREATE INDEX IF NOT EXISTS idx_registry_scraped ON seen_jobs_registry(scraped_at);",
     "CREATE INDEX IF NOT EXISTS idx_vault_created    ON search_vault(created_at);",
     "CREATE INDEX IF NOT EXISTS idx_review_resolved  ON manual_review(resolved);",
+    "CREATE INDEX IF NOT EXISTS idx_runs_started     ON runs(started_at);",
+    "CREATE INDEX IF NOT EXISTS idx_traces_run       ON node_traces(run_id);",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_run    ON llm_calls(run_id);",
+    "CREATE INDEX IF NOT EXISTS idx_llm_calls_trace  ON llm_calls(trace_id);",
 ]
 
 
@@ -134,6 +220,9 @@ class GemaDatabase:
             conn.execute(_DDL_SEEN_REGISTRY)
             conn.execute(_DDL_SEARCH_VAULT)
             conn.execute(_DDL_MANUAL_REVIEW)  # Phase 30a
+            conn.execute(_DDL_RUNS)           # v3 Fase 4
+            conn.execute(_DDL_NODE_TRACES)    # v3 Fase 4
+            conn.execute(_DDL_LLM_CALLS)      # v3 Fase 4
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
             # Migrations: add columns to existing DBs that predate these fields.
@@ -651,6 +740,174 @@ class GemaDatabase:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
+
+    # =========================================================================
+    # v3 Fase 4 — Escritura de telemetría
+    #
+    # Todos estos métodos son FAIL-SAFE: loguean y siguen. Es la misma disciplina
+    # que metrics.emit y por la misma razón — una falla registrando una falla no
+    # puede escalar a una falla real. Si escribir una fila de traza pudiera tumbar
+    # un scrape, la instrumentación sería un modo de falla nuevo en vez de una
+    # herramienta de diagnóstico.
+    # =========================================================================
+
+    def record_run_start(
+        self,
+        run_id: str,
+        *,
+        trigger: str,
+        config_json: Optional[str] = None,
+        started_at: Optional[str] = None,
+    ) -> None:
+        """Abre la fila del run. INSERT OR REPLACE: reintentar un run_id no explota."""
+        try:
+            with _get_connection(self.db_path) as conn:
+                conn.execute(
+                    """INSERT OR REPLACE INTO runs
+                       (run_id, started_at, trigger, status, config_json)
+                       VALUES (?, ?, ?, 'running', ?)""",
+                    (run_id, started_at or _now_iso(), trigger, config_json),
+                )
+        except Exception as exc:
+            logger.warning("[TELEMETRY] record_run_start failed for %s: %s", run_id, exc)
+
+    def record_run_end(
+        self,
+        run_id: str,
+        *,
+        status: str,
+        summary_json: Optional[str] = None,
+        tier_counts: Optional[tuple[int, int, int, int]] = None,
+        domains_aborted: Optional[list[str]] = None,
+        breaker_state_json: Optional[str] = None,
+        error: Optional[str] = None,
+        completed_at: Optional[str] = None,
+    ) -> None:
+        """
+        Cierra la fila del run.
+
+        `tier_counts` lleva los CUATRO tiers. ScrapeRunSummary solo carga tres pese a
+        que bucket_jobs devuelve cuatro, así que el cuarto se pierde salvo que se lo
+        pase explícitamente acá.
+        """
+        t1, t2, t3, t4 = tier_counts or (None, None, None, None)
+        try:
+            with _get_connection(self.db_path) as conn:
+                conn.execute(
+                    """UPDATE runs SET completed_at = ?, status = ?, summary_json = ?,
+                              tier1_count = ?, tier2_count = ?, tier3_count = ?,
+                              tier4_count = ?, domains_aborted = ?,
+                              breaker_state_json = ?, error = ?
+                       WHERE run_id = ?""",
+                    (
+                        completed_at or _now_iso(), status, summary_json,
+                        t1, t2, t3, t4,
+                        json.dumps(domains_aborted) if domains_aborted is not None else None,
+                        breaker_state_json, error, run_id,
+                    ),
+                )
+        except Exception as exc:
+            logger.warning("[TELEMETRY] record_run_end failed for %s: %s", run_id, exc)
+
+    def record_node_trace(
+        self,
+        *,
+        node: str,
+        run_id: Optional[str] = None,
+        graph: Optional[str] = None,
+        domain: Optional[str] = None,
+        title: Optional[str] = None,
+        exec_ms: Optional[float] = None,
+        queue_wait_ms: Optional[float] = None,
+        status: str = "ok",
+        error: Optional[str] = None,
+        started_at: Optional[str] = None,
+    ) -> None:
+        try:
+            with _get_connection(self.db_path) as conn:
+                conn.execute(
+                    """INSERT INTO node_traces
+                       (run_id, node, graph, domain, title, started_at,
+                        exec_ms, queue_wait_ms, status, error)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (run_id, node, graph, domain, title, started_at or _now_iso(),
+                     exec_ms, queue_wait_ms, status, error),
+                )
+        except Exception as exc:
+            logger.warning("[TELEMETRY] record_node_trace failed for %s: %s", node, exc)
+
+    def record_llm_calls(
+        self,
+        calls: list[dict],
+        *,
+        trace_id: str,
+        run_id: Optional[str] = None,
+    ) -> None:
+        """
+        Persiste en lote los registros que produce el subgrafo de proveedores.
+
+        En lote porque una sola resolución puede generar varias llamadas — dos intentos
+        de autocorrección contra groq y una a gemini son tres filas del mismo trace_id, y
+        leerlas juntas es lo que muestra la profundidad del fallback.
+        """
+        if not calls:
+            return
+        now = _now_iso()
+        try:
+            rows = [
+                (
+                    run_id, trace_id, c.get("purpose"), c.get("provider"), c.get("model"),
+                    c.get("provider_index"), c.get("attempt"), c.get("latency_ms"),
+                    c.get("prompt_tokens"), c.get("completion_tokens"),
+                    c.get("outcome"), c.get("error"), now,
+                )
+                for c in calls
+            ]
+            with _get_connection(self.db_path) as conn:
+                conn.executemany(
+                    """INSERT INTO llm_calls
+                       (run_id, trace_id, purpose, provider, model, provider_index,
+                        attempt, latency_ms, prompt_tokens, completion_tokens,
+                        outcome, error, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    rows,
+                )
+        except Exception as exc:
+            logger.warning("[TELEMETRY] record_llm_calls failed for trace %s: %s", trace_id, exc)
+
+    def get_run(self, run_id: str) -> Optional[dict]:
+        """Lee una fila de runs. Devuelve None si no existe."""
+        with _get_connection(self.db_path) as conn:
+            row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+        return dict(row) if row else None
+
+    def get_recent_runs(self, limit: int = 20) -> list[dict]:
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?", (limit,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_llm_calls(self, *, run_id: Optional[str] = None,
+                      trace_id: Optional[str] = None) -> list[dict]:
+        sql = "SELECT * FROM llm_calls"
+        params: list = []
+        if run_id is not None:
+            sql += " WHERE run_id = ?"
+            params.append(run_id)
+        elif trace_id is not None:
+            sql += " WHERE trace_id = ?"
+            params.append(trace_id)
+        sql += " ORDER BY id"
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
+
+    def get_node_traces(self, run_id: str) -> list[dict]:
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM node_traces WHERE run_id = ? ORDER BY id", (run_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def get_scrape_session_stats(self, run_id: str) -> dict:
         """

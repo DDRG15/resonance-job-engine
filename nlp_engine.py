@@ -793,6 +793,8 @@ def _run_chain(
     retry_inject: Optional[str] = None,
     chain_override: Optional[list[tuple[str, callable]]] = None,
     log=None,
+    db=None,
+    run_id: Optional[str] = None,
 ):
     """
     Adapter entre la cadena de proveedores de este módulo y el subgrafo.
@@ -820,6 +822,11 @@ def _run_chain(
         purpose=purpose,
         max_attempts=config.LLM_MAX_RETRIES,
         log=log,
+        # Sin db, el subgrafo igual emite métricas al log — que es donde el watchdog
+        # las lee. Persistir es aditivo: la Fase 6 pasa el db real cuando el grafo del
+        # run tenga uno y un run_id con el que correlacionar.
+        db=db,
+        run_id=run_id,
     )
 
 

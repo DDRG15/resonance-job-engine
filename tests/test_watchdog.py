@@ -13,6 +13,46 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tools"))
 import watchdog as wd  # noqa: E402
 
 
+class TestMetricSeverityByValue:
+    """
+    v3 Fase 4 — llm_fallback_depth es la primera métrica cuya gravedad depende del
+    VALOR y no del nombre. Un 0 significa que el proveedor primario contestó: la
+    corrida normal, ruido puro. Un 3 significa que tres proveedores fallaron antes de
+    que alguno respondiera, y eso es lo que hay que ver cuando la corrida tardó el
+    triple. _METRIC_SEVERITY es un lookup por nombre y no puede expresar eso.
+    """
+
+    def _depth(self, value):
+        line = ('{"event_type": "metric", "metric": "llm_fallback_depth", '
+                f'"value": {value}, "labels": {{"purpose": "parse"}}}}')
+        return wd.parse_line(line)
+
+    def test_depth_zero_is_noise(self):
+        assert self._depth(0).severity == wd.INFO
+
+    def test_depth_one_is_worth_a_look(self):
+        assert self._depth(1).severity == wd.WARN
+
+    def test_depth_three_is_critical(self):
+        assert self._depth(3).severity == wd.CRITICAL
+
+    def test_node_failed_is_critical(self):
+        line = '{"event_type": "metric", "metric": "node_failed_total", "value": 1, "labels": {}}'
+        assert wd.parse_line(line).severity == wd.CRITICAL
+
+    def test_provider_cooldown_is_a_warning(self):
+        line = '{"event_type": "metric", "metric": "llm_provider_cooldown_total", "value": 1, "labels": {"provider": "groq"}}'
+        assert wd.parse_line(line).severity == wd.WARN
+
+    def test_new_llm_metrics_are_not_unclassified(self):
+        # El criterio de cierre de la fase: el watchdog no puede quedar ciego a las
+        # métricas nuevas ni tirarlas al cajón de "no sé qué es esto".
+        for name in ("llm_call_latency_ms", "llm_tokens_total", "node_exec_ms",
+                     "llm_self_correction_total"):
+            line = f'{{"event_type": "metric", "metric": "{name}", "value": 1, "labels": {{}}}}'
+            assert wd.parse_line(line).kind == f"metric:{name}"
+
+
 class TestParseLine:
     def test_metric_event(self):
         line = '{"ts": 1.0, "event_type": "metric", "metric": "url_auto_repaired", "value": 3, "labels": {"domain": "builtin.com"}}'

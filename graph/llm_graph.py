@@ -44,6 +44,7 @@ provider for the whole session.
 """
 
 import time
+import uuid
 from typing import Any, Callable, Optional
 
 from langgraph.graph import END, StateGraph
@@ -55,6 +56,7 @@ from langgraph.types import RunnableConfig
 # segundo parámetro del nodo SE LLAMA `config`. Ese nombre queda reservado para la firma
 # de los nodos, así que el módulo de settings del proyecto entra con otro nombre.
 import config as app_config
+from graph.instrumentation import emit_llm_call_metrics
 from graph.state import LLMState
 
 
@@ -67,8 +69,12 @@ class ProvidersExhausted(RuntimeError):
     JSON or of a dead network, and that distinction is the whole triage.
     """
 
-    def __init__(self, last_error: Optional[str]):
+    def __init__(self, last_error: Optional[str], calls: Optional[list[dict]] = None):
         self.last_error = last_error
+        # Los registros viajan CON la excepción. Cuando el grafo lanza, el estado se
+        # pierde con él, y una cadena agotada es justo la corrida sobre la que después
+        # se pregunta qué pasó — perder su traza ahí deja ciego el caso que importa.
+        self.calls = calls or []
         super().__init__(f"All LLM attempts exhausted. Last error: {last_error}")
 
 
@@ -285,7 +291,7 @@ def exhausted(state: LLMState, config: RunnableConfig) -> dict:
     rt = _rt(config)
     rt["log"](f"[LLM] All providers exhausted. Last error: {state.get('last_error')}")
     if state.get("on_exhaustion") == "raise":
-        raise ProvidersExhausted(state.get("last_error"))
+        raise ProvidersExhausted(state.get("last_error"), state.get("calls"))
     return {"parsed": None, "done": True}
 
 
@@ -370,6 +376,8 @@ def run_llm_chain(
     max_attempts: Optional[int] = None,
     log: Optional[Callable[[str], None]] = None,
     recursion_limit: Optional[int] = None,
+    db: Optional[Any] = None,
+    run_id: Optional[str] = None,
 ) -> LLMState:
     """
     Run the chain and return the final state. Raises ProvidersExhausted when
@@ -410,13 +418,29 @@ def run_llm_chain(
     # through and report it as a graph error rather than as providers failing.
     limit = recursion_limit or (len(chain) * (initial["max_attempts"] + 2) * 3 + 10)
 
-    return LLM_GRAPH.invoke(
-        initial,
-        config={
-            "configurable": build_runtime(
-                callers=callers, parser=parser, cooldowns=cooldowns,
-                is_rate_limit=is_rate_limit, log=log,
-            ),
-            "recursion_limit": limit,
-        },
-    )
+    trace_id = uuid.uuid4().hex
+    invoke_config = {
+        "configurable": build_runtime(
+            callers=callers, parser=parser, cooldowns=cooldowns,
+            is_rate_limit=is_rate_limit, log=log,
+        ),
+        "recursion_limit": limit,
+    }
+
+    # La telemetría se emite pase lo que pase, incluido el camino de excepción. Una
+    # cadena que se agotó es EXACTAMENTE la corrida sobre la que después se pregunta
+    # "¿qué pasó?"; perder sus registros justo ahí deja ciego el único caso que importa.
+    try:
+        state = LLM_GRAPH.invoke(initial, config=invoke_config)
+    except ProvidersExhausted as exc:
+        _flush_telemetry(getattr(exc, "calls", []), trace_id, db, run_id)
+        raise
+    _flush_telemetry(state.get("calls", []), trace_id, db, run_id)
+    state["trace_id"] = trace_id
+    return state
+
+
+def _flush_telemetry(calls, trace_id, db, run_id) -> None:
+    emit_llm_call_metrics(calls)
+    if db is not None and calls:
+        db.record_llm_calls(calls, trace_id=trace_id, run_id=run_id)
