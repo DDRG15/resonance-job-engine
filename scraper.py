@@ -51,6 +51,7 @@ WEBHOOK INTEGRATION:
 
 import asyncio
 import functools
+import itertools
 import json
 import logging
 import os
@@ -82,7 +83,8 @@ from integrations.session_jar import SessionJar
 from integrations.webhook_client import WebhookClient
 from matcher import score_job
 from models import JobResult, SearchConfig, ScrapeRunSummary, TieredJob
-from nlp_engine import extract_jobs_from_text
+from nlp_engine import extract_jobs_from_text, prompt_version as nlp_prompt_version
+from graph.extract_graph import run_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -477,11 +479,52 @@ def _zero_cards_verdict(page_html_lower: str) -> str:
     return "drift" if signal_hits >= 4 else "empty"
 
 
+def _jobs_to_json(llm_output: object) -> object:
+    """
+    Serializa la salida del LLM a JSON real.
+
+    v2 guardaba str(llm_output)[:4000] — el repr de Python de una lista de
+    ExtractedJob, que NO se puede volver a parsear. El snapshot quedaba legible para un
+    humano y muerto para cualquier herramienta, que es lo contrario de lo que un corpus
+    de evaluación necesita.
+    """
+    try:
+        if isinstance(llm_output, list):
+            return [
+                j.model_dump(mode="json") if hasattr(j, "model_dump") else str(j)
+                for j in llm_output
+            ]
+        if hasattr(llm_output, "model_dump"):
+            return llm_output.model_dump(mode="json")
+        return str(llm_output)
+    except Exception:
+        return str(llm_output)
+
+
 def _snapshot_drift_failure(domain: str, srp_url: str, sent_text: str,
-                            llm_output: object, reason: str) -> None:
-    """NEW #6 (auditoría 07-10) — replayability: cuando el fallback LLM no puede
-    recuperar un board drifteado, dejar un snapshot para debug offline.
-    Fail-safe: cualquier error acá jamás rompe el scrape. Feeds Phase 30."""
+                            llm_output: object, reason: str,
+                            prompt_version: Optional[str] = None,
+                            provider: Optional[str] = None) -> None:
+    """
+    Replayability del fallback LLM: deja en disco el input EXACTO que se le mandó al
+    modelo y la salida EXACTA que devolvió.
+
+    Fase 5 (v3) lo arregló en tres puntos. Los tres importan por la misma razón: estos
+    archivos dejaron de ser material de debug puntual y pasaron a ser el corpus de
+    evaluación de la Fase 7.
+
+      - `sent_text` se guarda COMPLETO. v2 guardaba [:8000] mientras la extracción
+        trunca su input en LLM_FALLBACK_MAX_INPUT_CHARS (20000). El grounding se juzga
+        contra el texto que se envió, así que la URL que decide el veredicto podía caer
+        en el tramo 8000–20000 que nunca se escribió. Un corpus construido sobre eso
+        mide ruido: marca como alucinación una URL que sí estaba en la fuente.
+      - `llm_output` se guarda como JSON, no como repr de Python.
+      - Se registran `prompt_version` y `provider`. Sin ellos no se pueden comparar dos
+        corridas a través de un cambio de prompt, que es la comparación para la que
+        existe el corpus.
+
+    Fail-safe: cualquier error acá jamás rompe el scrape.
+    """
     try:
         import pathlib
         d = pathlib.Path(config.DRIFT_QUARANTINE_DIR)
@@ -493,22 +536,40 @@ def _snapshot_drift_failure(domain: str, srp_url: str, sent_text: str,
                 existing.pop(0).unlink()
             except OSError:
                 break
-        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%f")
         payload = {
+            "schema_version": 2,          # v1 = los snapshots de v2, no comparables
             "domain": domain,
             "srp_url": srp_url,
             "reason": reason,
             "captured_at": ts,
+            "prompt_version": prompt_version,
+            "provider": provider,
             "sent_text_len": len(sent_text),
-            "sent_text": sent_text[:8000],   # muestra, no el input entero
-            "llm_output": str(llm_output)[:4000],
+            "sent_text": sent_text,       # COMPLETO — ver docstring
+            "llm_output": _jobs_to_json(llm_output),
         }
         (d / f"drift_{domain}_{ts}.json").write_text(
             json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
         )
-        metrics.emit("drift_snapshot_saved", 1, domain=domain)
+        metrics.emit("drift_snapshot_saved", 1, domain=domain, reason=reason)
     except Exception as exc:
         logger.debug("[DRIFT-SNAPSHOT] no se pudo guardar para %s: %s", domain, exc)
+
+
+_success_snapshot_counter = itertools.count()
+
+
+def _should_snapshot_success() -> bool:
+    """
+    1 de cada N extracciones exitosas. Determinístico, no aleatorio: con muestreo al
+    azar dos corridas del mismo board pueden no dejar ninguna muestra, y el corpus
+    termina sesgado por suerte en vez de por cobertura.
+    """
+    n = config.DRIFT_SNAPSHOT_SUCCESS_SAMPLE
+    if n <= 0:
+        return False
+    return next(_success_snapshot_counter) % n == 0
 
 
 # =============================================================================
@@ -1533,14 +1594,31 @@ class GemaScraper:
         )
         metrics.emit("llm_fallback_invoked", 1, domain=domain)
 
+        # v3 Fase 5: la secuencia texto -> jobs utilizables la corre el subgrafo de
+        # extracción. Las piezas que dependen de este scraper (los patrones de URL
+        # aprendidos por 30b, el registry de revisión manual) se inyectan como
+        # callables — el grafo describe el orden, el scraper sigue poniendo el estado.
+        #
         # source_url=None on purpose: the single-URL echo/backfill would collapse
         # every recovered job onto the SRP URL. We rely on the inlined per-anchor
         # hrefs in clean_text instead, and the mapper's distinct-URL guard.
         loop = asyncio.get_event_loop()
         try:
-            result = await loop.run_in_executor(
+            state = await loop.run_in_executor(
                 None,
-                functools.partial(extract_jobs_from_text, clean_text, source_url=None),
+                functools.partial(
+                    run_extraction,
+                    domain=domain,
+                    srp_url=srp_url,
+                    clean_text=clean_text,
+                    extract_fn=lambda text: extract_jobs_from_text(text, source_url=None),
+                    map_fn=_extracted_to_jobresult,
+                    ground_fn=self._ground_and_repair,
+                    salvage_fn=self._salvage_dropped_jobs,
+                    snapshot_fn=_snapshot_drift_failure,
+                    should_sample_fn=_should_snapshot_success,
+                    prompt_version=nlp_prompt_version(),
+                ),
             )
         except Exception as exc:
             self._log(f"[LLM-FALLBACK] {domain}: extraction failed: {exc}")
@@ -1549,17 +1627,9 @@ class GemaScraper:
             )
             return []
 
-        recovered = [
-            jr for ej in result.jobs
-            if (jr := _extracted_to_jobresult(ej, domain, srp_url)) is not None
-        ]
-
-        # Anti-hallucination grounding: keep only jobs whose url literally appears
-        # in the text we sent. A fabricated url (e.g. the schema's example.com,
-        # which the LLM copied when it couldn't find a real one) is NOT in the
-        # source, so it is rejected. This makes url hallucination impossible.
-        present = {u.rstrip("/") for u in re.findall(r"https?://[^\s)]+", clean_text)}
-        kept, dropped, repaired_n = self._ground_and_repair(recovered, present, domain)
+        repaired_n = state.get("repaired_n") or 0
+        dropped = state.get("dropped") or []
+        recovered = state.get("kept") or []
 
         if repaired_n:
             self._log(
@@ -1574,23 +1644,11 @@ class GemaScraper:
                 f"fabricated urls not present in source."
             )
             metrics.emit("llm_fallback_hallucinated_url", len(dropped), domain=domain)
-            # Phase 30a: NO tirar a la basura los que son rescatables. Un job
-            # cuya URL no está en la fuente PERO cuyo título SÍ aparece en el
-            # texto = título+empresa reales, solo la URL falló (relativa/alucinada)
-            # → pila de revisión manual con el SRP como pista. Si el título
-            # tampoco está en la fuente, el LLM lo inventó entero → descarte.
-            self._salvage_dropped_jobs(dropped, clean_text, domain, srp_url)
-        recovered = kept
 
         if not recovered:
             self._log(
                 f"[LLM-FALLBACK] {domain}: LLM recovered 0 usable jobs "
                 f"(no distinct per-card URLs)."
-            )
-            # NEW #6: snapshot para debug offline de por qué el heal falló.
-            _snapshot_drift_failure(
-                domain, srp_url, clean_text, result.jobs,
-                reason="llm_recovered_0_usable",
             )
             return []
 

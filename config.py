@@ -86,7 +86,15 @@ LLM_FALLBACK_MAX_INPUT_CHARS: int = int(os.getenv("LLM_FALLBACK_MAX_INPUT_CHARS"
 # output} a este dir para debuggear offline por qué falló (builtin/greenhouse
 # recuperaron 0 en runs reales y no se podía investigar). Feeds Phase 30.
 DRIFT_QUARANTINE_DIR: str = os.getenv("DRIFT_QUARANTINE_DIR", "drift_quarantine")
-DRIFT_QUARANTINE_MAX_FILES: int = int(os.getenv("DRIFT_QUARANTINE_MAX_FILES", "50"))
+# v3 Fase 5: subido de 50 a 300. El cap de 50 servía para debug puntual; ahora estos
+# snapshots SON el corpus de evaluación de la Fase 7, y a 3 boards drifteados por
+# corrida, 50 archivos se reciclan en dos semanas — justo el período que habría que
+# comparar cuando se cambia un prompt.
+DRIFT_QUARANTINE_MAX_FILES: int = int(os.getenv("DRIFT_QUARANTINE_MAX_FILES", "300"))
+# 1 de cada N extracciones EXITOSAS también se snapshotea. Un corpus hecho solo de
+# fallas produce un gate que mide el peor caso y nada más: no puede detectar que un
+# cambio de prompt empeoró lo que ya funcionaba. 0 desactiva el muestreo.
+DRIFT_SNAPSHOT_SUCCESS_SAMPLE: int = int(os.getenv("DRIFT_SNAPSHOT_SUCCESS_SAMPLE", "10"))
 
 
 # =============================================================================

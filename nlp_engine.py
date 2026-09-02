@@ -1308,6 +1308,20 @@ EXPECTED JSON SCHEMA:
 _EXTRACTION_SYSTEM_PROMPT = _build_extraction_prompt(_GENERIC_FALLBACK_PROFILE)
 
 
+def prompt_version(prompt: Optional[str] = None) -> str:
+    """
+    Huella corta del prompt de extracción efectivo.
+
+    Sin esto, dos corridas del corpus de evaluación no se pueden comparar: una caída del
+    grounding se lee igual si la causó un cambio de prompt o una regresión del modelo, y
+    son diagnósticos opuestos. El prompt cambia con el perfil del CV, así que la versión
+    se calcula sobre el prompt REAL que se usó, no sobre el genérico.
+    """
+    import hashlib
+    text = prompt if prompt is not None else _EXTRACTION_SYSTEM_PROMPT
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
+
+
 _EXTRACTION_RETRY_INJECT = """Your previous extraction response failed validation:
 ERROR: {error}
 YOUR RESPONSE WAS: {raw}

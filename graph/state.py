@@ -75,3 +75,35 @@ class LLMState(TypedDict, total=False):
     # replaces: the whole point is being able to see that groq was tried twice before
     # gemini answered. Fase 4 persists these to the llm_calls table.
     calls:          Annotated[list[dict], operator.add]
+    trace_id:       str
+
+
+class ExtractState(TypedDict, total=False):
+    """
+    Recuperación de un board drifteado, desde el texto de la página hasta los jobs
+    utilizables. Fase 5.
+
+    Sin reducers: el grafo de extracción es una secuencia, no un fan-out. Cada nodo lee
+    lo que dejó el anterior y escribe su propio slice, así que la última escritura gana
+    y eso es lo correcto. Los reducers aparecen en la Fase 6, donde varias ramas
+    escriben la misma clave al mismo tiempo.
+    """
+
+    # ── entrada ──────────────────────────────────────────────────────────────
+    domain:         str
+    srp_url:        str
+    clean_text:     str    # el texto EXACTO que se le manda al modelo
+    prompt_version: Optional[str]
+    provider:       Optional[str]
+
+    # ── etapas ───────────────────────────────────────────────────────────────
+    extracted:      list   # ExtractedJob, contrato del LLM
+    recovered:      list   # JobResult, contrato interno
+    kept:           list   # sobrevivieron el grounding
+    dropped:        list   # URL no presente en la fuente
+    repaired_n:     int    # Phase 30b reparó la URL y quedó grounded
+    salvaged:       int    # Phase 30a los mandó a revisión manual
+
+    # ── resultado ────────────────────────────────────────────────────────────
+    reason:         Optional[str]
+    error:          Optional[str]
