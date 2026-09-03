@@ -158,6 +158,10 @@ INVENTORY.md
 # purgó (ver arriba); el corpus de la Fase 7 se cura a mano y perderlo cuesta
 # horas de trabajo humano irrecuperable.
 !tools/eval_extraction.py
+# Distingue key vencida (401) de modelo dado de baja (404) — dos fallos que desde adentro
+# de GEMA se ven identicos y piden arreglos opuestos. Es la herramienta que evita repetir
+# el CRITICAL del 01-09; dejarla fuera del repo seria perder justo la defensa.
+!tools/check_provider_models.py
 
 # git no re-incluye archivos dentro de un directorio excluido, así que hay que
 # reabrir tests/fixtures/ y volver a excluir su contenido antes de destapar solo
@@ -166,7 +170,11 @@ INVENTORY.md
 tests/fixtures/*
 !tests/fixtures/extraction_corpus/
 !tests/fixtures/extraction_corpus/**
-LLM_PROVIDERS.md
+
+# Anclado a la raiz. Sin la barra inicial, git lo matchea a CUALQUIER profundidad y se
+# comia docs/LLM_PROVIDERS.md — que si se versiona. La regla original queria mantener
+# local la copia de la raiz, no bloquear la de docs/.
+/LLM_PROVIDERS.md
 
 # B6 � frontend React
 node_modules/
