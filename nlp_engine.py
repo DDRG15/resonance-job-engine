@@ -178,6 +178,38 @@ def _start_cooldown(name: str) -> None:
     _cooldowns[name] = time.time() + config.LLM_PROVIDER_COOLDOWN_S
 
 
+def _is_auth_error(exc: Exception) -> bool:
+    """
+    Detecta credencial inválida o vencida (401/403) a través de las shapes de los 7 SDKs.
+
+    Se separa de _is_rate_limit porque piden respuestas OPUESTAS: un 429 se espera y se
+    reintenta más tarde, un 401 no mejora solo. Sin esta distinción, una key vencida se
+    clasifica como error de red y el sistema reintenta los 7 proveedores en CADA llamada
+    antes de fallar — con las latencias medidas, un parse pasa de 52s a varios minutos
+    para llegar al mismo 502.
+
+    Verificado en vivo el 2026-09-01: la key de Groq venció a mitad de sesión y el log
+    solo dijo "groq exhausted (network)". Eso manda a revisar la red en vez de la
+    credencial, que es donde está el problema.
+    """
+    s = str(exc).lower()
+    status = getattr(exc, "status_code", None)
+    if status is None:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+    if status in (401, 403):
+        return True
+    return (
+        "401" in s
+        or "403" in s
+        or "unauthorized" in s
+        or "forbidden" in s
+        or "invalid api key" in s
+        or "invalid_api_key" in s
+        or "token expired" in s
+        or "revoked" in s
+    )
+
+
 def _is_rate_limit(exc: Exception) -> bool:
     """Detect HTTP 429 / quota exhausted across Groq and Gemini SDK error shapes."""
     s = str(exc).lower()
@@ -815,6 +847,7 @@ def _run_chain(
         parser=parser,
         cooldowns=_cooldowns,
         is_rate_limit=_is_rate_limit,
+        is_auth_error=_is_auth_error,
         messages=messages,
         prompt=prompt,
         retry_inject=retry_inject,

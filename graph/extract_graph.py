@@ -31,6 +31,7 @@ from langgraph.graph import END, StateGraph
 from langgraph.types import RunnableConfig
 
 import config as app_config
+from graph.instrumentation import traced_node
 from graph.state import ExtractState
 
 
@@ -38,6 +39,14 @@ def _rt(config: RunnableConfig) -> dict:
     return (config or {}).get("configurable", {})
 
 
+# Estos cinco SI degradan. Este subgrafo corre sobre un board que ya drifteó: si un paso
+# revienta, lo correcto es que ese board quede sin recuperar y los otros nueve terminen su
+# trabajo. Cada degrade devuelve el slice vacío que el nodo siguiente espera, para que la
+# secuencia llegue hasta snapshot y deje evidencia en disco en vez de cortarse a la mitad.
+@traced_node("extract", graph="extract",
+             degrade=lambda exc, state: {"extracted": [],
+                                         "error": f"{type(exc).__name__}: {exc}",
+                                         "reason": "extraction_failed"})
 def extract(state: ExtractState, config: RunnableConfig) -> dict:
     """
     Manda el texto al subgrafo de proveedores.
@@ -58,6 +67,8 @@ def extract(state: ExtractState, config: RunnableConfig) -> dict:
     return {"extracted": list(result.jobs)}
 
 
+@traced_node("map_to_jobs", graph="extract",
+             degrade=lambda exc, state: {"recovered": []})
 def map_to_jobs(state: ExtractState, config: RunnableConfig) -> dict:
     """ExtractedJob (contrato del LLM) -> JobResult (contrato interno)."""
     rt = _rt(config)
@@ -70,6 +81,8 @@ def map_to_jobs(state: ExtractState, config: RunnableConfig) -> dict:
     return {"recovered": mapped}
 
 
+@traced_node("ground", graph="extract",
+             degrade=lambda exc, state: {"kept": [], "dropped": [], "repaired_n": 0})
 def ground(state: ExtractState, config: RunnableConfig) -> dict:
     """
     Gate anti-alucinación: sobrevive solo el job cuya URL aparece LITERALMENTE en el
@@ -86,6 +99,7 @@ def ground(state: ExtractState, config: RunnableConfig) -> dict:
     return {"kept": kept, "dropped": dropped, "repaired_n": repaired_n}
 
 
+@traced_node("salvage", graph="extract", degrade=lambda exc, state: {"salvaged": 0})
 def salvage(state: ExtractState, config: RunnableConfig) -> dict:
     """
     Phase 30a — un job con título real y URL mala va a revisión manual, no a la basura.
@@ -102,6 +116,7 @@ def salvage(state: ExtractState, config: RunnableConfig) -> dict:
     return {"salvaged": n or 0}
 
 
+@traced_node("snapshot", graph="extract", degrade=lambda exc, state: {})
 def snapshot(state: ExtractState, config: RunnableConfig) -> dict:
     """
     Deja el par (input exacto, salida exacta) en disco.

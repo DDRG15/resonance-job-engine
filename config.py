@@ -35,8 +35,19 @@ PRIMARY_LLM: str = os.getenv("PRIMARY_LLM", "groq").lower()
 # Model identifiers — picks verified live against each provider's /models endpoint
 # (2026-07-05). Preference: strong instruction-followers, low hallucination on the
 # structured extraction schema; small/7-8B models deliberately avoided.
-GROQ_MODEL: str = "llama-3.3-70b-versatile"
-GEMINI_MODEL: str = "gemini-2.0-flash-lite"
+# ⚠️ SIN VERIFICAR. El E2E del 2026-09-01 probó que llama-3.3-70b-versatile ya NO existe
+# en Groq (404, con la key todavía válida y 14 modelos listados, ninguno de esa familia).
+# No se reemplazó por otro id porque minutos después la key venció (401) y sin listado no
+# hay forma de elegir un modelo verificado — y escribir un pin a ciegas es exactamente el
+# defecto que este comentario documenta.
+# QUÉ HACER: renovar GROQ_API_KEY y correr `python tools/check_provider_models.py`, que
+# imprime los modelos disponibles y falla con exit 1 mientras este pin siga muerto.
+GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# E2E 2026-09-01: gemini-2.0-flash-lite fue dado de baja y GEMA lo descubrió en
+# producción — 404 en cada llamada, absorbido en silencio por el fallback. El alias
+# -latest lo resuelve el proveedor, así que una deprecación futura no vuelve a
+# convertirse en un 404 permanente. Verificado presente en el listado v1beta de hoy.
+GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 OPENROUTER_MODEL: str = "nvidia/nemotron-3-ultra-550b-a55b:free"  # free tier; was google/gemma-2-27b-it (stale)
 COHERE_MODEL: str = "command-r-plus-08-2024"
 # Cerebras: gemma-4-31b (non-reasoning) — gpt-oss-120b is a reasoning model that

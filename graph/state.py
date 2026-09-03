@@ -32,7 +32,7 @@ from typing import Annotated, Any, Callable, Literal, Optional, TypedDict
 # in two of its three retry loops, and the collapse is what made the loops drift. A
 # schema error and a network error demand OPPOSITE responses — re-prompt the same
 # provider versus abandon it — so the classification has to be explicit and total.
-ErrorClass = Literal["schema", "network", "rate_limit"]
+ErrorClass = Literal["schema", "network", "rate_limit", "auth"]
 
 
 class LLMState(TypedDict, total=False):

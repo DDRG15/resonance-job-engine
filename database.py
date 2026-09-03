@@ -25,6 +25,24 @@ import config
 logger = logging.getLogger(__name__)
 
 
+# Un mensaje de telemetría existe para identificar la falla, no para archivarla. Los 5xx
+# de gateway de los free tiers traen páginas HTML enteras en el cuerpo de la excepción, y
+# una fila de llm_calls con 8 KB de HTML vuelve ilegible justo la tabla que se consulta
+# cuando algo anda mal.
+_MAX_ERROR_CHARS = 500
+
+
+def _clip(text, limit: int = _MAX_ERROR_CHARS):
+    """Recorta dejando constancia de cuánto se cortó — un texto truncado en silencio
+    parece completo y manda a buscar una causa que no está."""
+    if text is None:
+        return None
+    text = str(text)
+    if len(text) <= limit:
+        return text
+    return text[:limit] + f"… (+{len(text) - limit} chars)"
+
+
 def _now_iso() -> str:
     """UTC siempre. Un timestamp de telemetría en hora local no se puede correlacionar
     con nada — ni entre máquinas, ni a través de un cambio de horario."""
@@ -803,7 +821,9 @@ class GemaDatabase:
                         completed_at or _now_iso(), status, summary_json,
                         t1, t2, t3, t4,
                         json.dumps(domains_aborted) if domains_aborted is not None else None,
-                        breaker_state_json, error, run_id,
+                        # 2000 para el run: es UNA fila por corrida y ahí el traceback
+                        # completo sí vale más que el ahorro de espacio.
+                        breaker_state_json, _clip(error, 2000), run_id,
                     ),
                 )
         except Exception as exc:
@@ -831,7 +851,7 @@ class GemaDatabase:
                         exec_ms, queue_wait_ms, status, error)
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (run_id, node, graph, domain, title, started_at or _now_iso(),
-                     exec_ms, queue_wait_ms, status, error),
+                     exec_ms, queue_wait_ms, status, _clip(error)),
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_node_trace failed for %s: %s", node, exc)
@@ -859,7 +879,7 @@ class GemaDatabase:
                     run_id, trace_id, c.get("purpose"), c.get("provider"), c.get("model"),
                     c.get("provider_index"), c.get("attempt"), c.get("latency_ms"),
                     c.get("prompt_tokens"), c.get("completion_tokens"),
-                    c.get("outcome"), c.get("error"), now,
+                    c.get("outcome"), _clip(c.get("error")), now,
                 )
                 for c in calls
             ]

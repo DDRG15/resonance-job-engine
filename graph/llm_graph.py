@@ -56,8 +56,13 @@ from langgraph.types import RunnableConfig
 # segundo parámetro del nodo SE LLAMA `config`. Ese nombre queda reservado para la firma
 # de los nodos, así que el módulo de settings del proyecto entra con otro nombre.
 import config as app_config
-from graph.instrumentation import emit_llm_call_metrics
+import metrics
+from graph.instrumentation import emit_llm_call_metrics, traced_node
 from graph.state import LLMState
+
+# Un dia. Una key vencida se arregla renovandola, no esperando — pero parkear el
+# proveedor por lo que dure el proceso evita 7 round-trips muertos en cada llamada.
+_AUTH_COOLDOWN_S = 86400
 
 
 class ProvidersExhausted(RuntimeError):
@@ -88,6 +93,7 @@ def build_runtime(
     parser: Callable[[str], Any],
     cooldowns: dict[str, float],
     is_rate_limit: Callable[[Exception], bool],
+    is_auth_error: Optional[Callable[[Exception], bool]] = None,
     log: Optional[Callable[[str], None]] = None,
 ) -> dict:
     """
@@ -102,6 +108,9 @@ def build_runtime(
         "parser":        parser,
         "cooldowns":     cooldowns,
         "is_rate_limit": is_rate_limit,
+        # Default conservador: sin predicado, un 401 cae en "network" — el comportamiento
+        # previo. Se degrada a lo viejo, nunca a algo peor.
+        "is_auth_error": is_auth_error or (lambda _exc: False),
         "log":           log or (lambda _msg: None),
     }
 
@@ -119,6 +128,13 @@ def _provider_available(cooldowns: dict[str, float], name: str) -> bool:
 # Nodes
 # =============================================================================
 
+# Los nodos de esta cadena van SIN degrade a proposito. Es una secuencia, no un fan-out:
+# no hay ramas hermanas que salvar, y tragarse un fallo acá dejaría al grafo avanzando con
+# estado incompleto hasta morir más lejos, con un traceback que no señala la causa. El
+# degrade es para el fan-out del run (Fase 6), donde un board caído no debe llevarse a los
+# otros nueve. `exhausted` tampoco se decora: lanza ProvidersExhausted por contrato, y
+# registrarlo como node_failed_total contaminaría la métrica que detecta fallos reales.
+@traced_node("select_provider", graph="llm")
 def select_provider(state: LLMState, config: RunnableConfig) -> dict:
     """
     Advance provider_index past anything still cooling down.
@@ -140,6 +156,7 @@ def select_provider(state: LLMState, config: RunnableConfig) -> dict:
     return {"provider_index": idx}
 
 
+@traced_node("call_provider", graph="llm")
 def call_provider(state: LLMState, config: RunnableConfig) -> dict:
     """
     Invoke the current provider and classify any failure into exactly one class.
@@ -160,7 +177,12 @@ def call_provider(state: LLMState, config: RunnableConfig) -> dict:
         else:
             call = caller(state["messages"])
     except Exception as exc:
-        klass = "rate_limit" if rt["is_rate_limit"](exc) else "network"
+        if rt["is_rate_limit"](exc):
+            klass = "rate_limit"
+        elif rt["is_auth_error"](exc):
+            klass = "auth"
+        else:
+            klass = "network"
         return {
             "error_class": klass,
             "last_error": f"{type(exc).__name__}: {exc}",
@@ -192,6 +214,7 @@ def call_provider(state: LLMState, config: RunnableConfig) -> dict:
     }
 
 
+@traced_node("parse", graph="llm")
 def parse(state: LLMState, config: RunnableConfig) -> dict:
     """
     Run the caller-supplied parser over the raw text.
@@ -213,6 +236,7 @@ def parse(state: LLMState, config: RunnableConfig) -> dict:
     return {"parsed": parsed, "done": True, "error_class": None}
 
 
+@traced_node("self_correct", graph="llm")
 def self_correct(state: LLMState, config: RunnableConfig) -> dict:
     """
     Feed the schema error back to the SAME provider and let it fix its own output.
@@ -238,6 +262,7 @@ def self_correct(state: LLMState, config: RunnableConfig) -> dict:
     }
 
 
+@traced_node("next_provider", graph="llm")
 def next_provider(state: LLMState, config: RunnableConfig) -> dict:
     """
     Move to the next provider with a CLEAN history.
@@ -260,6 +285,7 @@ def next_provider(state: LLMState, config: RunnableConfig) -> dict:
     }
 
 
+@traced_node("cooldown", graph="llm")
 def cooldown(state: LLMState, config: RunnableConfig) -> dict:
     """
     Park a rate-limited provider for a bounded window instead of killing it.
@@ -275,6 +301,32 @@ def cooldown(state: LLMState, config: RunnableConfig) -> dict:
     rt["log"](
         f"[LLM] {name} hit a rate limit — cooling down for"
         f" {app_config.LLM_PROVIDER_COOLDOWN_S}s, falling back."
+    )
+    return {}
+
+
+@traced_node("auth_failed", graph="llm")
+def auth_failed(state: LLMState, config: RunnableConfig) -> dict:
+    """
+    Una credencial vencida no mejora reintentando: se parkea el proveedor y se dice
+    en voz alta qué hay que hacer.
+
+    El patrón correcto ya existía en este repo, en integrations/notion_client.py, que ante
+    un 401 desactiva la integración y nombra la variable a actualizar. La cadena LLM decía
+    "network" y seguía de largo. Ese contraste se observó en una misma corrida el
+    2026-09-01: Notion explicaba su falla, la cadena LLM la escondía.
+
+    La ventana es de un día, no de LLM_PROVIDER_COOLDOWN_S: renovar una key requiere
+    intervención humana, no que pase el tiempo. Reintentar cada 60s solo agrega latencia
+    a un fallo seguro.
+    """
+    rt = _rt(config)
+    name = state["chain"][state["provider_index"]]
+    rt["cooldowns"][name] = time.time() + _AUTH_COOLDOWN_S
+    metrics.emit("llm_provider_auth_failed_total", 1, provider=name)
+    rt["log"](
+        f"[LLM] {name}: credencial invalida o vencida (401/403). Proveedor desactivado "
+        f"esta sesion. Actualiza su API key en .env para re-habilitarlo."
     )
     return {}
 
@@ -309,6 +361,8 @@ def _route_after_call(state: LLMState) -> str:
     klass = state.get("error_class")
     if klass == "rate_limit":
         return "cooldown"
+    if klass == "auth":
+        return "auth_failed"
     if klass == "network":
         return "next_provider"
     return "parse"
@@ -338,6 +392,7 @@ def build_llm_graph():
     g.add_node("self_correct", self_correct)
     g.add_node("next_provider", next_provider)
     g.add_node("cooldown", cooldown)
+    g.add_node("auth_failed", auth_failed)
     g.add_node("exhausted", exhausted)
 
     g.set_entry_point("select_provider")
@@ -345,12 +400,14 @@ def build_llm_graph():
                             {"call_provider": "call_provider", "exhausted": "exhausted"})
     g.add_conditional_edges("call_provider", _route_after_call,
                             {"parse": "parse", "cooldown": "cooldown",
+                             "auth_failed": "auth_failed",
                              "next_provider": "next_provider"})
     g.add_conditional_edges("parse", _route_after_parse,
                             {END: END, "self_correct": "self_correct",
                              "next_provider": "next_provider"})
     g.add_edge("self_correct", "call_provider")
     g.add_edge("cooldown", "next_provider")
+    g.add_edge("auth_failed", "next_provider")
     g.add_edge("next_provider", "select_provider")
     g.add_edge("exhausted", END)
     return g.compile()
@@ -368,6 +425,7 @@ def run_llm_chain(
     parser: Callable[[str], Any],
     cooldowns: dict[str, float],
     is_rate_limit: Callable[[Exception], bool],
+    is_auth_error: Optional[Callable[[Exception], bool]] = None,
     messages: Optional[list[dict]] = None,
     prompt: Optional[str] = None,
     retry_inject: Optional[str] = None,
@@ -422,7 +480,7 @@ def run_llm_chain(
     invoke_config = {
         "configurable": build_runtime(
             callers=callers, parser=parser, cooldowns=cooldowns,
-            is_rate_limit=is_rate_limit, log=log,
+            is_rate_limit=is_rate_limit, is_auth_error=is_auth_error, log=log,
         ),
         "recursion_limit": limit,
     }

@@ -86,7 +86,20 @@ def _severity_by_value(name: str, value: float) -> Optional[str]:
 # Marcadores de log conocidos → (regex, severidad, etiqueta). Orden = prioridad.
 _LOG_MARKERS = [
     (re.compile(r"\bTraceback\b|\bException\b|\[ERROR\]|raised:", re.I), CRITICAL, "error"),
-    (re.compile(r"\b5\d\d\b.*(error|internal)|internal server error", re.I), CRITICAL, "http-5xx"),
+    # Credencial vencida: el unico fallo que se arregla en 30 segundos si se ve, y que
+    # cuesta una semana de resultados vacios si no. E2E 07-09-01: el 401 de Notion —
+    # el evento accionable de esa corrida — cayo en el cajon de "sin clasificar".
+    (re.compile(r"\b401\b|\b403\b|unauthorized|forbidden|token expired|"
+                r"invalid api key|revoked", re.I),                  CRITICAL, "credencial"),
+    # El 5xx exige contexto HTTP explicito. La version anterior usaba \b5\d\d\b suelto y
+    # matcheaba el MILISEGUNDO del timestamp: "20:32:58,566 ... Errors=0" se reportaba
+    # CRITICAL http-5xx. La linea que anunciaba CERO errores era el unico critico del
+    # digest, y su severidad cambiaba segun el reloj (con ms=123 era INFO). Es el mismo
+    # bug que el comentario de _DANGER_CRIT documenta desde el 07-18; se habia arreglado
+    # solo alla.
+    (re.compile(r'HTTP/\d(?:\.\d)?"?\s+5\d\d|\bHTTP\s+5\d\d\b|'
+                r"status[_ ]?code[=:]\s*5\d\d|internal server error", re.I),
+                                                                    CRITICAL, "http-5xx"),
     (re.compile(r"\[NULL-SRP\]"),                                       WARN, "null-srp"),
     (re.compile(r"breaker|circuit.*open|\bOPEN\b", re.I),              WARN, "breaker"),
     (re.compile(r"\[CAMOUFOX\].*(skip|error)", re.I),                  WARN, "camoufox-skip"),

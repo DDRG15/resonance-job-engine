@@ -1627,6 +1627,20 @@ class GemaScraper:
             )
             return []
 
+        # El subgrafo atrapa los fallos de la cadena LLM y los devuelve como ESTADO, no
+        # como excepción — por eso el except de arriba ya no alcanza. Sin este bloque, una
+        # extracción fallida se reporta como "0 jobs utilizables", que describe una causa
+        # falsa: manda a revisar selectores que no están rotos. Con las credenciales
+        # venciendo, ese diagnóstico equivocado se multiplica por board drifteado.
+        if state.get("error"):
+            self._log(f"[LLM-FALLBACK] {domain}: extraction failed: {state['error']}")
+            metrics.emit(
+                "llm_fallback_failed_total", 1,
+                domain=domain,
+                error=str(state["error"]).split(":")[0],
+            )
+            return []
+
         repaired_n = state.get("repaired_n") or 0
         dropped = state.get("dropped") or []
         recovered = state.get("kept") or []
