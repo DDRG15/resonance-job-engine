@@ -65,6 +65,11 @@ class SchedulerService:
         self.last_run_at: Optional[datetime] = None
         self.last_run_new_jobs: int = 0
         self.last_run_tier1: int = 0
+        # v3 Fase 6: los inyecta api.py en el lifespan. El nodo `push` del grafo los
+        # necesita para que una corrida del cron llegue a Notion y Sheets igual que una
+        # manual — en v2 el cron simplemente no las tocaba, y nadie lo había decidido.
+        self.notion = None
+        self.sheets = None
 
         # If the user opted to retain the CV profile, load it so an unattended
         # cron survives a restart. Ephemeral profile only — never the raw CV.
@@ -244,10 +249,18 @@ class SchedulerService:
         result: dict = {}
 
         def _run():
+            """
+            v3 Fase 6: llama al MISMO grafo que la corrida manual, con trigger="cron".
+
+            Antes esto era una copia de run_manager._worker que había derivado: no
+            empujaba a Notion ni a Sheets, y hardcodeaba ttl_hours=24. Un job encontrado
+            por el cron del martes nunca llegaba a Notion, y esa diferencia no estaba
+            escrita en ningún lado — vivía en que esta copia no tenía esas veinte líneas.
+            """
             try:
-                from scraper import run_scrape_session
-                from matcher import bucket_jobs
                 from integrations.webhook_client import send_discord_alert
+                from graph.runtime import RuntimeContext
+                from graph.run_graph import run_pipeline
 
                 start_phrases = [
                     "'GEMA auto-scrape starting.'",
@@ -260,29 +273,35 @@ class SchedulerService:
                     daemon=True,
                 ).start()
 
-                jobs, summary = run_scrape_session(
-                    config_snapshot,
-                    db,
-                    log_q,
-                    ttl_hours=24,   # default TTL for scheduled runs
-                    profile=profile_snapshot,
+                ctx = RuntimeContext(
+                    db=db,
+                    notion=getattr(self, "notion", None),
+                    sheets=getattr(self, "sheets", None),
+                    discord=lambda msg: threading.Thread(
+                        target=send_discord_alert, args=(msg,), daemon=True
+                    ).start(),
+                    log=log_q.put,
                 )
-                result["jobs"] = jobs
-                result["summary"] = summary
+                estado = run_pipeline(
+                    config=config_snapshot,
+                    ctx=ctx,
+                    trigger="cron",
+                    profile=profile_snapshot,
+                    # Sigue siendo 24h para el cron — es una decisión de producto (una
+                    # corrida desatendida no debe re-reportar lo de ayer), pero ahora es
+                    # un ARGUMENTO explícito y no una constante enterrada en una copia.
+                    ttl_hours=24,
+                    log_queue=log_q,
+                )
 
-                t1, t2, t3, t4 = bucket_jobs(jobs, config_snapshot, db, profile=profile_snapshot)
+                jobs = estado.get("jobs") or []
+                t1 = estado.get("tier1") or []
+                t2 = estado.get("tier2") or []
+                result["jobs"] = jobs
+                result["summary"] = estado.get("summary")
                 self.last_run_new_jobs = len(jobs)
                 self.last_run_tier1 = len(t1)
                 self.last_run_at = datetime.now(timezone.utc)
-
-                report = (
-                    f"📅 Scheduled run complete:\n"
-                    f"- New jobs: {len(jobs)}\n"
-                    f"- Tier 1: {len(t1)} | Tier 2: {len(t2)} | Tier 3: {len(t3)}"
-                )
-                threading.Thread(
-                    target=send_discord_alert, args=(report,), daemon=True
-                ).start()
 
                 logger.info(
                     "[SCHEDULER] Run complete. New=%d T1=%d T2=%d",

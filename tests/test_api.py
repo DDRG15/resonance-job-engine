@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 import config as config_module
 import api as api_module
 import run_manager as run_manager_module
+import scraper as scraper_module
 from models import JobResult, ScrapeRunSummary, SearchConfig
 
 VALID_CONFIG = {
@@ -73,6 +74,11 @@ def fake_scrape(monkeypatch):
         summary.total_urls_found = 3
         summary.new_processed = 3
         return jobs, summary
+    # v3 Fase 6: la orquestacion vive en graph/run_graph.py y su nodo `scrape` importa
+    # run_scrape_session desde `scraper` en tiempo de llamada. Parchear el simbolo
+    # reexportado en run_manager ya no intercepta nada — el test golpearia Playwright de
+    # verdad, que es lo que paso la primera vez que se corrio esto.
+    monkeypatch.setattr(scraper_module, "run_scrape_session", _fake)
     monkeypatch.setattr(run_manager_module, "run_scrape_session", _fake)
     return _fake
 

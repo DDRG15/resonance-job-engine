@@ -137,6 +137,13 @@ async def lifespan(app: FastAPI):
     app.state.notion = NotionClient()
     app.state.sheets = SheetsClient()
     app.state.runs = RunManager(app.state.db, app.state.notion, app.state.sheets)
+    # v3 Fase 6: el cron corre el MISMO grafo que la corrida manual, y el nodo `push`
+    # necesita los clientes. Sin esto el ctx del cron llega con notion=None y el push se
+    # saltea en silencio — que es exactamente la deriva que la Fase 6 vino a cerrar, solo
+    # que movida de lugar. Un job encontrado por el cron tiene que llegar a Notion igual
+    # que uno encontrado a mano.
+    app.state.sched.notion = app.state.notion
+    app.state.sched.sheets = app.state.sheets
     # NEW #4 (auditoría 07-10): las mutaciones de estado de sesión llegan desde
     # 3 caminos concurrentes (endpoints en el threadpool de FastAPI + worker del
     # RunManager + _fire del scheduler). RLock reentrante: los endpoints compuestos

@@ -78,6 +78,62 @@ class LLMState(TypedDict, total=False):
     trace_id:       str
 
 
+def merge_counters(a: dict, b: dict) -> dict:
+    """
+    Suma campo a campo. El reducer del fan-out.
+
+    Dos ramas que escriben `counters` al mismo tiempo tienen que SUMAR, no pisarse: si
+    remoteok vio 50 cards y arc vio 10, el total es 60, no "lo que haya escrito el
+    último". Con el reducer por defecto de LangGraph —reemplazo— la corrida reportaría
+    los números de una sola rama y nadie lo notaría, porque el número sigue siendo
+    plausible.
+    """
+    out = dict(a or {})
+    for k, v in (b or {}).items():
+        if isinstance(v, (int, float)) and isinstance(out.get(k), (int, float)):
+            out[k] = out[k] + v
+        else:
+            out[k] = v
+    return out
+
+
+def union_domains(a, b):
+    """Unión de conjuntos, tolerante a listas — el estado viaja como JSON."""
+    return sorted(set(a or []) | set(b or []))
+
+
+class RunState(TypedDict, total=False):
+    """
+    Una corrida completa, de la config al push a integraciones. Fase 6.
+
+    Reemplaza a DOS orquestadores que hacían lo mismo distinto: run_manager._worker
+    empujaba a Notion y Sheets, scheduler_service._fire no, y encima hardcodeaba
+    ttl_hours=24. La misma responsabilidad con comportamiento según quién disparara.
+    Ahora son dos llamadas a este grafo con distinto `trigger`.
+    """
+
+    # ── entrada ──────────────────────────────────────────────────────────────
+    run_id:      str
+    trigger:     Literal["api", "cron", "cli"]
+    config:      Any            # SearchConfig
+    profile:     Optional[dict]
+    ttl_hours:   int
+
+    # ── acumulado ────────────────────────────────────────────────────────────
+    jobs:        Annotated[list, operator.add]
+    errors:      Annotated[list, operator.add]
+    counters:    Annotated[dict, merge_counters]
+
+    # ── resultado ────────────────────────────────────────────────────────────
+    summary:     Any            # ScrapeRunSummary
+    tier1:       list
+    tier2:       list
+    tier3:       list
+    tier4:       list
+    status:      str            # "running" | "ok" | "crashed"
+    error:       Optional[str]
+
+
 class ExtractState(TypedDict, total=False):
     """
     Recuperación de un board drifteado, desde el texto de la página hasta los jobs

@@ -29,6 +29,8 @@ from matcher import bucket_jobs
 from models import ScrapeRunSummary, SearchConfig
 from nlp_engine import reset_rate_limit_flags
 from scraper import run_scrape_session, try_acquire_scrape_gate, release_scrape_gate
+from graph.runtime import RuntimeContext
+from graph.run_graph import run_pipeline
 
 # Marca interna de fin de corrida en el log_queue — el stream SSE la consume
 # y emite el evento `done`; nunca se muestra al usuario.
@@ -180,65 +182,39 @@ class RunManager:
 
     # ── Worker (thread daemon — fuera del event loop de FastAPI) ─────────────
     def _worker(self, config: SearchConfig, profile: Optional[dict], ttl_hours: int) -> None:
+        """
+        Dispara el pipeline. v3 Fase 6: la orquestación vive en graph/run_graph.py.
+
+        Antes acá había ~60 líneas que scheduler_service._fire duplicaba con
+        comportamiento distinto — el cron no empujaba a Notion ni Sheets y hardcodeaba
+        ttl_hours=24. Esa divergencia no estaba documentada en ningún lado: vivía en que
+        una de las dos copias no tenía las veinte líneas del push. Ahora ambos llaman al
+        mismo grafo con distinto `trigger`.
+        """
         log = self.log_queue.put
         try:
-            # Igual que main.py: providers bloqueados en la corrida anterior se reintentan
-            reset_rate_limit_flags()
-
-            jobs, summary = run_scrape_session(
-                config, self._db, self.log_queue, ttl_hours, profile=profile,
+            ctx = RuntimeContext(
+                db=self._db,
+                run_id=self.run_id,
+                notion=self._notion,
+                sheets=self._sheets,
+                discord=_fire_discord,
+                log=log,
+            )
+            estado = run_pipeline(
+                config=config,
+                ctx=ctx,
+                trigger="api",
+                profile=profile,
+                ttl_hours=ttl_hours,
+                run_id=self.run_id,
+                log_queue=self.log_queue,
             )
 
-            log(f"[MATCHER] Scoring {len(jobs)} new jobs...")
-            tier1, tier2, tier3, tier4 = bucket_jobs(
-                jobs, config, self._db, profile=profile,
-            )
-            summary.tier1_count = len(tier1)
-            summary.tier2_count = len(tier2)
-            summary.tier3_count = len(tier3)
-
-            self.results = (tier1, tier2, tier3, tier4)
-            self.summary = summary
-            log(
-                f"[GEMA] Pipeline complete. "
-                f"T1={len(tier1)} | T2={len(tier2)} | T3={len(tier3)}"
-            )
-
-            # AUDIT #1 fail-loud: summary.errors debe llegar al humano
-            report = (
-                f"📊 Extraction Report:\n"
-                f"- Tier 1: {len(tier1)}\n"
-                f"- Tier 2: {len(tier2)}\n"
-                f"- Tier 3: {len(tier3)}\n"
-                f"- Tier 4: {len(tier4)}"
-            )
-            if summary.errors:
-                report += f"\n\n⚠️ {len(summary.errors)} error(es) durante el run:"
-                for err in summary.errors[:5]:
-                    report += f"\n  • {err}"
-                if len(summary.errors) > 5:
-                    report += f"\n  • … y {len(summary.errors) - 5} más"
-            _fire_discord(report)
+            self.results = (estado.get("tier1") or [], estado.get("tier2") or [],
+                            estado.get("tier3") or [], estado.get("tier4") or [])
+            self.summary = estado.get("summary")
             _fire_discord(random.choice(END_PHRASES))
-
-            # AUDIT #3: cada integración aislada — un push caído no tumba el
-            # pipeline después de un scrape exitoso, y notifica qué capa falló.
-            all_results = tier1 + tier2 + tier3 + tier4
-            for name, enabled, push in (
-                ("NOTION", self._notion.is_enabled,
-                 lambda: self._notion.push_batch(all_results)),
-                ("SHEETS", self._sheets.is_enabled,
-                 lambda: self._sheets.append_batch(all_results, summary)),
-            ):
-                if all_results and enabled:
-                    log(f"[{name}] Pushing results...")
-                    try:
-                        push()
-                    except Exception as exc:
-                        log(f"[{name}] Push FAILED (scrape OK, results in DB): {exc}")
-                        _fire_discord(
-                            f"🟠 {name} push falló (scrape OK, resultados en DB): {exc}"
-                        )
 
         except Exception as exc:
             # Fail-loud: la corrida jamás muere en silencio
