@@ -239,3 +239,60 @@ class TestPinesDeModelo:
         finally:
             monkeypatch.delenv("GEMINI_MODEL", raising=False)
             importlib.reload(config)
+
+
+# =============================================================================
+# Reparto de carga entre proveedores (v3)
+# =============================================================================
+
+class TestRepartoPorProposito:
+    """
+    Hasta este cambio las cuatro tareas arrancaban en PRIMARY_LLM: un proveedor se comia
+    el 100% del trafico hasta agotarse mientras los otros seis miraban. Con siete free
+    tiers, eso es tirar seis y esperar el 429 — que es exactamente lo que paso.
+    """
+
+    def _cadena(self):
+        return [(n, object()) for n in
+                ("groq", "gemini", "openrouter", "cohere", "cerebras",
+                 "sambanova", "mistral")]
+
+    def test_cada_proposito_arranca_en_un_proveedor_distinto(self, monkeypatch):
+        monkeypatch.setattr(n.config, "LLM_PRIMARY_BY_PURPOSE", {
+            "parse": "groq", "extract": "cerebras",
+            "profile": "mistral", "audit": "gemini",
+        })
+        base = self._cadena()
+        primeros = {
+            p: n._reordenar_por_proposito(base, p)[0][0]
+            for p in ("parse", "extract", "profile", "audit")
+        }
+        assert primeros == {"parse": "groq", "extract": "cerebras",
+                            "profile": "mistral", "audit": "gemini"}
+        # El punto del reparto: cuatro proveedores distintos al frente.
+        assert len(set(primeros.values())) == 4
+
+    def test_la_cadena_completa_sigue_detras(self, monkeypatch):
+        # Reordenar no puede perder proveedores: un proposito cuyo primario cae tiene
+        # que recorrer los otros seis igual que antes.
+        monkeypatch.setattr(n.config, "LLM_PRIMARY_BY_PURPOSE", {"extract": "mistral"})
+        base = self._cadena()
+        salida = n._reordenar_por_proposito(base, "extract")
+        assert len(salida) == len(base)
+        assert {x[0] for x in salida} == {x[0] for x in base}
+
+    def test_un_nombre_mal_escrito_no_rompe_nada(self, monkeypatch):
+        # Un typo en el .env degrada al orden por defecto, no tumba la cadena.
+        monkeypatch.setattr(n.config, "LLM_PRIMARY_BY_PURPOSE", {"extract": "grok"})
+        base = self._cadena()
+        assert n._reordenar_por_proposito(base, "extract") == base
+
+    def test_un_proveedor_sin_key_no_se_inventa(self, monkeypatch):
+        # Si el asignado no esta en la cadena (sin key configurada), se usa el default.
+        monkeypatch.setattr(n.config, "LLM_PRIMARY_BY_PURPOSE", {"parse": "cohere"})
+        base = [(x, object()) for x in ("groq", "gemini")]
+        assert n._reordenar_por_proposito(base, "parse")[0][0] == "groq"
+
+    def test_sin_proposito_no_reordena(self):
+        base = self._cadena()
+        assert n._reordenar_por_proposito(base, None) == base

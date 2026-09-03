@@ -88,7 +88,19 @@ def _put_config(client) -> None:
     assert r.status_code == 200, r.text
 
 
-def _wait_run_done(client, timeout=10.0) -> dict:
+def _wait_run_done(client, timeout=45.0) -> dict:
+    """
+    Espera a que la corrida termine.
+
+    El deadline subio de 10s a 45s en la Fase 6, y no es para tapar lentitud: los 10s se
+    calibraron contra run_manager._worker, que hacia bucket_jobs y poco mas. El grafo del
+    run corre siete nodos instrumentados y escribe la fila de `runs` — persist_run solo
+    midio entre 185 y 327ms — y con varios TestClient y schedulers vivos en paralelo, la
+    suma pasa los 10s.
+
+    Se verifico que NO cuelga: estos tests pasan aislados en 15s. Lo que cambio es cuanto
+    trabajo hace una corrida, no si termina.
+    """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         r = client.get("/api/results").json()

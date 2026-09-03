@@ -35,14 +35,23 @@ PRIMARY_LLM: str = os.getenv("PRIMARY_LLM", "groq").lower()
 # Model identifiers — picks verified live against each provider's /models endpoint
 # (2026-07-05). Preference: strong instruction-followers, low hallucination on the
 # structured extraction schema; small/7-8B models deliberately avoided.
-# ⚠️ SIN VERIFICAR. El E2E del 2026-09-01 probó que llama-3.3-70b-versatile ya NO existe
-# en Groq (404, con la key todavía válida y 14 modelos listados, ninguno de esa familia).
-# No se reemplazó por otro id porque minutos después la key venció (401) y sin listado no
-# hay forma de elegir un modelo verificado — y escribir un pin a ciegas es exactamente el
-# defecto que este comentario documenta.
-# QUÉ HACER: renovar GROQ_API_KEY y correr `python tools/check_provider_models.py`, que
-# imprime los modelos disponibles y falla con exit 1 mientras este pin siga muerto.
-GROQ_MODEL: str = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# Verificado por COMPLETION real el 2026-09-03, no solo por /models: 729ms, 129/165
+# tokens, JSON válido. Groq dio de baja toda la familia llama de chat —
+# llama-3.3-70b-versatile devolvía 404 con la key todavía válida— y hoy su catálogo son
+# qwen, gpt-oss, compound (agénticos), whisper (audio) y prompt-guard (clasificadores).
+#
+# Por qué este y no otro de los cinco que pasaron el smoke:
+#   gpt-oss-20b      360ms, más rápido, pero LLM_PROVIDERS.md documenta que se evitaron
+#                    los modelos chicos a propósito: alucinan más contra el schema.
+#   qwen3.6-27b      388 tokens de salida para una tarea trivial — razona de más y eso
+#                    se paga en cada extracción.
+#   qwen3.8-27b      3800ms.
+#   compound-mini    498 tokens de prompt para nuestros 48: inyecta andamiaje agéntico.
+#
+# NOTA: ese mismo LLM_PROVIDERS.md dice que gpt-oss-120b devolvía content vacío EN
+# CEREBRAS. En Groq responde limpio — la lección es que el smoke va por proveedor, no
+# por nombre de modelo.
+GROQ_MODEL: str = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 # E2E 2026-09-01: gemini-2.0-flash-lite fue dado de baja y GEMA lo descubrió en
 # producción — 404 en cada llamada, absorbido en silencio por el fallback. El alias
 # -latest lo resuelve el proveedor, así que una deprecación futura no vuelve a
@@ -69,6 +78,34 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 # ventana, la cuota se recupera sola y la cadena vuelve a su proveedor más rápido.
 # Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
+
+# Primario POR PROPÓSITO — reparto de carga entre proveedores (v3).
+#
+# El problema que resuelve: hasta acá las cuatro tareas arrancaban en PRIMARY_LLM y solo
+# pasaban al siguiente cuando fallaba. O sea que un proveedor se comía el 100% del
+# tráfico hasta agotarse mientras los otros seis miraban. Con siete free tiers
+# disponibles, eso es tirar seis a la basura y esperar el 429.
+#
+# El reparto es por propósito y no rotativo a propósito: es determinístico, así que
+# siempre se sabe qué proveedor atendió qué sin mirar un contador. Un round-robin
+# reparte más parejo pero vuelve irreproducible cualquier diagnóstico.
+#
+# El criterio del reparto es el PERFIL DE CONSUMO de cada tarea, no la preferencia:
+#   extract  ~20k chars de entrada, hasta 3 por corrida -> el más pesado
+#   profile  el CV entero, ~8k chars, 1 por carga
+#   parse    ~500 tokens, 1 por búsqueda
+#   audit    128 tokens máximo, 1 por búsqueda -> el más liviano
+#
+# La cadena COMPLETA sigue detrás de cada uno: esto cambia por dónde EMPIEZA, no qué
+# respaldo tiene. Un propósito cuyo primario cae recorre los otros seis igual que antes.
+#
+# Un nombre no configurado o sin key cae al orden por defecto sin romper nada.
+LLM_PRIMARY_BY_PURPOSE: dict = {
+    "extract": os.getenv("LLM_PRIMARY_EXTRACT", "cerebras"),
+    "profile": os.getenv("LLM_PRIMARY_PROFILE", "mistral"),
+    "parse":   os.getenv("LLM_PRIMARY_PARSE",   PRIMARY_LLM),
+    "audit":   os.getenv("LLM_PRIMARY_AUDIT",   "gemini"),
+}
 
 
 # =============================================================================

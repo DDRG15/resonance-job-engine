@@ -76,10 +76,10 @@ def init_run(state: RunState, config: RunnableConfig) -> dict:
         ctx.cooldowns.clear()
         ctx.run_id = run_id
         if ctx.db is not None:
-            try:
-                ctx.db.backup()
-            except Exception as exc:
-                ctx.emit(f"[DB] backup previo fallo (la corrida sigue): {exc}")
+            # NO se hace backup acá: GemaScraper.run() ya lo hace al arrancar
+            # (scraper.py, primera línea del run). Ponerlo también en este nodo hacía
+            # que cada corrida respaldara la base DOS veces — medido en 618ms y 389ms
+            # por corrida con una DB de test vacía, y crece con el tamaño real.
             cfg = state.get("config")
             ctx.db.record_run_start(
                 run_id,

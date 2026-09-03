@@ -774,6 +774,30 @@ def parse_prompt_to_config(
     return state["parsed"]
 
 
+def _reordenar_por_proposito(cadena: list[tuple[str, callable]],
+                             purpose: Optional[str]) -> list[tuple[str, callable]]:
+    """
+    Mueve al frente el proveedor asignado a este propósito. No filtra nada.
+
+    Reparte la carga entre los siete free tiers en vez de quemar uno solo hasta el 429.
+    Es un cambio de ORDEN, no de composición: la cadena completa sigue detrás, así que un
+    propósito cuyo primario cae recorre los otros seis igual que antes.
+
+    Si el nombre asignado no está en la cadena —sin key, o mal escrito en el .env— se
+    devuelve el orden por defecto. Degradar al comportamiento previo es preferible a
+    fallar por una variable de entorno con un typo.
+    """
+    if not purpose:
+        return cadena
+    preferido = (config.LLM_PRIMARY_BY_PURPOSE or {}).get(purpose)
+    if not preferido:
+        return cadena
+    for i, (nombre, _) in enumerate(cadena):
+        if nombre == preferido:
+            return [cadena[i]] + cadena[:i] + cadena[i + 1:]
+    return cadena
+
+
 def _build_caller_chain() -> list[tuple[str, callable]]:
     """
     Primary LLM first, fallback second, then OpenRouter and Cohere as final fallbacks.
@@ -841,6 +865,7 @@ def _run_chain(
     el mapa existe para resolver.
     """
     pairs = chain_override if chain_override is not None else _build_caller_chain()
+    pairs = _reordenar_por_proposito(pairs, purpose)
     return run_llm_chain(
         chain=[name for name, _ in pairs],
         callers=dict(pairs),
