@@ -179,6 +179,33 @@ CREATE TABLE IF NOT EXISTS llm_calls (
 );
 """
 
+# v3 Fase 7 — Resultados de evaluación de extracción.
+#
+# Una fila por (corrida de eval × caso del corpus). Se guarda el desglose y no solo el
+# agregado: un grounding rate que baja de 0.95 a 0.80 no dice nada por sí solo — lo que
+# sirve es saber QUÉ casos se rompieron, porque casi siempre son de un board.
+#
+# prompt_version y provider van en cada fila porque son las dos variables que explican
+# una caída. Sin ellas, una regresión del modelo y un cambio de prompt se ven idénticas.
+_DDL_EVAL_RESULTS = """
+CREATE TABLE IF NOT EXISTS eval_results (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    eval_run_id     TEXT NOT NULL,
+    corpus_case     TEXT NOT NULL,
+    source          TEXT,
+    prompt_version  TEXT,
+    provider        TEXT,
+    jobs_expected   INTEGER,
+    jobs_extracted  INTEGER,
+    grounded        INTEGER,
+    hallucinated    INTEGER,
+    fields_complete REAL,
+    agreement       REAL,
+    error           TEXT,
+    created_at      TEXT NOT NULL
+);
+"""
+
 _DDL_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_registry_domain  ON seen_jobs_registry(source_domain);",
     "CREATE INDEX IF NOT EXISTS idx_registry_scraped ON seen_jobs_registry(scraped_at);",
@@ -188,6 +215,7 @@ _DDL_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_traces_run       ON node_traces(run_id);",
     "CREATE INDEX IF NOT EXISTS idx_llm_calls_run    ON llm_calls(run_id);",
     "CREATE INDEX IF NOT EXISTS idx_llm_calls_trace  ON llm_calls(trace_id);",
+    "CREATE INDEX IF NOT EXISTS idx_eval_run        ON eval_results(eval_run_id);",
 ]
 
 
@@ -241,6 +269,7 @@ class GemaDatabase:
             conn.execute(_DDL_RUNS)           # v3 Fase 4
             conn.execute(_DDL_NODE_TRACES)    # v3 Fase 4
             conn.execute(_DDL_LLM_CALLS)      # v3 Fase 4
+            conn.execute(_DDL_EVAL_RESULTS)   # v3 Fase 7
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
             # Migrations: add columns to existing DBs that predate these fields.
@@ -894,6 +923,58 @@ class GemaDatabase:
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_llm_calls failed for trace %s: %s", trace_id, exc)
+
+    def record_eval_results(self, eval_run_id: str, filas: list[dict]) -> None:
+        """Persiste una corrida de evaluación completa. Fail-safe como el resto."""
+        if not filas:
+            return
+        now = _now_iso()
+        try:
+            rows = [
+                (eval_run_id, f.get("corpus_case"), f.get("source"),
+                 f.get("prompt_version"), f.get("provider"),
+                 f.get("jobs_expected"), f.get("jobs_extracted"),
+                 f.get("grounded"), f.get("hallucinated"),
+                 f.get("fields_complete"), f.get("agreement"),
+                 _clip(f.get("error")), now)
+                for f in filas
+            ]
+            with _get_connection(self.db_path) as conn:
+                conn.executemany(
+                    """INSERT INTO eval_results
+                       (eval_run_id, corpus_case, source, prompt_version, provider,
+                        jobs_expected, jobs_extracted, grounded, hallucinated,
+                        fields_complete, agreement, error, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    rows,
+                )
+        except Exception as exc:
+            logger.warning("[EVAL] record_eval_results failed for %s: %s",
+                           eval_run_id, exc)
+
+    def get_eval_results(self, eval_run_id: str) -> list[dict]:
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT * FROM eval_results WHERE eval_run_id = ? ORDER BY id",
+                (eval_run_id,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_last_eval_run_id(self, before: Optional[str] = None) -> Optional[str]:
+        """
+        El eval_run_id más reciente, opcionalmente anterior a otro. Es lo que hace
+        posible `--baseline` sin que el humano tenga que copiar un id a mano.
+        """
+        sql = "SELECT eval_run_id FROM eval_results"
+        params: list = []
+        if before is not None:
+            sql += (" WHERE created_at < (SELECT MIN(created_at) FROM eval_results "
+                    "WHERE eval_run_id = ?)")
+            params.append(before)
+        sql += " ORDER BY created_at DESC LIMIT 1"
+        with _get_connection(self.db_path) as conn:
+            row = conn.execute(sql, params).fetchone()
+        return row[0] if row else None
 
     def get_run(self, run_id: str) -> Optional[dict]:
         """Lee una fila de runs. Devuelve None si no existe."""
