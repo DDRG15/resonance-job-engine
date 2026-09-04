@@ -176,12 +176,23 @@ def emit_llm_call_metrics(calls: list[dict]) -> None:
             if c.get("latency_ms") is not None:
                 metrics.emit("llm_call_latency_ms", c["latency_ms"],
                              provider=provider, purpose=purpose, outcome=outcome)
+            # `purpose` en los tokens, no solo en la latencia. Sin esa etiqueta no se
+            # puede responder "cuanto me cuesta extract por corrida" desde el log — y esa
+            # es la pregunta que decide si vale la pena cambiar de modelo. La tabla
+            # llm_calls ya lo tenia; la metrica no.
             if c.get("prompt_tokens") is not None:
                 metrics.emit("llm_tokens_total", c["prompt_tokens"],
-                             provider=provider, direction="prompt")
+                             provider=provider, purpose=purpose, direction="prompt")
             if c.get("completion_tokens") is not None:
                 metrics.emit("llm_tokens_total", c["completion_tokens"],
-                             provider=provider, direction="completion")
+                             provider=provider, purpose=purpose, direction="completion")
+            # Chars de salida util. Con completion_tokens permite estimar el SOBRECOSTO
+            # DE RAZONAMIENTO: un modelo que gasta 742 tokens para emitir 37 de JSON esta
+            # pensando el 95% del tiempo, y eso se paga en CADA llamada. Medido el
+            # 2026-09-03: groq gpt-oss-120b 95%, mistral-small 25%.
+            if c.get("output_chars") is not None:
+                metrics.emit("llm_output_chars", c["output_chars"],
+                             provider=provider, purpose=purpose)
             if outcome == "rate_limit_error":
                 metrics.emit("llm_provider_cooldown_total", 1, provider=provider)
             if (c.get("attempt") or 1) > 1:
@@ -263,13 +274,21 @@ def traced_node(
 
 def _record(rt, name, graph, state, t0, queue_wait_ms, status, error, exec_ms=None):
     """Escribe la fila de node_traces si hay db. Nunca lanza."""
-    db = rt.get("db") if isinstance(rt, dict) else None
+    if not isinstance(rt, dict):
+        return
+    # El db puede venir suelto en configurable (subgrafo LLM) o adentro del ctx (grafo
+    # del run). Buscar solo en el nivel superior dejaba node_traces VACIA para el grafo
+    # del run pese a tener los doce nodos decorados: las metricas salian al log y ninguna
+    # fila llegaba a la tabla. Verificado en la corrida f6b872f0 del 2026-09-03.
+    ctx = rt.get("ctx")
+    db = rt.get("db") or getattr(ctx, "db", None)
+    run_id = rt.get("run_id") or getattr(ctx, "run_id", None)
     if db is None:
         return
     try:
         db.record_node_trace(
             node=name,
-            run_id=rt.get("run_id"),
+            run_id=run_id,
             graph=graph,
             domain=(state or {}).get("domain"),
             title=(state or {}).get("title"),

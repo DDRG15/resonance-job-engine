@@ -144,6 +144,16 @@ async def lifespan(app: FastAPI):
     # que uno encontrado a mano.
     app.state.sched.notion = app.state.notion
     app.state.sched.sheets = app.state.sheets
+    # Telemetria de la cadena LLM conectada DESDE EL ARRANQUE, con run_id=None.
+    # /api/parse y /api/cv ocurren FUERA de toda corrida, asi que si el sink solo se
+    # conectara en init_run, el uso mas frecuente del LLM no se registraria nunca —
+    # verificado: llm_calls quedaba en 0 tras un parse + un scrape completos.
+    # init_run le pone el run_id encima mientras dura la corrida.
+    try:
+        import nlp_engine
+        nlp_engine.set_telemetry_sink(app.state.db, None)
+    except Exception:
+        pass
     # NEW #4 (auditoría 07-10): las mutaciones de estado de sesión llegan desde
     # 3 caminos concurrentes (endpoints en el threadpool de FastAPI + worker del
     # RunManager + _fire del scheduler). RLock reentrante: los endpoints compuestos
@@ -698,9 +708,14 @@ def status():
         "has_results": runs.results is not None,
         "needs_setup": needs_setup(),
         "ttl_hours": app.state.ttl_hours,
+        # getattr y no acceso directo: el nodo `push` de graph/run_graph.py ya trata
+        # `ctx.notion is None` como caso valido ("integracion ausente"), y este endpoint
+        # asumia lo contrario sobre el mismo atributo. Con las dos suposiciones conviviendo,
+        # cualquier camino que deje el cliente en None —un test, un arranque degradado—
+        # convierte /api/status en un 500 en vez de reportar la integracion como apagada.
         "integrations": {
-            "notion": app.state.notion.is_enabled,
-            "sheets": app.state.sheets.is_enabled,
+            "notion": getattr(app.state.notion, "is_enabled", False),
+            "sheets": getattr(app.state.sheets, "is_enabled", False),
         },
     }
 

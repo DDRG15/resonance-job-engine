@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS llm_calls (
     prompt_tokens     INTEGER,
     completion_tokens INTEGER,
     outcome           TEXT,
+    output_chars      INTEGER,
     error             TEXT,
     created_at        TEXT NOT NULL
 );
@@ -276,6 +277,10 @@ class GemaDatabase:
             # FIX 2 live-test 07-18: salary_raw — el salario solo vivía en los
             # resultados de cada corrida; sin columna no hay diff histórico.
             for mig_col, mig_sql in (
+                # v3: output_chars llego despues de llm_calls. Con completion_tokens da
+                # el sobrecosto de razonamiento del modelo, que es lo que decide si vale
+                # la pena cambiarlo.
+                ("output_chars", "ALTER TABLE llm_calls ADD COLUMN output_chars INTEGER"),
                 ("location_raw", "ALTER TABLE seen_jobs_registry ADD COLUMN location_raw TEXT"),
                 ("salary_raw",   "ALTER TABLE seen_jobs_registry ADD COLUMN salary_raw TEXT"),
             ):
@@ -908,7 +913,8 @@ class GemaDatabase:
                     run_id, trace_id, c.get("purpose"), c.get("provider"), c.get("model"),
                     c.get("provider_index"), c.get("attempt"), c.get("latency_ms"),
                     c.get("prompt_tokens"), c.get("completion_tokens"),
-                    c.get("outcome"), _clip(c.get("error")), now,
+                    c.get("outcome"), c.get("output_chars"),
+                    _clip(c.get("error")), now,
                 )
                 for c in calls
             ]
@@ -917,8 +923,8 @@ class GemaDatabase:
                     """INSERT INTO llm_calls
                        (run_id, trace_id, purpose, provider, model, provider_index,
                         attempt, latency_ms, prompt_tokens, completion_tokens,
-                        outcome, error, created_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        outcome, output_chars, error, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     rows,
                 )
         except Exception as exc:
@@ -951,6 +957,44 @@ class GemaDatabase:
         except Exception as exc:
             logger.warning("[EVAL] record_eval_results failed for %s: %s",
                            eval_run_id, exc)
+
+    def get_token_cost_by_purpose(self, run_id: Optional[str] = None) -> list[dict]:
+        """
+        Cuanto cuesta cada proceso, en tokens y en sobrecosto de razonamiento.
+
+        Es la pregunta que decide si vale la pena cambiar de modelo. `overhead_pct` estima
+        cuanto gasta el modelo PENSANDO antes de emitir: se compara completion_tokens
+        contra el tamano de la salida util (chars/4 ~ tokens). Un 95% significa que de
+        cada 100 tokens facturados, 95 fueron razonamiento y 5 fueron respuesta — y eso se
+        paga en CADA llamada, asi que en extract (hasta 3 por corrida) se multiplica.
+
+        Medido el 2026-09-03 con el prompt real: groq gpt-oss-120b 95%, openrouter
+        nemotron 91%, gemini flash-lite 43%, cohere 35%, mistral-small 25%.
+
+        LIMITE DE LA HEURISTICA: chars/4 aproxima bien los tokens de JSON, que es denso
+        en separadores. Para prosa —la auditoria devuelve 1-2 frases— SOBREestima los
+        tokens utiles, y el resultado puede dar NEGATIVO. Un valor negativo significa
+        "la estimacion se paso", no "sobrecosto negativo". Sirve para comparar modelos
+        en la MISMA tarea; comparar entre tareas de distinto formato no es valido.
+        """
+        sql = """
+            SELECT purpose, provider,
+                   COUNT(*)                      AS llamadas,
+                   SUM(prompt_tokens)            AS tok_in,
+                   SUM(completion_tokens)        AS tok_out,
+                   ROUND(AVG(latency_ms))        AS ms_prom,
+                   ROUND(100.0 * (1.0 - (SUM(output_chars) / 4.0) /
+                         NULLIF(SUM(completion_tokens), 0))) AS overhead_pct
+            FROM llm_calls
+            WHERE outcome = 'ok'
+        """
+        params: list = []
+        if run_id is not None:
+            sql += " AND run_id = ?"
+            params.append(run_id)
+        sql += " GROUP BY purpose, provider ORDER BY tok_out DESC"
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(sql, params).fetchall()]
 
     def get_eval_results(self, eval_run_id: str) -> list[dict]:
         with _get_connection(self.db_path) as conn:

@@ -39,6 +39,16 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr(api_module, "API_STATE_FILE", tmp_path / "api_state.json")
     monkeypatch.setattr(run_manager_module, "_fire_discord", lambda msg: None)
     with TestClient(api_module.app) as c:
+        # Integraciones apagadas EN LA APP, no solo en la red. El lifespan las construye
+        # desde el .env real, asi que en la maquina de quien tenga NOTION_API_KEY el nodo
+        # `push` intentaba salir a internet, chocaba con el fixture no_network y
+        # reintentaba con backoff: 9022ms medidos en un solo test. La suite tardaba
+        # distinto segun quien la corriera. Ningun test de este archivo asserta sobre
+        # Notion ni Sheets — viven en test_notion_client.py y test_sheets_client.py.
+        api_module.app.state.notion = None
+        api_module.app.state.sheets = None
+        api_module.app.state.sched.notion = None
+        api_module.app.state.sched.sheets = None
         yield c
     # El BackgroundScheduler es un thread daemon por instancia — apagarlo
     # evita acumular jobs activos entre tests.
@@ -108,6 +118,16 @@ def _wait_run_done(client, timeout=45.0) -> dict:
             return r
         time.sleep(0.05)
     pytest.fail("la corrida no terminó a tiempo")
+
+
+def _wait_run_idle(client, timeout=45.0) -> None:
+    """Espera solo a que se libere el gate. No exige resultados."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not client.get("/api/results").json()["is_running"]:
+            return
+        time.sleep(0.05)
+    pytest.fail("el gate de scrape no se libero a tiempo")
 
 
 # =============================================================================
@@ -334,13 +354,22 @@ class TestScrape:
         assert client.post("/api/scrape", json={}).status_code == 202
         assert client.post("/api/scrape", json={}).status_code == 409
         release.set()
+        # Drenar la corrida ANTES de salir del test. El gate de scrape es global al
+        # proceso, no al TestClient: si este test termina con el worker todavia vivo, el
+        # siguiente POST /api/scrape recibe 409 y el test que lo haga espera 45s por
+        # resultados que nunca llegan. Reproducido: test_export_after_run_returns_xlsx
+        # pasaba aislado en 19.8s y fallaba corrido detras de este.
+        _wait_run_idle(client)
 
     def test_export_before_run_404(self, client):
         assert client.get("/api/export.xlsx").status_code == 404
 
     def test_export_after_run_returns_xlsx(self, client, fake_scrape):
         _put_config(client)
-        client.post("/api/scrape", json={})
+        # El status del POST se assertea: un 409 silencioso aca se manifestaba
+        # 45s despues como "la corrida no termino a tiempo", que apunta al lugar
+        # equivocado.
+        assert client.post("/api/scrape", json={}).status_code == 202
         _wait_run_done(client)
         r = client.get("/api/export.xlsx")
         assert r.status_code == 200
@@ -349,7 +378,10 @@ class TestScrape:
 
     def test_stream_emits_logs_and_done(self, client, fake_scrape):
         _put_config(client)
-        client.post("/api/scrape", json={})
+        # El status del POST se assertea: un 409 silencioso aca se manifestaba
+        # 45s despues como "la corrida no termino a tiempo", que apunta al lugar
+        # equivocado.
+        assert client.post("/api/scrape", json={}).status_code == 202
         _wait_run_done(client)
         saw_log, saw_done = False, False
         with client.stream("GET", "/api/scrape/stream") as r:

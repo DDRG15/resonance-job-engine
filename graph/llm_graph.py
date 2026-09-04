@@ -209,6 +209,8 @@ def call_provider(state: LLMState, config: RunnableConfig) -> dict:
             "prompt_tokens": call.prompt_tokens,
             "completion_tokens": call.completion_tokens,
             "finish_reason": call.finish_reason,
+            # Con completion_tokens da el sobrecosto de razonamiento del modelo.
+            "output_chars": len(call.text or ""),
             "outcome": "ok",
         }],
     }
@@ -273,9 +275,15 @@ def next_provider(state: LLMState, config: RunnableConfig) -> dict:
     nlp_engine.py:689-695 and it is preserved verbatim here, not paraphrased.
     """
     rt = _rt(config)
+    # El MENSAJE del error, no solo su clase. Sin esto el log decia
+    # "groq exhausted (network)" y no habia forma de saber si era la red, un 400 del
+    # proveedor o un modelo dado de baja — tres causas con tres arreglos distintos.
+    # Costo una hora de diagnostico el 2026-09-03: era un HTTP 400 json_validate_failed
+    # por max_tokens insuficiente, y "network" mandaba a revisar la conectividad.
     rt["log"](
         f"[LLM] {state['chain'][state['provider_index']]} exhausted"
-        f" ({state.get('error_class')}) — falling back to next provider."
+        f" ({state.get('error_class')}): {state.get('last_error')}"
+        f" — falling back to next provider."
     )
     return {
         "provider_index": state["provider_index"] + 1,

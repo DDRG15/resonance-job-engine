@@ -52,19 +52,24 @@ REM Corre solo si hay corpus. Pega a proveedores reales, asi que no esta en pyte
 REM es lento, gasta cuota y no es determinista. Un cambio de prompt que mejora un
 REM board y rompe otros tres no se nota hasta la corrida siguiente — esto lo detecta
 REM antes de empaquetar.
+REM OJO con la sintaxis: dentro de un bloque parentizado, cmd expande %ERRORLEVEL% al
+REM PARSEAR el bloque, no al ejecutarlo — asi que el if interno leeria el valor VIEJO y
+REM el gate nunca bloquearia. Reproducido: un comando que sale con 1 pasaba de largo.
+REM `if errorlevel 1` lee el valor vivo y es la forma que funciona dentro de bloques.
 echo [0c/4] Extraction quality gate...
 python tools\eval_extraction.py --dry-run >nul 2>&1
-if %ERRORLEVEL% neq 0 (
-    echo       Sin corpus todavia — gate omitido. Ver tests\fixtures\extraction_corpus\README.md
-) else (
-    python tools\eval_extraction.py --gate
-    if %ERRORLEVEL% neq 0 (
-        echo ERROR: la calidad de extraccion empeoro respecto de la corrida previa.
-        echo        Revisar el detalle por caso en la tabla eval_results.
-        pause
-        exit /b 1
-    )
+if errorlevel 1 goto :sin_corpus
+python tools\eval_extraction.py --gate
+if errorlevel 1 (
+    echo ERROR: la calidad de extraccion empeoro respecto de la corrida previa.
+    echo        Revisar el detalle por caso en la tabla eval_results.
+    pause
+    exit /b 1
 )
+goto :fin_eval_gate
+:sin_corpus
+echo       Sin corpus todavia — gate omitido. Ver tests\fixtures\extraction_corpus\README.md
+:fin_eval_gate
 echo.
 
 REM ── Build Docker image ────────────────────────────────────────────────────

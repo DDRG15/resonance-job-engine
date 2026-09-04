@@ -87,6 +87,14 @@ def init_run(state: RunState, config: RunnableConfig) -> dict:
                 config_json=cfg.model_dump_json() if hasattr(cfg, "model_dump_json")
                 else None,
             )
+        # Conecta la telemetria de la cadena LLM a esta corrida. Sin esto, las filas de
+        # llm_calls no tienen run_id con el cual correlacionarse — y de hecho no se
+        # escribian: ningun call site del scraper enhebra el db hasta aca.
+        try:
+            import nlp_engine
+            nlp_engine.set_telemetry_sink(ctx.db, run_id)
+        except Exception:
+            pass
         ctx.emit(f"[GEMA] Run {run_id[:8]} ({trigger}) starting.")
 
     return {"run_id": run_id, "trigger": trigger, "status": "running",
@@ -160,6 +168,13 @@ def persist_run(state: RunState, config: RunnableConfig) -> dict:
     if ctx is None or ctx.db is None:
         return {}
     summary = state.get("summary")
+    try:
+        import nlp_engine
+        # La corrida termino: se suelta el run_id pero el db SIGUE conectado, para que
+        # los parse posteriores se registren con run_id NULL en vez de perderse.
+        nlp_engine.set_telemetry_sink(ctx.db, None)
+    except Exception:
+        pass
     ctx.db.record_run_end(
         state["run_id"],
         status=state.get("status", "ok"),
@@ -290,6 +305,13 @@ def run_pipeline(
         return RUN_GRAPH.invoke(inicial, config={"configurable": {"ctx": ctx}})
     except Exception as exc:
         if ctx is not None and ctx.db is not None:
+            try:
+                # La corrida murio: hay que desconectar el sink igual, o las llamadas LLM
+                # de la proxima corrida se atribuirian a esta.
+                import nlp_engine
+                nlp_engine.set_telemetry_sink(ctx.db, None)
+            except Exception:
+                pass
             try:
                 ctx.db.record_run_end(
                     inicial["run_id"], status="crashed",

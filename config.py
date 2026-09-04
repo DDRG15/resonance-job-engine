@@ -79,6 +79,19 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 # Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
+# Techo de tokens de salida para las llamadas en JSON mode.
+#
+# Era 512, calibrado para llama-3.3-70b, que emitía la respuesta y nada más. El catálogo
+# actual de Groq son modelos de RAZONAMIENTO: gastan tokens pensando antes de emitir, y
+# con el system prompt real gpt-oss-120b consume ~567 solo para el SearchConfig. Con 512
+# el proveedor devuelve HTTP 400 json_validate_failed —"max completion tokens reached
+# before generating a valid document"— y GEMA lo clasificaba como error de RED, quemando
+# un round-trip en cada parse y cayendo al fallback sin decir por qué.
+#
+# 2048 deja margen sobre los 567 medidos. Subirlo no cuesta: solo se cobran los tokens
+# realmente emitidos.
+LLM_MAX_TOKENS_JSON: int = int(os.getenv("LLM_MAX_TOKENS_JSON", "2048"))
+
 # Primario POR PROPÓSITO — reparto de carga entre proveedores (v3).
 #
 # El problema que resuelve: hasta acá las cuatro tareas arrancaban en PRIMARY_LLM y solo
@@ -90,21 +103,46 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 # siempre se sabe qué proveedor atendió qué sin mirar un contador. Un round-robin
 # reparte más parejo pero vuelve irreproducible cualquier diagnóstico.
 #
-# El criterio del reparto es el PERFIL DE CONSUMO de cada tarea, no la preferencia:
-#   extract  ~20k chars de entrada, hasta 3 por corrida -> el más pesado
-#   profile  el CV entero, ~8k chars, 1 por carga
-#   parse    ~500 tokens, 1 por búsqueda
-#   audit    128 tokens máximo, 1 por búsqueda -> el más liviano
+# El criterio cruza DOS ejes, y el segundo se descubrió midiendo (2026-09-03):
+#
+#   1. Perfil de consumo de la tarea:
+#        extract  ~20k chars de entrada, hasta 3 por corrida -> el más pesado
+#        profile  el CV entero, ~8k chars, 1 por carga
+#        parse    ~500 tokens, 1 por búsqueda, y el usuario ESPERA
+#        audit    1-2 frases, corre justo después de parse — el usuario sigue esperando
+#
+#   2. Sobrecosto de razonamiento del modelo. Medido con el prompt REAL, contando
+#      cuántos tokens gasta antes de emitir el JSON útil:
+#
+#        mistral-small          25%   2.4s   <- el más eficiente
+#        cohere command-r-plus  35%  23.8s   <- eficiente pero lento
+#        gemini flash-lite      43%   2.1s   <- el más rápido
+#        openrouter nemotron    91%  66.8s   <- inservible como primario
+#        groq gpt-oss-120b      95%   3.5s   <- 742 tokens para producir 37 de JSON
+#
+# El eje 2 domina donde la tarea se repite o el usuario espera. Un modelo de razonamiento
+# paga su sobrecosto EN CADA LLAMADA, así que en extract (hasta 3 por corrida) se
+# multiplica, y en parse+audit el usuario lo siente como latencia.
+#
+# Asignación resultante, con las tolerancias de cada tarea:
+#   parse    -> mistral   el usuario espera; 25% de overhead y 2.4s es lo mejor que hay
+#   audit    -> gemini    corre pegado al parse; 2.1s es el más rápido
+#   extract  -> groq      corre en background, tolera 3.5s, y es el modelo más grande
+#   profile  -> cohere    23.8s es aceptable para una carga de CV manual con spinner
+#
+# NO se usan como primarios: cerebras devuelve 402 Payment Required (el free tier exige
+# pago) y sambanova está en 429. Los dos siguen en la cadena como respaldo — si se
+# recuperan, entran solos.
 #
 # La cadena COMPLETA sigue detrás de cada uno: esto cambia por dónde EMPIEZA, no qué
 # respaldo tiene. Un propósito cuyo primario cae recorre los otros seis igual que antes.
 #
 # Un nombre no configurado o sin key cae al orden por defecto sin romper nada.
 LLM_PRIMARY_BY_PURPOSE: dict = {
-    "extract": os.getenv("LLM_PRIMARY_EXTRACT", "cerebras"),
-    "profile": os.getenv("LLM_PRIMARY_PROFILE", "mistral"),
-    "parse":   os.getenv("LLM_PRIMARY_PARSE",   PRIMARY_LLM),
+    "parse":   os.getenv("LLM_PRIMARY_PARSE",   "mistral"),
     "audit":   os.getenv("LLM_PRIMARY_AUDIT",   "gemini"),
+    "extract": os.getenv("LLM_PRIMARY_EXTRACT", "groq"),
+    "profile": os.getenv("LLM_PRIMARY_PROFILE", "cohere"),
 }
 
 

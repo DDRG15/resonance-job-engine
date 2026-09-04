@@ -170,6 +170,26 @@ class _ProviderRateLimited(Exception):
 _cooldowns: dict[str, float] = {}
 
 
+# Destino de telemetría de la corrida en curso. Lo setea init_run del grafo del run y lo
+# limpia al cerrar.
+#
+# Es un global, y eso pide justificación. La alternativa era enhebrar (db, run_id) por
+# CADA call site que llega a la cadena LLM: cuatro entry points públicos, más el fallback
+# de extracción que baja por el scraper y un executor de por medio. Ese enhebrado se
+# olvida en un sitio y la telemetría queda incompleta sin avisar — que es exactamente el
+# defecto que dejó llm_calls en cero después de construir toda la Fase 4.
+#
+# Vive acá y no en el RuntimeContext porque nlp_engine no puede importar graph.runtime
+# sin cerrar un ciclo.
+_telemetry_sink: dict = {"db": None, "run_id": None}
+
+
+def set_telemetry_sink(db=None, run_id: Optional[str] = None) -> None:
+    """Conecta (o desconecta, con db=None) el destino de las filas de llm_calls."""
+    _telemetry_sink["db"] = db
+    _telemetry_sink["run_id"] = run_id
+
+
 def _is_cooling(name: str) -> bool:
     return _cooldowns.get(name, 0.0) > time.time()
 
@@ -327,7 +347,7 @@ def _call_groq(messages: list[dict]) -> LLMCallResult:
             model=config.GROQ_MODEL,
             messages=messages,
             temperature=0.0,
-            max_tokens=512,
+            max_tokens=config.LLM_MAX_TOKENS_JSON,
             response_format={"type": "json_object"},
         )
         return _result(
@@ -447,7 +467,7 @@ def _call_openrouter(messages: list[dict]) -> LLMCallResult:
                 "model": config.OPENROUTER_MODEL,
                 "messages": messages,
                 "temperature": 0.0,
-                "max_tokens": 1024,
+                "max_tokens": config.LLM_MAX_TOKENS_JSON,
             },
             timeout=30,
         )
@@ -491,7 +511,7 @@ def _call_cohere(messages: list[dict]) -> LLMCallResult:
             "model": config.COHERE_MODEL,
             "message": last_user_msg,
             "temperature": 0.0,
-            "max_tokens": 1024,
+            "max_tokens": config.LLM_MAX_TOKENS_JSON,
         }
         if system_msg:
             payload["preamble"] = system_msg
@@ -686,7 +706,7 @@ def _make_oai_json_caller(name: str):
     measured around the actual request and must survive the normalization."""
     @_backoff
     def _caller(messages: list[dict]) -> LLMCallResult:
-        call = _call_oai_raw(name, messages, temperature=0.0, max_tokens=1024)
+        call = _call_oai_raw(name, messages, temperature=0.0, max_tokens=config.LLM_MAX_TOKENS_JSON)
         return replace(call, text=json.dumps(_extract_json_from_text(call.text)))
     _caller.__name__ = f"_call_{name}"
     return _caller
@@ -883,8 +903,10 @@ def _run_chain(
         # Sin db, el subgrafo igual emite métricas al log — que es donde el watchdog
         # las lee. Persistir es aditivo: la Fase 6 pasa el db real cuando el grafo del
         # run tenga uno y un run_id con el que correlacionar.
-        db=db,
-        run_id=run_id,
+        # Si el call site no lo pasa, se usa el sink de la corrida en curso. Sin esto
+        # llm_calls quedaba VACIA: ningun call site del scraper enhebra el db.
+        db=db if db is not None else _telemetry_sink["db"],
+        run_id=run_id if run_id is not None else _telemetry_sink["run_id"],
     )
 
 
