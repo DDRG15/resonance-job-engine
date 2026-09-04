@@ -30,6 +30,43 @@ if %ERRORLEVEL% neq 0 (
 echo       Clean — no known CVEs.
 echo.
 
+REM ── Provider gate (v3) ────────────────────────────────────────────────────
+REM Una key valida no significa que el modelo pinneado exista. El 2026-09-01 GEMA
+REM shipeaba con llama-3.3-70b-versatile dado de baja: 404 en cada llamada, absorbido
+REM en silencio por el fallback, y el sistema corriendo permanentemente degradado sin
+REM que ninguna senal lo dijera. Un beta que sale asi le entrega al tester un sistema
+REM que "funciona" con dos de siete proveedores muertos.
+echo [0b/4] Provider gate: verificando keys y pines de modelo...
+python tools\check_provider_models.py
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: hay credenciales vencidas o modelos dados de baja.
+    echo        [KEY]  renovar la API key en .env
+    echo        [GONE] cambiar el pin en config.py — correr con --list para ver opciones
+    pause
+    exit /b 1
+)
+echo.
+
+REM ── Extraction quality gate (v3, opcional) ────────────────────────────────
+REM Corre solo si hay corpus. Pega a proveedores reales, asi que no esta en pytest:
+REM es lento, gasta cuota y no es determinista. Un cambio de prompt que mejora un
+REM board y rompe otros tres no se nota hasta la corrida siguiente — esto lo detecta
+REM antes de empaquetar.
+echo [0c/4] Extraction quality gate...
+python tools\eval_extraction.py --dry-run >nul 2>&1
+if %ERRORLEVEL% neq 0 (
+    echo       Sin corpus todavia — gate omitido. Ver tests\fixtures\extraction_corpus\README.md
+) else (
+    python tools\eval_extraction.py --gate
+    if %ERRORLEVEL% neq 0 (
+        echo ERROR: la calidad de extraccion empeoro respecto de la corrida previa.
+        echo        Revisar el detalle por caso en la tabla eval_results.
+        pause
+        exit /b 1
+    )
+)
+echo.
+
 REM ── Build Docker image ────────────────────────────────────────────────────
 echo [1/4] Building Docker image %IMAGE_NAME%...
 docker build -t %IMAGE_NAME% .
