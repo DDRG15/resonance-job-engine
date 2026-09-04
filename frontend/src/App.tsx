@@ -54,6 +54,16 @@ export default function App() {
     setTtlHours(status.ttl_hours)
   }
 
+  // Rehidratar los resultados al cargar. Sin esto, refrescar la pestaña borraba
+  // la vista de resultados aunque el server siguiera teniéndolos: `results` solo
+  // se llenaba al terminar un run en ESTA pestaña, así que /api/results quedaba
+  // servido y nadie lo pedía. Mismo patrón que el TTL — setState en render.
+  const [hidratado, setHidratado] = useState(false)
+  if (status?.has_results && !status.is_running && !hidratado && results === null) {
+    setHidratado(true)
+    void getResults().then(setResults)
+  }
+
   const refresh = () => void qc.invalidateQueries()
 
   function handleParsed(result: ParseResponse) {
