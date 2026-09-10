@@ -103,6 +103,10 @@ tests/fixtures/
 tests/test_migrations.py
 tools/*
 !tools/watchdog.py
+# Fase 0 del . La excepción va acá, junto a la regla que la causa:
+# `tools/*` hizo que un `git add` se saltara en silencio una herramienta nueva
+# cuatro veces distintas. Herramienta nueva en tools/ = línea nueva acá.
+!tools/probe_endpoints.py
 
 # Job search session results — scraped data with personal context
 
