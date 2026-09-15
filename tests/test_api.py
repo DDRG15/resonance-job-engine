@@ -349,7 +349,15 @@ class TestScrape:
             release.wait(timeout=10)
             return [], ScrapeRunSummary()
 
+        # Los DOS simbolos, igual que fake_scrape. Parchear solo el reexportado en
+        # run_manager no intercepta nada: el nodo `scrape` del grafo importa
+        # run_scrape_session desde `scraper` en tiempo de llamada. Sin esta linea el
+        # test corria Playwright de verdad contra himalayas y trueup —~90 s— y el
+        # gate quedaba tomado mas alla del deadline, tumbando los dos tests
+        # siguientes con 409. El comentario de fake_scrape ya advertia exactamente
+        # esto; este test se escribio antes y nunca se actualizo.
         monkeypatch.setattr(run_manager_module, "run_scrape_session", _blocking)
+        monkeypatch.setattr(scraper_module, "run_scrape_session", _blocking)
         _put_config(client)
         assert client.post("/api/scrape", json={}).status_code == 202
         assert client.post("/api/scrape", json={}).status_code == 409

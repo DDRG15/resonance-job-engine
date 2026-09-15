@@ -111,10 +111,21 @@ def test_old_probe_is_stale(tmp_path):
 # ── Seeding from selectors_registry domains ──────────────────────────────────
 
 def test_seed_creates_defaults_for_all_domains(tmp_path):
+    """Lo que `seed_from_domains` garantiza es que los dominios pedidos existan con
+    defaults seguros — no que sean los UNICOS del registry.
+
+    Desde la Fase 1 (2026-09-14) todo registry arranca con los boards de
+    `endpoint_registry` ya aplicados en memoria: esa config se commitea, mientras que
+    `board_strategy.json` es estado local gitignoreado. Exigir igualdad exacta acá
+    convertiria cada board de endpoint nuevo en un test roto, que es ruido y no señal.
+    """
     reg = BoardStrategyRegistry(tmp_path / "s.json")
     reg.seed_from_domains(["a.com", "b.com", "c.com"])
-    assert set(reg.all_domains()) == {"a.com", "b.com", "c.com"}
+    assert {"a.com", "b.com", "c.com"}.issubset(set(reg.all_domains()))
     assert reg.get("a.com").access_vector == AccessVector.DIRECT
+
+    import endpoint_registry
+    assert set(endpoint_registry.dominios()).issubset(set(reg.all_domains()))
 
 
 def test_seed_does_not_overwrite_existing(tmp_path):

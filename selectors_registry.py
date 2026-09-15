@@ -780,8 +780,23 @@ def active_domains() -> list[str]:
     Un board retirado (active=False) conserva su config para recuperación
     futura pero no se scrapea ni cuenta en la cobertura. Este es el listado
     que api.py/main.py usan para poblar target_domains.
+
+    Fase 1 (2026-09-14): a ese listado se suman los boards con endpoint público.
+    `active=False` significa «sus selectores CSS no sirven», que es exactamente el
+    caso de weworkremotely.com — retirado el 07-11 por HTTP 403 contra el navegador
+    y cuyo RSS devuelve 90 avisos en 484 ms. Un board leído por endpoint no usa
+    selectores, así que el flag que lo apagaba no aplica: dejarlo afuera sería
+    retirar un board por un motivo que ya no existe.
     """
-    return [k for k, sel in SELECTORS.items() if sel.active]
+    activos = [k for k, sel in SELECTORS.items() if sel.active]
+    try:
+        import endpoint_registry
+    except Exception:
+        return activos
+    for d in endpoint_registry.dominios():
+        if d not in activos:
+            activos.append(d)
+    return activos
 
 
 def is_selector_stale(sel: DomainSelectors, warn_after_days: int = 30) -> bool:

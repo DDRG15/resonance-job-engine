@@ -208,7 +208,12 @@ def _resolve_vector(current: AccessVector, probed: AccessVector) -> AccessVector
     """Upgrade-only vector resolution: the chromium probe may raise a board to a
     stronger vector, but must never downgrade a board already on camoufox/external
     to direct — the probe can't tell "chromium blocked but firefox works"."""
-    if (current in (AccessVector.CAMOUFOX, AccessVector.EXTERNAL_PROXY)
+    # ENDPOINT entra a la lista por la Fase 1: el probe usa un navegador y no puede
+    # saber nada util sobre un board que se lee con un GET. Hoy no lo ve —los boards
+    # de endpoint se apartan antes del probe— pero dejarlo fuera seria confiar en que
+    # ese orden no cambie nunca.
+    if (current in (AccessVector.ENDPOINT, AccessVector.CAMOUFOX,
+                    AccessVector.EXTERNAL_PROXY)
             and probed == AccessVector.DIRECT):
         return current
     return probed
@@ -1024,6 +1029,23 @@ class GemaScraper:
 
         all_domains = self.config.target_domains or ["himalayas.app", "trueup.io"]
 
+        # ── Fase 1 (2026-09-14): los boards de endpoint salen del camino del navegador ──
+        # Se apartan ANTES del probe y antes de lanzar Chromium. Probar con un browser
+        # un board que se lee con un GET es gastar 30s para confirmar algo irrelevante,
+        # y el semaforo de SCRAPER_CONCURRENCY existe para limitar pestañas: un GET no
+        # abre ninguna. Si TODOS los boards son de endpoint, el navegador ni se lanza.
+        endpoint_domains = [
+            d for d in all_domains
+            if self._strategy.get(d).access_vector == AccessVector.ENDPOINT
+        ]
+        if endpoint_domains:
+            all_domains = [d for d in all_domains if d not in endpoint_domains]
+            await self._scrape_endpoint_boards(endpoint_domains)
+
+        if not all_domains:
+            self._log("[BLITZ] Todos los boards se leyeron por endpoint — sin navegador.")
+            return await self._finalizar_run()
+
         # Pre-scrape board probe — classify protection type, skip hard-blocked domains
         # Runs only if board_probe is importable (graceful degradation if missing deps)
         domains = all_domains
@@ -1233,6 +1255,18 @@ class GemaScraper:
                 await context.close()
                 await browser.close()
 
+        return await self._finalizar_run()
+
+    async def _finalizar_run(self) -> tuple[list[JobResult], ScrapeRunSummary]:
+        """
+        Cierre comun de la corrida: webhook, contadores y log.
+
+        Extraido en la Fase 1 porque ahora hay DOS caminos que terminan una corrida:
+        el normal, despues del bloque del navegador, y el atajo de cuando todos los
+        boards se leyeron por endpoint y Chromium nunca se lanzo. Duplicar estas
+        doce lineas seria repetir el defecto que la migracion a LangGraph vino a
+        cerrar — dos orquestadores con la misma responsabilidad, drifteando.
+        """
         # Webhook: flush batch summary (no-op if < 2 Tier 1 hits)
         await self.webhook.flush_summary(self.summary)
 
@@ -1248,6 +1282,83 @@ class GemaScraper:
             f"Errors={len(self.summary.errors)}"
         )
         return self._all_jobs, self.summary
+
+    # =========================================================================
+    # Endpoint boards — ingesta sin navegador (Fase 1)
+    # =========================================================================
+
+    async def _scrape_endpoint_boards(self, domains: list[str]) -> None:
+        """
+        Lee los boards cuyo vector es ENDPOINT y los mete por el mismo embudo que
+        todo lo demas.
+
+        Gestiona su PROPIO _db_writer_task y lo drena con el centinela antes de
+        volver. Ese writer es el unico consumidor de la cola, y el bloque del
+        navegador arranca el suyo despues: dos writers secuenciales sobre una cola
+        vacia, nunca dos a la vez. Sin esto los avisos se encolarian y nadie los
+        escribiria — `_all_jobs` lo llena el writer, no el productor.
+
+        El fetch es sincrono (requests) y va a un hilo con run_in_executor: bloquear
+        el event loop 3 segundos por board dejaria sin correr al resto.
+        """
+        if not domains:
+            return
+
+        from matcher import title_is_relevant
+        import endpoint_scraper
+
+        loop = asyncio.get_running_loop()
+        writer_task = asyncio.create_task(self._db_writer_task())
+        try:
+            for domain in domains:
+                estrategia = self._strategy.get(domain)
+                if not estrategia.endpoint_template:
+                    self._log(f"[ENDPOINT] {domain} — sin endpoint_template, se saltea.")
+                    continue
+
+                def _relevante(titulo: str, _d=domain) -> bool:
+                    return title_is_relevant(titulo, self.config.target_titles,
+                                             self.profile)
+
+                try:
+                    res = await loop.run_in_executor(
+                        None,
+                        functools.partial(
+                            endpoint_scraper.scrape_endpoint,
+                            domain,
+                            endpoint_template=estrategia.endpoint_template,
+                            response_format=estrategia.response_format,
+                            field_map=estrategia.field_map,
+                            items_path=estrategia.items_path,
+                            titles=self.config.target_titles,
+                            crawl_delay_s=estrategia.crawl_delay_s,
+                            titulo_trae_empresa=estrategia.titulo_trae_empresa,
+                            es_relevante=_relevante,
+                            log=self._log,
+                        ),
+                    )
+                except Exception as exc:
+                    # Un board que explota reporta y sigue. Que un endpoint falle no
+                    # puede tumbar la corrida — seria una regresion contra el
+                    # comportamiento actual del fan-out.
+                    msg = f"{domain} endpoint: {type(exc).__name__}: {exc}"
+                    self._log(f"[ERROR] {msg}")
+                    self.summary.errors.append(msg)
+                    continue
+
+                if res.error:
+                    self.summary.errors.append(f"{domain}: {res.error}")
+                    # Un endpoint que dejo de responder es deriva, igual que un
+                    # selector CSS que dejo de matchear. El self-healing lo trata igual.
+                    self._strategy.update(domain, health=Health.DEGRADED)
+
+                if res.jobs:
+                    await self._ingest_external_jobs(res.jobs, domain)
+                    metrics.emit("endpoint_jobs", len(res.jobs), domain=domain)
+                metrics.emit("endpoint_latency_ms", res.ms, domain=domain)
+        finally:
+            await self._write_q.put(None)
+            await writer_task
 
     # =========================================================================
     # External Job Ingestion — dedup + write-queue bridge for non-Playwright sources

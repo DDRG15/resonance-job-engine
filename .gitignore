@@ -157,6 +157,21 @@ INVENTORY.md
 !docs/
 !docs/**
 
+# ──  vuelve a estar ignorado (2026-09-14) ──
+# `!docs/**` de arriba es una negación total: desactiva TODOS los patrones
+# anteriores dentro de docs/, incluidos  BETA_GUIDE.md,
+#  y las corridas  con data personal.
+# Mientras esos archivos vivían en la raíz no pasaba nada; al archivarlos bajo
+# docs/ quedaron visibles para git, que es lo contrario de lo que el comentario
+# de arriba declara ("los ~60 .md históricos siguen ignorados exactamente como
+# estaban"). Esta regla restaura esa invariante.
+#
+# El archivo existe para despejar el directorio de trabajo, no para publicar
+# historia: lo que estaba ignorado sigue ignorado, solo que ahora ordenado.
+# ` ya estaba trackeado antes de
+# esta regla y sigue estándolo — .gitignore no afecta lo ya trackeado.
+
+
 # El harness de eval y su corpus son código y datos de test, no scaffolding.
 # tools/* y tests/fixtures/ se ignoraron cuando eran andamiaje de Copilot que se
 # purgó (ver arriba); el corpus de la Fase 7 se cura a mano y perderlo cuesta

@@ -45,6 +45,10 @@ class Protection(str, Enum):
 
 class AccessVector(str, Enum):
     DIRECT = "direct"            # plain request, no anti-bot
+    # OJO: DIRECT significa "navegador sin evasion", NO "sin navegador". Abre una
+    # pestana de Chromium igual que CAMOUFOX. El unico vector que no lanza un
+    # navegador es ENDPOINT.
+    ENDPOINT = "endpoint"        # GET a un endpoint publico — CERO navegador (Fase 1)
     CAMOUFOX = "camoufox"        # Firefox fork — free Cloudflare bypass
     EXTERNAL_PROXY = "external_proxy"  # optional future slot, vendor-agnostic —
     # reserved for a hard-board vector GEMA does NOT yet use. No provider is
@@ -53,6 +57,7 @@ class AccessVector(str, Enum):
 
 class ExtractionMode(str, Enum):
     CSS = "css"                # selector extraction, 0 tokens (default)
+    STRUCTURED = "structured"  # campos nombrados de un endpoint — 0 tokens, 0 selectores
     LLM_FALLBACK = "llm_fallback"  # drift → LLM reads text (Phase 27)
 
 
@@ -77,6 +82,36 @@ class BoardStrategy(BaseModel):
     last_probed: Optional[float] = None                       # epoch seconds
     last_updated: float = Field(default_factory=lambda: time.time())
 
+    # ── Fase 1 (2026-09-11): ingesta por endpoint publico ────────────────────
+    # Solo se leen cuando access_vector == ENDPOINT. Un board que no lo use queda
+    # exactamente como estaba: los defaults son inertes.
+    endpoint_template: Optional[str] = None
+    """URL del endpoint. Con `{title}` se pide una vez por titulo buscado; sin
+    `{title}` es un feed fijo y se pide una sola vez (remoteok.com/api no acepta
+    busqueda: devuelve los ultimos avisos y el filtrado pasa del lado de GEMA)."""
+
+    response_format: str = "json"
+    """`json` o `rss`. Determina el parser, no el Content-Type que declare el server —
+    hay feeds servidos como text/html que son XML perfectamente valido."""
+
+    items_path: str = ""
+    """Donde vive la lista dentro del JSON, con puntos (`"data.jobs"`). Vacio deja que
+    el parser pruebe las formas conocidas: lista suelta, `jobs`, `results`, `postings`."""
+
+    field_map: dict = Field(default_factory=dict)
+    """Campo de JobResult -> path en la respuesta. El limite es deliberado (riesgo R2
+    del plan): mapeo plano y `path` con puntos, nada mas. Cualquier transformacion real
+    va en codigo — un formato declarativo sin techo termina siendo un lenguaje."""
+
+    crawl_delay_s: float = 0.0
+    """Segundos entre pedidos, declarados por el robots.txt del sitio. api.lever.co
+    pide 1. Es un limite, no una sugerencia."""
+
+    titulo_trae_empresa: bool = False
+    """El feed mete la empresa en el titulo (`"Reddit: Backend Engineer"`) porque no
+    tiene campo propio. Medido en weworkremotely.com: 87 de 87 items. Transformacion
+    con nombre, activada por un booleano — el `field_map` mapea, el codigo transforma."""
+
     def is_stale(self, ttl_seconds: float) -> bool:
         """True if the strategy was never probed or its last probe is older
         than ttl. Phase 28/29 use this to decide when to re-probe a board."""
@@ -100,6 +135,37 @@ class BoardStrategyRegistry:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             for domain, data in raw.items():
                 self._strategies[domain] = BoardStrategy.model_validate(data)
+        self._aplicar_endpoints()
+
+    def _aplicar_endpoints(self) -> None:
+        """
+        Aplica las definiciones de `endpoint_registry` EN MEMORIA, sin escribir disco.
+
+        La division es deliberada: `board_strategy.json` es estado local —salud,
+        ultimo probe— y esta gitignoreado, asi que se pierde al clonar. Que un board
+        exponga una API publica no es estado de una maquina: es conocimiento del
+        proyecto, y vive en un archivo commiteado. Si viviera solo en el JSON, un clon
+        limpio volveria a abrir Chromium para leer un endpoint que ya sabemos que existe.
+
+        Pisa el `access_vector` guardado a proposito. El JSON puede decir `direct`
+        porque se escribio antes de que el board tuviera endpoint; el registro
+        commiteado es la fuente de verdad sobre la capacidad. La salud y el ultimo
+        probe se conservan.
+
+        No escribe: un `_load` que persiste convierte cada arranque en una escritura.
+        """
+        try:
+            import endpoint_registry
+        except Exception:      # el modulo es opcional: sin el, todo sigue como antes
+            return
+        for domain, cfg in endpoint_registry.ENDPOINTS.items():
+            strat = self._strategies.get(domain) or BoardStrategy(domain=domain)
+            strat.access_vector = AccessVector.ENDPOINT
+            strat.extraction_mode = ExtractionMode.STRUCTURED
+            for campo, valor in cfg.items():
+                if campo in BoardStrategy.model_fields:
+                    setattr(strat, campo, valor)
+            self._strategies[domain] = strat
 
     def _save(self) -> None:
         data = {
