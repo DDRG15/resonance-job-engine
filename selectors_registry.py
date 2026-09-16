@@ -796,6 +796,16 @@ def active_domains() -> list[str]:
     for d in endpoint_registry.dominios():
         if d not in activos:
             activos.append(d)
+    # Fase 2: las plataformas ATS entran como pseudo-dominios. No son un sitio que se
+    # raspe —son N tableros de empresa detras de una API— pero llegar por la misma
+    # puerta que el resto evita un segundo camino de configuracion que driftee.
+    try:
+        import ats_registry
+        for d in ats_registry.dominios():
+            if d not in activos:
+                activos.append(d)
+    except Exception:
+        pass
     return activos
 
 

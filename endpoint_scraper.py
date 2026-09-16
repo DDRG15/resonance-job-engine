@@ -270,7 +270,8 @@ def _partir_prefijo_empresa(titulo: str) -> tuple[str, str]:
 
 def a_job_result(fila: dict, fm: dict, dominio: str,
                  url_base: str = "",
-                 titulo_trae_empresa: bool = False) -> Optional[JobResult]:
+                 titulo_trae_empresa: bool = False,
+                 defaults: Optional[dict] = None) -> Optional[JobResult]:
     """
     Una fila cruda a `JobResult`, o `None` si no se puede sostener.
 
@@ -299,10 +300,17 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     if not urlparse(url).netloc:
         return None
 
+    # `defaults` rellena lo que la fuente no trae en el payload. Lever y Ashby no
+    # devuelven el nombre de la empresa —el tablero ES de una empresa, asi que para
+    # ellos es contexto, no dato—, y sin esto los 1853 avisos de Lever entrarian al
+    # registry como "(empresa no listada)". No pisa lo que si vino: un default que
+    # gana sobre el dato real seria peor que no tenerlo.
+    dfl = defaults or {}
     empresa = _texto(_por_path(fila, fm["company"])) if fm.get("company") else ""
-    empresa = empresa or empresa_del_titulo
+    empresa = empresa or empresa_del_titulo or _texto(dfl.get("company"))
 
     ubicacion = _texto(_por_path(fila, fm["location"])) if fm.get("location") else ""
+    ubicacion = ubicacion or _texto(dfl.get("location"))
 
     return JobResult(
         title=titulo,
@@ -340,6 +348,7 @@ def scrape_endpoint(
     titles: Optional[list[str]] = None,
     crawl_delay_s: float = 0.0,
     titulo_trae_empresa: bool = False,
+    defaults: Optional[dict] = None,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
     sesion: Optional[requests.Session] = None,
@@ -389,7 +398,8 @@ def scrape_endpoint(
 
         for fila in filas:
             job = a_job_result(fila, fm, dominio, url_base=url,
-                               titulo_trae_empresa=titulo_trae_empresa)
+                               titulo_trae_empresa=titulo_trae_empresa,
+                               defaults=defaults)
             if job is None:
                 res.descartados_invalidos += 1
                 continue

@@ -50,7 +50,14 @@ def _scraper():
 
 
 def _run(coro):
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """asyncio.run(), no get_event_loop().
+
+    En Python 3.12 `get_event_loop()` ya no crea un loop cuando no hay uno corriendo:
+    lanza RuntimeError. Funcionaba por accidente —algun test anterior dejaba un loop
+    abierto— hasta que la Fase 2 agrego tests que usan asyncio.run() y lo cierran al
+    salir. El orden de los tests no deberia decidir si este pasa.
+    """
+    return asyncio.run(coro)
 
 
 BUILTIN = sr.SELECTORS["builtin.com"]

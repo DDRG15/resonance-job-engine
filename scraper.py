@@ -1042,6 +1042,15 @@ class GemaScraper:
             all_domains = [d for d in all_domains if d not in endpoint_domains]
             await self._scrape_endpoint_boards(endpoint_domains)
 
+        # ── Fase 2: los tableros de empresa de Greenhouse, Lever y Ashby ──
+        # Un ATS no es un board mas: sirve el tablero completo de UNA empresa por
+        # token, y el mismo patron se repite por cada empresa que use la plataforma.
+        # Por eso no entra por target_domains sino por su propio registro.
+        ats_dominios = self._ats_dominios_pedidos(all_domains)
+        if ats_dominios:
+            all_domains = [d for d in all_domains if d not in ats_dominios]
+            await self._scrape_ats_sources()
+
         if not all_domains:
             self._log("[BLITZ] Todos los boards se leyeron por endpoint — sin navegador.")
             return await self._finalizar_run()
@@ -1282,6 +1291,71 @@ class GemaScraper:
             f"Errors={len(self.summary.errors)}"
         )
         return self._all_jobs, self.summary
+
+    # =========================================================================
+    # Fuentes ATS — tableros de empresa (Fase 2)
+    # =========================================================================
+
+    @staticmethod
+    def _ats_dominios_pedidos(domains: list[str]) -> list[str]:
+        """Los pseudo-dominios de plataforma ATS presentes en target_domains.
+
+        `active_domains()` los incluye, asi que llegan aca como cualquier otro board.
+        Se apartan para que no entren al probe ni al fan-out: no son un sitio que se
+        raspe, son una plataforma con N tableros adentro.
+        """
+        try:
+            import ats_registry
+        except Exception:
+            return []
+        conocidos = set(ats_registry.dominios())
+        return [d for d in domains if d in conocidos]
+
+    async def _scrape_ats_sources(self) -> None:
+        """
+        Trae las fuentes ATS activas y las mete por el mismo embudo que todo lo demas.
+
+        Gestiona su propio _db_writer_task, igual que `_scrape_endpoint_boards` y por
+        la misma razon: el writer es el unico que llena `_all_jobs`, asi que sin uno
+        corriendo los avisos se encolan y nadie los escribe.
+        """
+        try:
+            import ats_registry
+            import ats_scraper
+        except Exception as exc:
+            logger.debug("[ATS] modulo ausente, se omite: %s", exc)
+            return
+
+        fuentes = ats_registry.activas()
+        if not fuentes:
+            return
+
+        from matcher import title_is_relevant
+
+        def _relevante(titulo: str) -> bool:
+            return title_is_relevant(titulo, self.config.target_titles, self.profile)
+
+        self._log(f"[ATS] {len(fuentes)} fuentes activas "
+                  f"({len({f.plataforma for f in fuentes})} plataformas).")
+
+        writer_task = asyncio.create_task(self._db_writer_task())
+        try:
+            resultados = await ats_scraper.traer_todo(
+                fuentes, titles=self.config.target_titles,
+                es_relevante=_relevante, log=self._log,
+            )
+            for r in resultados:
+                dominio = ats_registry.dominio_de(r.fuente.plataforma)
+                if r.error:
+                    self.summary.errors.append(f"{r.etiqueta}: {r.error}")
+                if r.jobs:
+                    await self._ingest_external_jobs(r.jobs, dominio)
+                    metrics.emit("ats_jobs", len(r.jobs),
+                                 plataforma=r.fuente.plataforma, token=r.fuente.token)
+                metrics.emit("ats_latency_ms", r.ms, plataforma=r.fuente.plataforma)
+        finally:
+            await self._write_q.put(None)
+            await writer_task
 
     # =========================================================================
     # Endpoint boards — ingesta sin navegador (Fase 1)

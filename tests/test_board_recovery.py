@@ -63,7 +63,18 @@ class TestActiveDomains:
             assert live in active
 
     def test_active_is_subset_of_all(self):
-        assert set(sr.active_domains()).issubset(set(sr.SELECTORS.keys()))
+        """Todo board con selectores que este activo tiene que estar en SELECTORS.
+
+        Desde las Fases 1 y 2, `active_domains()` suma dos clases que NO tienen
+        selectores y por definicion no estan en SELECTORS: los boards leidos por
+        endpoint publico y los pseudo-dominios de plataforma ATS. Exigir subconjunto
+        estricto ahora seria exigir que un board tenga selectores CSS para poder
+        leerse sin navegador, que es exactamente lo contrario de lo que se construyo.
+        """
+        import endpoint_registry
+        import ats_registry
+        sin_selectores = set(endpoint_registry.dominios()) | set(ats_registry.dominios())
+        assert set(sr.active_domains()) - sin_selectores <= set(sr.SELECTORS.keys())
 
 
 class TestZeroCardsVerdict:
