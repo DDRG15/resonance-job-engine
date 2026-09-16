@@ -312,6 +312,8 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     ubicacion = _texto(_por_path(fila, fm["location"])) if fm.get("location") else ""
     ubicacion = ubicacion or _texto(dfl.get("location"))
 
+    fecha_limite = _texto(_por_path(fila, fm["deadline"])) if fm.get("deadline") else ""
+
     return JobResult(
         title=titulo,
         company=empresa or "(empresa no listada)",
@@ -320,6 +322,7 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
         location_raw=ubicacion or None,
         source_domain=dominio,
         scraped_at=datetime.now(timezone.utc),
+        deadline=fecha_limite or None,
     )
 
 

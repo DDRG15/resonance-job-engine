@@ -50,6 +50,9 @@ PLATAFORMAS: dict[str, Plataforma] = {
             "company": "company_name",
             "url": "absolute_url",
             "location": "location.name",
+            # Viene como clave en cada aviso. No siempre tiene valor -- depende de si
+            # la empresa la cargo -- pero cuando lo tiene es una fecha real.
+            "deadline": "application_deadline",
         },
     ),
 

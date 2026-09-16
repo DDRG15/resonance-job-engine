@@ -95,6 +95,26 @@ def init_run(state: RunState, config: RunnableConfig) -> dict:
             nlp_engine.set_telemetry_sink(ctx.db, run_id)
         except Exception:
             pass
+
+        # Fase 6: barrido de vencidos. Cuesta una lectura y una escritura — compara
+        # fechas ya guardadas contra hoy, sin tocar la red — asi que corre en cada
+        # arranque sin pensarlo. Un barrido que refetchea es un barrido que nadie
+        # corre seguido, y uno que no corre seguido no sirve: el registry llego a
+        # tener 1.040 filas de mas de 60 dias tratadas como si estuvieran vivas.
+        #
+        # Envuelto porque es higiene, no la corrida: que el barrido falle no puede
+        # impedir que se scrapee.
+        try:
+            barrido = ctx.db.barrer_vencidos()
+            if barrido["vencidos"] or barrido["cierran_pronto"]:
+                ctx.emit(f"[BARRIDO] {barrido['vencidos']} vencidos, "
+                         f"{barrido['cierran_pronto']} cierran en 7 dias.")
+        except Exception as exc:
+            # ctx.emit y no logger: este modulo no tiene uno, y un `logger` inexistente
+            # adentro de un except convierte cualquier fallo del barrido en un NameError
+            # que tapa la causa real. Ademas esto va al stream que mira el humano, que es
+            # donde corresponde avisar que la higiene no corrio.
+            ctx.emit(f"[BARRIDO] no corrio ({type(exc).__name__}) — la corrida sigue.")
         ctx.emit(f"[GEMA] Run {run_id[:8]} ({trigger}) starting.")
 
     return {"run_id": run_id, "trigger": trigger, "status": "running",

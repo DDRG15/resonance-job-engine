@@ -161,6 +161,16 @@ class JobResult(BaseModel):
                     "None if not extracted by the board's selector.",
     )
     source_domain: str = Field(..., description="The job board domain this was scraped from.")
+    deadline: Optional[str] = Field(
+        default=None,
+        description=(
+            "Fecha limite de postulacion, tal como la publica la fuente. Greenhouse la "
+            "entrega en `application_deadline` y el RSS de WeWorkRemotely en `expires_at` "
+            "-- 90 de 90 items. Se guarda CRUDA y se normaliza al leerla: los formatos "
+            "varian por fuente y reescribir el original pierde la unica evidencia de que "
+            "formato hablaba esa fuente el dia que se scrapeo."
+        ),
+    )
     scraped_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="UTC timestamp of extraction.",

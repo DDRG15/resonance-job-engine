@@ -57,6 +57,9 @@ ENDPOINTS: dict[str, dict] = {
             "title": "title",
             "url": "link",
             "location": "region",
+            # 90 de 90 items lo traen. Es una de las dos fuentes de deadline que
+            # existen hoy, y llego gratis con un board que estaba dado por perdido.
+            "deadline": "expires_at",
         },
     },
 }

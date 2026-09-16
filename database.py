@@ -329,6 +329,15 @@ class GemaDatabase:
                 # saberlo mirando la fila, y comparar dos números incomparables es
                 # peor que no tener ninguno.
                 ("score_version", "ALTER TABLE seen_jobs_registry ADD COLUMN score_version TEXT"),
+
+                # ── Fase 6 (2026-09-16): fecha limite y barrido de vencidos ──
+                # 1.040 de 1.574 filas (66%) tienen mas de 60 dias y se tratan como si
+                # estuvieran vivas. `deadline` guarda lo que la fuente publica; `expired_at`
+                # guarda cuando el barrido la dio por vencida. Dos columnas y no un booleano:
+                # "vencio" y "cuando me entere" son datos distintos, y el segundo es el que
+                # permite auditar el barrido.
+                ("deadline",   "ALTER TABLE seen_jobs_registry ADD COLUMN deadline TEXT"),
+                ("expired_at", "ALTER TABLE seen_jobs_registry ADD COLUMN expired_at TEXT"),
             ):
                 try:
                     conn.execute(mig_sql)
@@ -549,14 +558,16 @@ class GemaDatabase:
                 j.url, j.title, j.company,
                 j.source_domain, j.scraped_at.isoformat(),
                 j.location_raw, j.salary_raw,
+                getattr(j, "deadline", None),
             )
             for j in jobs
         ]
         with _get_connection(self.db_path) as conn:
             conn.executemany(
                 """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (job_hash, url, title, company, source_domain, scraped_at,
+                    location_raw, salary_raw, deadline)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
         logger.info("Batch-registered %d jobs.", len(records))
@@ -750,6 +761,101 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             rows = conn.execute(query, params).fetchall()
         return [dict(r) for r in rows]
+
+    # =========================================================================
+    # Fase 6 — Barrido de vencidos
+    # =========================================================================
+
+    @staticmethod
+    def _a_fecha(texto) -> Optional[str]:
+        """Una fecha cruda de cualquier fuente a `YYYY-MM-DD`, o None.
+
+        Los formatos varían por fuente y no hay un estándar: Greenhouse manda ISO,
+        el RSS de WeWorkRemotely manda RFC-2822 (`Fri, 09 Oct 2026 15:41:42 +0000`).
+        Por eso `deadline` se guarda CRUDO y se normaliza al leerlo — reescribir el
+        original perdería la única evidencia de qué formato hablaba esa fuente el día
+        que se scrapeó, que es justo lo que hace falta cuando la fuente lo cambia.
+
+        Devuelve None ante cualquier cosa que no entienda. Una fecha mal parseada que
+        se toma por buena vence avisos vivos, y eso es peor que no barrer nada.
+        """
+        if not texto:
+            return None
+        s = str(texto).strip()
+        try:                                   # ISO: 2026-10-09, 2026-10-09T15:41:42Z
+            return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
+        except Exception:
+            pass
+        try:                                   # RFC-2822: Fri, 09 Oct 2026 15:41:42 +0000
+            from email.utils import parsedate_to_datetime
+            return parsedate_to_datetime(s).date().isoformat()
+        except Exception:
+            return None
+
+    def barrer_vencidos(self) -> dict:
+        """Marca como vencidos los avisos cuya fecha límite ya pasó.
+
+        **No hace ninguna llamada de red.** Compara fechas ya guardadas contra hoy, así
+        que cuesta una lectura y una escritura, y puede correr en cada arranque sin
+        pensarlo. Un barrido que refetchea es un barrido que nadie va a correr seguido,
+        y uno que no corre seguido no sirve: el registry tiene 1.040 filas de más de
+        60 días tratadas como si estuvieran vivas.
+
+        Devuelve `{"vencidos": n, "cierran_pronto": n, "sin_fecha": n}`.
+        """
+        hoy = datetime.now(timezone.utc).date()
+        en_7 = (hoy + timedelta(days=7)).isoformat()
+        hoy_iso = hoy.isoformat()
+
+        vencidos, cierran, sin_fecha = [], 0, 0
+        with _get_connection(self.db_path) as conn:
+            filas = conn.execute(
+                "SELECT job_hash, deadline FROM seen_jobs_registry "
+                "WHERE deadline IS NOT NULL AND expired_at IS NULL"
+            ).fetchall()
+            for f in filas:
+                fecha = self._a_fecha(f["deadline"])
+                if fecha is None:
+                    sin_fecha += 1
+                    continue
+                if fecha < hoy_iso:
+                    vencidos.append((f["job_hash"],))
+                elif fecha <= en_7:
+                    cierran += 1
+            if vencidos:
+                ahora = _now_iso()
+                conn.executemany(
+                    "UPDATE seen_jobs_registry SET expired_at=? WHERE job_hash=?",
+                    [(ahora, h) for (h,) in vencidos],
+                )
+
+        resultado = {"vencidos": len(vencidos), "cierran_pronto": cierran,
+                     "sin_fecha": sin_fecha}
+        if vencidos or sin_fecha:
+            logger.info("[BARRIDO] %s", resultado)
+        return resultado
+
+    def cierran_pronto(self, dias: int = 7, limit: int = 50) -> list[dict]:
+        """Avisos vivos cuya fecha límite cae dentro de N días, los más urgentes
+        primero. Es lo que convierte una lista de avisos en una lista de prioridades."""
+        hoy = datetime.now(timezone.utc).date()
+        with _get_connection(self.db_path) as conn:
+            filas = conn.execute(
+                "SELECT * FROM seen_jobs_registry "
+                "WHERE deadline IS NOT NULL AND expired_at IS NULL"
+            ).fetchall()
+        salida = []
+        for f in filas:
+            fecha = self._a_fecha(f["deadline"])
+            if not fecha:
+                continue
+            restan = (datetime.fromisoformat(fecha).date() - hoy).days
+            if 0 <= restan <= dias:
+                d = dict(f)
+                d["dias_restantes"] = restan
+                salida.append(d)
+        salida.sort(key=lambda d: d["dias_restantes"])
+        return salida[:limit]
 
     def get_registry_stats(self) -> dict:
         with _get_connection(self.db_path) as conn:
