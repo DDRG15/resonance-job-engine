@@ -542,13 +542,47 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     all_match.extend(tm + sm + im + em + km + lm)
     all_miss.extend(tn + sn + in_ + en + kn + ln)
 
-    # Fase 3: `loc_delta` ya NO se suma. El score mide ajuste; la elegibilidad vive
-    # en location_verdict. Sumarla mezclaba dos preguntas distintas en un numero, y
-    # despues no habia forma de separarlas.
-    raw_score   = title_score + salary_score + include_score + excl_delta + skill_score
-    # Cap at 115: the 15-pt skill bonus can push a strong Tier 2 into Tier 1
-    # without disturbing the existing Tier 1 threshold (80 pts).
-    final_score = max(0, min(115, raw_score))
+    # El eje de salario solo participa si hay ambas puntas: un mínimo pedido y un
+    # sueldo publicado que se pueda leer. Sin filtro, `_score_salary` daba 25 de 25
+    # a todo el mundo; sin sueldo publicado, daba 12 fijos. Las dos son constantes
+    # que inflan el promedio sin decir nada del calce.
+    salary_aplica = (search_config.min_salary is not None
+                     and job.parse_salary_usd() is not None)
+
+    # ── Fase 4: dimensiones ponderadas que se RENORMALIZAN ───────────────────
+    #
+    # El presupuesto absoluto de 100 puntos tenía un eje muerto. `_score_salary`
+    # devolvía 12 puntos fijos cuando el salario no estaba publicado: sobre el
+    # registry histórico eso era el 99,5% de las filas, y sobre la corrida del 04-09
+    # contra workingnomads el 62%. Un eje que le da la misma nota a casi todos no
+    # discrimina — es una constante disfrazada de dimensión. El efecto medible: la
+    # escala de 100 nunca pasaba de 90 y la masa se apilaba entre 40 y 60.
+    #
+    # Ahora una dimensión sin dato **no participa**, y el peso se reparte entre las
+    # que sí lo tienen. Un aviso sin salario se puntúa sobre las tres restantes y su
+    # resultado es comparable con uno que sí lo trae. Antes no lo era: uno arrastraba
+    # una constante y el otro un número real.
+    #
+    # Los pesos conservan la proporción vieja (50/25/15/10). Lo que cambia es la
+    # renormalización, no el criterio — mezclar las dos cosas volvería imposible
+    # atribuir cualquier corrimiento de puntajes.
+    dimensiones = [
+        ("titulo",   0.50, title_score,           50, True),
+        ("salario",  0.25, salary_score,          25, salary_aplica),
+        ("incluye",  0.15, include_score,         15, bool(search_config.must_include)),
+        ("excluye",  0.10, excl_delta + 10,       20, bool(search_config.must_exclude)),
+    ]
+    peso_total = sum(w for _, w, _, _, aplica in dimensiones if aplica)
+    if peso_total <= 0:
+        base = 0.0
+    else:
+        base = sum(w * (s / techo) for _, w, s, techo, aplica in dimensiones
+                   if aplica) / peso_total * 100
+
+    # El bono de perfil sigue siendo aditivo y fuera de la normalización: es un
+    # extra sobre el calce, no una quinta dimensión del calce. El techo de 115 y el
+    # umbral de Tier 1 en 80 quedan como estaban.
+    final_score = max(0, min(115, int(round(base)) + skill_score))
     tier        = _assign_tier(final_score)
 
     logger.debug(

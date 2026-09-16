@@ -79,6 +79,23 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 # Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
+# ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────
+# Los cinco Tier 4 de la corrida del 2026-09-04 tenian salario NUMERICO -- GBP 75k-90k,
+# EUR 72k-82k, EUR 95k-115k -- y caian a revision manual porque el parser solo entendia
+# $ y "usd". Tier 4 no estaba capturando "salario en prosa": estaba capturando Europa.
+#
+# La fecha no es decorativa. Una tasa de cambio sin fecha es un numero que va a estar
+# mal y nadie va a saber desde cuando. Si pasa de TASAS_MAX_DIAS, el matcher emite un
+# warning que el watchdog ya sabe clasificar -- no deja de convertir, avisa.
+TASAS_A_USD_FECHA: str = os.getenv("TASAS_A_USD_FECHA", "2026-09-15")
+TASAS_A_USD: dict = {
+    "usd": 1.0,
+    "eur": float(os.getenv("TASA_EUR_USD", "1.08")),
+    "gbp": float(os.getenv("TASA_GBP_USD", "1.27")),
+}
+TASAS_MAX_DIAS: int = int(os.getenv("TASAS_MAX_DIAS", "90"))
+
+
 # ── Fase 3 (2026-09-15): gate de idioma ──────────────────────────────────────
 # Los idiomas en los que podes trabajar. Un aviso que exige uno que no esta aca
 # recibe veredicto FAIL y sale del shortlist; uno que exige uno que si esta pero a

@@ -200,12 +200,21 @@ class TestTierBoundaries:
         assert _assign_tier(50) == "Tier 2"
         assert _assign_tier(49) == "Tier 3"
 
-    def test_perfect_title_match_no_location_scores_90(self):
-        # Exact title match=50, no salary filter=25, must_include empty=15,
-        # excl empty=0, no skill=0, location neutral=0 → raw=90 → Tier 1
+    def test_calce_perfecto_de_titulo_llega_al_techo(self):
+        """Fase 4: con dimensiones renormalizadas, un calce perfecto llega a 100.
+
+        Antes daba 90 y no por mérito: `_CFG` no tiene filtro de salario ni
+        must_include, así que esos ejes regalaban 25 y 15 puntos fijos a todo el
+        mundo, y el techo real de la escala nunca se tocaba. Ahora las dimensiones
+        sin dato no participan y el peso se reparte entre las que sí — con solo el
+        título aplicando, un calce exacto vale el 100% de lo que hay para dar.
+
+        Que el techo sea alcanzable es el punto: una escala de 100 cuyo máximo
+        observado era 90 sobre 1.399 filas no estaba midiendo hasta arriba.
+        """
         j = _job(title="Python Engineer", location=None, n=42)
         tiered = score_job(j, _CFG)
-        assert tiered.match_score == 90
+        assert tiered.match_score == 100
         assert tiered.tier == "Tier 1"
 
 

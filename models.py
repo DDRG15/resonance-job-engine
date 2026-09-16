@@ -212,30 +212,53 @@ class JobResult(BaseModel):
 
         import re
         # Input is lowercased so the usd\b branch matches 'USD', 'usd', 'Usd'.
-        # Dollar signs are not affected by lower().
+        # Currency symbols are not affected by lower().
         raw = self.salary_raw.lower()
 
+        # Fase 4 (2026-09-15): libras y euros, no solo dólares.
+        #
+        # Los CINCO Tier 4 de la corrida del 2026-09-04 tenían salario numérico
+        # —£75k-£90k, €72k-€82k, €95k-€115k— y caían a revisión manual porque el
+        # parser solo entendía `$` y `usd`. Tier 4 no estaba capturando "salario en
+        # prosa": estaba capturando Europa. Cada aviso europeo con sueldo publicado
+        # se saltaba el gate de salario entero y terminaba en la pila manual.
+        #
+        # El anclaje se mantiene igual de estricto: hace falta un símbolo o un código
+        # de moneda. Sin eso, "401k match" volvería a parsear como 401.000 — que es
+        # el bug que estas dos rutas ancladas existen para prevenir.
         matches = re.findall(
-            r'(?:\$)\s*(\d{2,3}(?:,\d{3})*(?:\.\d+)?)\s*(k)?'
+            r'([$£€])\s*(\d{2,3}(?:,\d{3})*(?:\.\d+)?)\s*(k)?'
             r'|'
-            r'(\d{2,3}(?:\.\d+)?)\s*(k)?\s*(?:usd\b)',
+            r'(\d{2,3}(?:\.\d+)?)\s*(k)?\s*(usd|eur|gbp)\b',
             raw,
         )
         if not matches:
             return None
 
+        _SIMBOLO = {"$": "usd", "£": "gbp", "€": "eur"}
+        # Import diferido: config importa models en algunos caminos, y un import
+        # de módulo acá arriba cerraría el ciclo.
+        try:
+            import config as _cfg
+            tasas = getattr(_cfg, "TASAS_A_USD", None) or {"usd": 1.0}
+        except Exception:
+            tasas = {"usd": 1.0}
+
         values = []
-        for dollar_num, dollar_k, usd_num, usd_k in matches:
-            # Determine which alternation arm fired
-            num_str = dollar_num if dollar_num else usd_num
-            suffix  = (dollar_k  if dollar_num else usd_k).lower()
-            if not num_str:
+        for simbolo, sym_num, sym_k, cod_num, cod_k, codigo in matches:
+            if sym_num:
+                num_str, suffix, moneda = sym_num, sym_k, _SIMBOLO.get(simbolo, "usd")
+            elif cod_num:
+                num_str, suffix, moneda = cod_num, cod_k, codigo
+            else:
                 continue
             try:
                 val = float(num_str.replace(",", ""))
-                if suffix == "k":
+                if (suffix or "").lower() == "k":
                     val *= 1000
-                values.append(int(val))
+                # A USD, que es la moneda en la que está escrito `min_salary`.
+                # Convertir acá y no en el gate mantiene una sola unidad aguas abajo.
+                values.append(int(val * tasas.get(moneda, 1.0)))
             except ValueError:
                 continue
 
