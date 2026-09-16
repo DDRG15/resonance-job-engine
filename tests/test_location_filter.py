@@ -156,35 +156,36 @@ class TestLocationInScoreJob:
         assert any("open" in r.lower() or "anywhere" in r.lower()
                    for r in tiered.match_reasons)
 
-    def test_clearance_forces_tier3_bypassing_tier4(self):
-        # Even if salary_raw is non-numeric text (which would normally trigger Tier 4),
-        # a hard location block must route to Tier 3, not Tier 4.
+    def test_clearance_marca_el_veredicto_sin_secuestrar_el_tier(self):
+        """Fase 3: el bloqueo duro dejo de competir con el bypass de Tier 4 por
+        decidir el tier. Son dos ejes: el tier lo decide el salario y el ajuste, la
+        elegibilidad la decide el veredicto. Y el puntaje sobrevive."""
         j = _job(salary="security clearance required — non-numeric text", url_suffix="gov")
         tiered = score_job(j, _CFG)
-        assert tiered.tier == "Tier 3"
-        assert tiered.match_score == 0
+        assert tiered.location_verdict == "FAIL"
+        assert tiered.elegible is False
+        assert tiered.tier == "Tier 4"
 
-    def test_us_only_explicit_downgrades_score(self):
-        # location_raw="us only" triggers -20 penalty in the mathematical path.
-        # Base (no salary/filter): 50+25+15+10 = 100. With -20: 80 → still Tier 1 threshold,
-        # but score is lower than without restriction.
-        j_open    = _job(location="Anywhere", url_suffix="open")
-        j_usonly  = _job(location="us only", url_suffix="usonly")
-        t_open   = score_job(j_open, _CFG)
-        t_usonly = score_job(j_usonly, _CFG)
-        # Restricted job scores lower than open-anywhere job
-        assert t_usonly.match_score < t_open.match_score
+    def test_us_only_no_baja_el_puntaje_pero_da_FAIL(self):
+        """El puesto calza igual de bien; lo que cambia es que no podes postular.
+        Mezclarlo en el numero borraba la diferencia entre "no me sirve" y "no puedo",
+        y esa diferencia es la que hace falta para saber que se perdio y por que."""
+        t_open   = score_job(_job(location="Anywhere", url_suffix="open"), _CFG)
+        t_usonly = score_job(_job(location="us only", url_suffix="usonly"), _CFG)
+        assert t_usonly.match_score == t_open.match_score
+        assert t_open.location_verdict == "PASS"
+        assert t_usonly.location_verdict == "FAIL"
         assert any("restricted" in r.lower() for r in t_usonly.miss_reasons)
 
-    def test_usa_now_soft_restricted_vs_no_location(self):
-        # New policy (AUDIT #2): bare USA is a soft restriction, so it scores
-        # exactly 10 below a job with no location signal.
-        j_no_loc = _job(location=None, url_suffix="noloc")
-        j_usa    = _job(location="USA", url_suffix="usa")
-        t_no_loc = score_job(j_no_loc, _CFG)
-        t_usa    = score_job(j_usa, _CFG)
-        assert t_usa.match_score < t_no_loc.match_score
-        assert t_no_loc.match_score - t_usa.match_score == 10
+    def test_usa_pelado_se_marca_FLAG_y_no_pierde_puntos(self):
+        """La politica de AUDIT #2 sigue vigente, expresada donde corresponde: "USA"
+        a secas es una senal blanda. Blanda significa marca, no penalizacion — muchos
+        avisos con "USA" aceptan contratistas de LATAM."""
+        t_no_loc = score_job(_job(location=None, url_suffix="noloc"), _CFG)
+        t_usa    = score_job(_job(location="USA", url_suffix="usa"), _CFG)
+        assert t_usa.match_score == t_no_loc.match_score
+        assert t_usa.location_verdict == "FLAG"
+        assert t_no_loc.location_verdict == "PASS"
 
     def test_match_reasons_contain_location_info(self):
         j = _job(location="Anywhere", url_suffix="anywherejob")
@@ -273,9 +274,11 @@ class TestSoftGeoLocation:
     def test_soft_geo_case_insensitive(self):
         assert _score_location(_job(location="usa"))[0] == -10
 
-    def test_soft_geo_keeps_job_in_play_not_excluded(self):
-        # -10 is gentle: a strong title match stays Tier 1 despite the penalty.
+    def test_soft_geo_deja_el_job_en_juego_marcado(self):
+        """La intencion original del -10 era "suave: no lo saques de la lista". Ahora
+        es literal: no se le tocan los puntos y queda elegible con un FLAG."""
         j = _job(title="Python Engineer", location="USA", url_suffix="strongusa")
         tiered = score_job(j, _CFG)
-        assert tiered.match_score == 80   # 90 base - 10 soft-geo
         assert tiered.tier == "Tier 1"
+        assert tiered.location_verdict == "FLAG"
+        assert tiered.elegible is True

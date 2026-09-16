@@ -79,6 +79,17 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 # Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
+# ── Fase 3 (2026-09-15): gate de idioma ──────────────────────────────────────
+# Los idiomas en los que podes trabajar. Un aviso que exige uno que no esta aca
+# recibe veredicto FAIL y sale del shortlist; uno que exige uno que si esta pero a
+# nivel nativo recibe FLAG y queda con nota. Descartar en silencio no es opcion:
+# un aviso desaparecido no se puede auditar, uno marcado si.
+IDIOMAS_QUE_HABLO: list = [
+    s.strip().lower()
+    for s in os.getenv("IDIOMAS_QUE_HABLO", "espanol,ingles").split(",")
+    if s.strip()
+]
+
 # Techo de tokens de salida para las llamadas en JSON mode.
 #
 # Era 512, calibrado para llama-3.3-70b, que emitía la respuesta y nada más. El catálogo

@@ -75,11 +75,18 @@ class TestRunFullPipeline:
         assert len(t1) == 1
         assert t1[0].tier == "Tier 1"
 
-    def test_clearance_job_forced_to_tier3(self):
+    def test_clearance_job_sale_del_shortlist_entero(self):
+        """Fase 3: el bloqueo duro dejó de degradar a Tier 3 y pasó a sacar del
+        shortlist. Es más fuerte, no más débil — antes un puesto con clearance
+        seguía apareciendo en Tier 3; ahora no aparece en ninguno.
+
+        El aviso no se pierde: se persiste con su tier y su puntaje reales, fuera
+        de las listas que van al front, a Notion y al Excel.
+        """
         jobs = [_make_job("Python Engineer", salary="security clearance required", n=2)]
         t1, t2, t3, t4, s = self._run(jobs)
-        assert any(j.tier == "Tier 3" for j in t3)
         assert len(t1) == 0
+        assert len(t1 + t2 + t3 + t4) == 0
 
     def test_db_update_tier_called_for_each_job(self):
         from scraper import run_full_pipeline

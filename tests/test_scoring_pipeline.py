@@ -49,13 +49,18 @@ _CFG_MIN = SearchConfig(target_titles=["Python Engineer"], min_salary=100_000)
 
 class TestExecutionPathPriority:
 
-    def test_hard_block_fires_before_tier4_bypass(self):
-        # clearance required (hard block) + text salary (tier4 trigger)
-        # Hard block must win → Tier 3, not Tier 4
+    def test_hard_block_no_secuestra_el_tier_pero_si_marca_el_veredicto(self):
+        """Fase 3: el bloqueo duro dejo de forzar Tier 3 con score 0.
+
+        Antes competia con el bypass de Tier 4 por decidir el tier, y ganaba. Ahora
+        son dos ejes distintos: el tier sale del salario y el ajuste, la elegibilidad
+        sale del veredicto. Un aviso con clearance Y salario en texto es Tier 4 por
+        el salario y FAIL por la elegibilidad, sin que uno pise al otro."""
         j = _job(salary="security clearance required — non-numeric", location=None, n=1)
         tiered = score_job(j, _CFG)
-        assert tiered.tier == "Tier 3"
-        assert tiered.match_score == 0
+        assert tiered.location_verdict == "FAIL"
+        assert tiered.elegible is False
+        assert tiered.tier == "Tier 4"      # lo decide el salario en texto, no el veto
 
     def test_tier4_bypass_fires_before_math_path(self):
         # Text salary but no clearance → Tier 4
@@ -109,31 +114,42 @@ class TestScoreLocationCalledOnce:
 
 class TestLocationDeltaInMathPath:
 
-    def test_location_delta_positive_raises_score(self):
-        j_neutral  = _job(location=None, n=20)
-        j_open     = _job(location="Anywhere", n=21)
-        t_neutral  = score_job(j_neutral, _CFG)
-        t_open     = score_job(j_open, _CFG)
-        assert t_open.match_score > t_neutral.match_score
+    def test_una_ubicacion_abierta_ya_no_sube_el_puntaje(self):
+        """Fase 3: la ubicacion salio del score. Que un aviso diga "Anywhere" no lo
+        hace un mejor calce con tu busqueda — lo hace accesible, que es otra cosa y
+        se responde en location_verdict."""
+        t_neutral = score_job(_job(location=None, n=20), _CFG)
+        t_open    = score_job(_job(location="Anywhere", n=21), _CFG)
+        assert t_open.match_score == t_neutral.match_score
+        assert t_open.location_verdict == "PASS"
 
-    def test_location_delta_negative_reduces_score(self):
-        j_neutral     = _job(location=None, n=22)
-        j_restricted  = _job(location="us only", n=23)
-        t_neutral     = score_job(j_neutral, _CFG)
-        t_restricted  = score_job(j_restricted, _CFG)
-        assert t_restricted.match_score < t_neutral.match_score
+    def test_una_region_bloqueada_ya_no_baja_el_puntaje_pero_da_FAIL(self):
+        """El puesto calza igual de bien; lo que cambia es que no podes postular.
+        Mezclar las dos cosas en un numero borraba la diferencia entre "no me sirve"
+        y "no puedo"."""
+        t_neutral    = score_job(_job(location=None, n=22), _CFG)
+        t_restricted = score_job(_job(location="us only", n=23), _CFG)
+        assert t_restricted.match_score == t_neutral.match_score
+        assert t_restricted.location_verdict == "FAIL"
 
-    def test_latam_neutral_usa_soft_restricted(self):
-        # AUDIT #2 policy: an accessible LATAM location scores the same as no
-        # location; bare USA is soft-restricted (-10) from the la ciudad del candidato perspective.
-        j_no_loc = _job(location=None, n=24)
-        j_brazil = _job(location="Brazil", n=25)
-        j_usa    = _job(location="USA", n=26)
-        t_no_loc = score_job(j_no_loc, _CFG)
-        t_brazil = score_job(j_brazil, _CFG)
-        t_usa    = score_job(j_usa, _CFG)
-        assert t_brazil.match_score == t_no_loc.match_score        # LATAM = neutral
-        assert t_usa.match_score == t_no_loc.match_score - 10      # USA = soft-restricted
+    def test_latam_neutral_usa_marcado_pero_no_penalizado(self):
+        """La política de AUDIT #2 sigue vigente; cambió dónde se expresa.
+
+        Antes: LATAM neutral, «USA» pelado restaba 10 puntos. Ahora los tres puntúan
+        igual —el calce con la búsqueda es el mismo— y «USA» se lleva un FLAG. Es el
+        nivel intermedio que faltaba: una ubicación mencionada no es un requisito
+        declarado, y muchos avisos con «USA» aceptan contratistas de LATAM.
+        """
+        t_no_loc = score_job(_job(location=None, n=24), _CFG)
+        t_brazil = score_job(_job(location="Brazil", n=25), _CFG)
+        t_usa    = score_job(_job(location="USA", n=26), _CFG)
+
+        assert t_brazil.match_score == t_no_loc.match_score
+        assert t_usa.match_score == t_no_loc.match_score
+
+        assert t_brazil.location_verdict == "PASS"
+        assert t_usa.location_verdict == "FLAG"
+        assert t_usa.elegible is True, "un FLAG se marca, no se descarta"
 
 
 # =============================================================================
@@ -211,9 +227,11 @@ class TestReasonPopulation:
         assert any("location" in r.lower() or "restricted" in r.lower()
                    for r in tiered.miss_reasons)
 
-    def test_hard_block_miss_reasons_mention_block(self):
-        j = _job(salary="Top Secret clearance required", n=52)
-        tiered = score_job(j, _CFG)
-        assert tiered.tier == "Tier 3"
-        assert any("block" in r.lower() or "clearance" in r.lower() or "hard" in r.lower()
-                   for r in tiered.miss_reasons)
+    def test_hard_block_explica_por_que_en_la_nota_del_veredicto(self):
+        """La razon sigue estando; cambio donde vive. Un FAIL sin nota no se puede
+        auditar tres meses despues."""
+        tiered = score_job(_job(salary="Top Secret clearance required", n=52), _CFG)
+        assert tiered.location_verdict == "FAIL"
+        assert tiered.location_note
+        assert any(p in tiered.location_note.lower()
+                   for p in ("block", "clearance", "hard"))

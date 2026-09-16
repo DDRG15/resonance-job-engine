@@ -277,6 +277,38 @@ class TieredJob(BaseModel):
         description="Human-readable list of which criteria did NOT match.",
     )
 
+    # ── Fase 3 (2026-09-15): la elegibilidad sale del score ──────────────────
+    # Antes la ubicacion era un delta que se sumaba al puntaje, y el bloqueo duro
+    # ademas forzaba Tier 3 con score 0. Eso destruia informacion: un puesto
+    # excelente bloqueado por security clearance y uno genuinamente malo salian
+    # identicos. El score mide ajuste; la elegibilidad se responde aparte.
+    location_verdict: str = Field(
+        default="PASS",
+        description=(
+            "PASS — nada bloquea. "
+            "FLAG — la ubicacion nombra una region restringida pero el aviso no "
+            "declara un requisito: queda rankeado con marca. "
+            "FAIL — el aviso exige ciudadania, clearance o autorizacion que no "
+            "tenes: sale del shortlist CONSERVANDO su puntaje."
+        ),
+    )
+    location_note: str = Field(default="", description="Por que ese veredicto.")
+    language_verdict: str = Field(
+        default="PASS",
+        description=(
+            "PASS — no pide un idioma que no hablas. "
+            "FLAG — pide uno que hablas, a un nivel que el aviso sugiere mayor. "
+            "FAIL — pide un idioma ausente de tu perfil."
+        ),
+    )
+    language_note: str = Field(default="", description="Por que ese veredicto.")
+
+    @property
+    def elegible(self) -> bool:
+        """False si algun veto es FAIL. Un FLAG sigue siendo elegible: marcado,
+        no descartado — descartar en silencio es peor que mostrar con una nota."""
+        return "FAIL" not in (self.location_verdict, self.language_verdict)
+
     @field_validator("tier")
     @classmethod
     def validate_tier(cls, v: str) -> str:

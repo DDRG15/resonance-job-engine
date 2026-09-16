@@ -285,6 +285,9 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     for signal in HARD_BLOCK:
         if signal in searchable:
             return -50, [], [f"Hard block: '{signal}' detected — requires clearance/citizenship"]
+    # NOTA (Fase 3): esta funcion sigue existiendo porque `_location_verdict` la usa
+    # como detector. Lo que cambio es QUIEN consume su salida: el delta ya no entra
+    # al puntaje, se traduce a veredicto. Ver `_location_verdict`.
 
     # RESTRICTED before OPEN (AUDIT #4): a binding region-lock must dominate an
     # aspirational "worldwide team" phrase in the same listing. For a la ciudad del candidato dev,
@@ -349,6 +352,116 @@ def _assign_tier(score: int) -> str:
 # Public Interface
 # =============================================================================
 
+# ── Fase 3: los vetos salen del score ────────────────────────────────────────
+#
+# Hasta el 2026-09-15 la ubicacion era un delta que se sumaba al puntaje, y el
+# bloqueo duro ademas forzaba `Tier 3` con `match_score=0`. Eso destruia
+# informacion: un puesto excelente bloqueado por security clearance y uno
+# genuinamente malo salian identicos —Tier 3, cero— y despues no habia forma de
+# preguntarle a la base cuantos Tier 1 se perdieron por elegibilidad y no por
+# calidad, porque la respuesta se habia borrado al guardar.
+#
+# El score mide ajuste y nada mas. La elegibilidad se responde aparte, con dos
+# niveles: FAIL saca del shortlist conservando el puntaje, FLAG queda rankeado con
+# marca. El nivel intermedio es el que faltaba: "USA" como ubicacion no es lo mismo
+# que "must be authorized to work in the US", y tratarlos igual descarta avisos que
+# muchas veces aceptan contratistas de LATAM.
+
+_VERDICT_PASS = "PASS"
+_VERDICT_FLAG = "FLAG"
+_VERDICT_FAIL = "FAIL"
+
+
+def _veredicto_desde_delta(delta: int, match: list[str],
+                           miss: list[str]) -> tuple[str, str]:
+    """
+    Traduce la salida del detector de ubicación a (veredicto, nota). Función pura:
+    no llama a `_score_location`, recibe su resultado.
+
+    Que sea pura no es estética. `score_job` tiene que llamar a `_score_location`
+    **una sola vez** —hay un test que lo verifica desde antes de esta fase, porque
+    la función recorre tres listas de frases sobre un blob de texto— y una versión
+    que volviera a llamarla rompería esa garantía en silencio.
+
+        -50 clearance/ciudadanía         -> FAIL  (no podés, punto)
+        -20 region-lock explícito        -> FAIL  ("must be authorized to work in the US")
+        -10 geo blanda                   -> FLAG  (la ubicación dice "USA" y nada más)
+        +10 abierto / 0 sin señal        -> PASS
+
+    La diferencia entre FAIL y FLAG es la diferencia entre un requisito declarado y
+    una ubicación mencionada. Un aviso cuyo `location_raw` dice "USA" suele aceptar
+    contratistas de LATAM; uno que dice "must be authorized to work in the US" no.
+    """
+    nota = (miss[0] if miss else (match[0] if match else ""))
+    if delta <= -20:
+        return _VERDICT_FAIL, nota
+    if delta <= -10:
+        return _VERDICT_FLAG, nota
+    return _VERDICT_PASS, nota
+
+
+def _location_verdict(job: JobResult) -> tuple[str, str]:
+    """(veredicto, nota) para un job. Envoltorio de conveniencia para los tests y
+    para quien tenga el job pero no el delta; `score_job` usa la versión pura."""
+    return _veredicto_desde_delta(*_score_location(job))
+
+
+# Idiomas que un aviso puede exigir, con las formas en que se nombran a si mismos.
+# Solo los que aparecen de verdad en boards remotos; agregar uno es agregar una fila.
+_IDIOMAS: dict[str, tuple[str, ...]] = {
+    "aleman":    ("german", "deutsch", "aleman", "alemán"),
+    "frances":   ("french", "francais", "français", "frances", "francés"),
+    "japones":   ("japanese", "nihongo", "japones", "japonés"),
+    "mandarin":  ("mandarin", "chinese", "mandarín"),
+    "coreano":   ("korean", "coreano"),
+    "neerlandes": ("dutch", "nederlands", "neerlandes", "neerlandés"),
+    "italiano":  ("italian", "italiano"),
+    "portugues": ("portuguese", "portugues", "portugués"),
+    "espanol":   ("spanish", "espanol", "español", "castellano"),
+    "ingles":    ("english", "ingles", "inglés"),
+}
+
+# "fluent in X", "X native", "native-level X", "muttersprache"...
+_EXIGE_IDIOMA = re.compile(
+    r"\b(fluent|native|proficien\w*|bilingual|c1|c2|muttersprach\w*|"
+    r"nativo|fluido|dominio)\b", re.I)
+
+
+def _language_verdict(job: JobResult,
+                      idiomas_propios: Optional[list[str]] = None) -> tuple[str, str]:
+    """
+    (veredicto, nota) sobre el idioma que el aviso exige.
+
+    Conservador por diseño: solo dispara cuando el aviso **nombra** un idioma. Un
+    titulo sin mencion de idioma es PASS, no FLAG — marcar todo es lo mismo que no
+    marcar nada.
+
+    FAIL si nombra un idioma ausente de tu perfil. FLAG si nombra uno que hablas
+    junto a una exigencia de nivel ("fluent", "native", "C2"): podes postular, pero
+    conviene saberlo antes de escribir la carta.
+
+    El descarte silencioso no es opcion. Un aviso desaparecido no se puede auditar;
+    uno marcado si.
+    """
+    propios = {i.lower() for i in (idiomas_propios
+                                   if idiomas_propios is not None
+                                   else getattr(config, "IDIOMAS_QUE_HABLO", []))}
+    texto = " ".join(filter(None, [
+        job.title, job.company, getattr(job, "location_raw", None) or "",
+    ])).lower()
+    if not texto.strip():
+        return _VERDICT_PASS, ""
+
+    for idioma, formas in _IDIOMAS.items():
+        if not any(re.search(r"\b" + re.escape(f) + r"\b", texto) for f in formas):
+            continue
+        if idioma not in propios:
+            return _VERDICT_FAIL, f"El aviso pide {idioma} y no esta en tu perfil"
+        if _EXIGE_IDIOMA.search(texto):
+            return _VERDICT_FLAG, f"Pide {idioma} a nivel alto — lo hablas, verificá el nivel"
+    return _VERDICT_PASS, ""
+
+
 def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dict] = None) -> TieredJob:
     """
     Scores a single JobResult and returns a TieredJob with full audit trail.
@@ -378,17 +491,19 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     """
     # ── Location scoring (single call — result reused for both hard-block check
     #    and the mathematical delta to avoid calling the pure function twice) ──
+    # Fase 3 (2026-09-15): la elegibilidad se resuelve APARTE del puntaje.
+    #
+    # Acá había un bypass que devolvía `Tier 3` con `match_score=0` ante un bloqueo
+    # duro. Con eso se perdía para siempre la diferencia entre un puesto excelente
+    # bloqueado por security clearance y uno genuinamente malo: los dos salían Tier 3
+    # con cero, y después no había cómo preguntarle a la base cuántos Tier 1 se
+    # perdieron por elegibilidad y no por calidad.
+    # UNA sola llamada a `_score_location` — recorre tres listas de frases sobre un
+    # blob de texto, y hay un test desde antes de esta fase que verifica que no se
+    # llame dos veces. La traducción a veredicto es pura y recibe el resultado.
     loc_delta, lm, ln = _score_location(job)
-
-    # Hard block: clearance/citizenship required → straight to Tier 3, skip all scoring
-    if loc_delta <= -50:
-        return TieredJob(
-            job=job,
-            match_score=0,
-            tier="Tier 3",
-            match_reasons=[],
-            miss_reasons=ln + ["Hard location block — auto-Tier 3"],
-        )
+    loc_verdict, loc_note = _veredicto_desde_delta(loc_delta, lm, ln)
+    lang_verdict, lang_note = _language_verdict(job)
 
     # ── Tier 4 bypass: non-empty text salary that is not a parseable number ──
     salary_is_text = (
@@ -409,6 +524,8 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
             miss_reasons=[
                 f"Raw salary text: '{job.salary_raw}' — requires manual evaluation"
             ],
+            location_verdict=loc_verdict, location_note=loc_note,
+            language_verdict=lang_verdict, language_note=lang_note,
         )
 
     # ── Mathematical scoring path (Tier 1 / 2 / 3) ───────────────────────────
@@ -425,7 +542,10 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     all_match.extend(tm + sm + im + em + km + lm)
     all_miss.extend(tn + sn + in_ + en + kn + ln)
 
-    raw_score   = title_score + salary_score + include_score + excl_delta + skill_score + loc_delta
+    # Fase 3: `loc_delta` ya NO se suma. El score mide ajuste; la elegibilidad vive
+    # en location_verdict. Sumarla mezclaba dos preguntas distintas en un numero, y
+    # despues no habia forma de separarlas.
+    raw_score   = title_score + salary_score + include_score + excl_delta + skill_score
     # Cap at 115: the 15-pt skill bonus can push a strong Tier 2 into Tier 1
     # without disturbing the existing Tier 1 threshold (80 pts).
     final_score = max(0, min(115, raw_score))
@@ -443,6 +563,8 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
         tier=tier,
         match_reasons=all_match,
         miss_reasons=all_miss,
+        location_verdict=loc_verdict, location_note=loc_note,
+        language_verdict=lang_verdict, language_note=lang_note,
     )
 
 
@@ -484,6 +606,8 @@ def bucket_jobs(
     """
     tier1, tier2, tier3, tier4 = [], [], [], []
     filtered_off_topic = 0
+    filtrados_no_elegibles = 0
+    no_elegibles: list[TieredJob] = []
 
     for job in jobs:
         # AUDIT NEW #1: descartar ruido off-topic ANTES de puntuar (File Clerk,
@@ -494,7 +618,20 @@ def bucket_jobs(
             continue
 
         tiered = score_job(job, search_config, profile=profile)
-        if tiered.tier == "Tier 1":
+
+        # Fase 3: un veto FAIL saca del shortlist, NO del registro. El aviso se
+        # persiste con su tier y su puntaje reales —abajo, en update_tier— pero no
+        # entra a las listas que van al front, a Notion y al Excel.
+        #
+        # Es la diferencia entre "no puedo postular a esto" y "esto no me sirve".
+        # Un puesto de 90 puntos bloqueado por security clearance sigue valiendo 90;
+        # lo que no tiene sentido es ponerlo arriba de tu lista de postulación.
+        # Borrarlo seria peor: un aviso desaparecido no se puede auditar, y despues
+        # no hay forma de preguntar cuantos Tier 1 se perdieron por elegibilidad.
+        if not tiered.elegible:
+            filtrados_no_elegibles += 1
+            no_elegibles.append(tiered)
+        elif tiered.tier == "Tier 1":
             tier1.append(tiered)
         elif tiered.tier == "Tier 2":
             tier2.append(tiered)
@@ -511,9 +648,23 @@ def bucket_jobs(
                 logger.warning("[DB] Could not update tier for %s: %s", job.url, exc)
 
     logger.info(
-        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic descartados=%d",
+        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | no-elegibles=%d",
         len(tier1), len(tier2), len(tier3), len(tier4), filtered_off_topic,
+        filtrados_no_elegibles,
     )
     if filtered_off_topic:
         metrics.emit("jobs_filtered_off_topic", filtered_off_topic)
+    if filtrados_no_elegibles:
+        # Se cuentan por causa, no en un solo total: "no puedo postular por idioma"
+        # y "no puedo postular por ciudadania" se arreglan distinto, y el dia que uno
+        # de los dos se dispare de mas hay que poder ver cual.
+        por_causa: dict[str, int] = {}
+        for tj in no_elegibles:
+            if tj.location_verdict == "FAIL":
+                por_causa["location"] = por_causa.get("location", 0) + 1
+            if tj.language_verdict == "FAIL":
+                por_causa["language"] = por_causa.get("language", 0) + 1
+        for causa, n in por_causa.items():
+            metrics.emit("jobs_no_elegibles", n, causa=causa)
+        logger.info("[BUCKET] no-elegibles por causa: %s", por_causa)
     return tier1, tier2, tier3, tier4
