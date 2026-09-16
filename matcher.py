@@ -676,8 +676,12 @@ def bucket_jobs(
 
         if db:
             try:
+                # Fase 5: se pasa el TieredJob entero para que las razones del
+                # match y los veredictos de elegibilidad tambien se persistan. Antes
+                # solo sobrevivian tier, score y salario: la base podia decir QUE
+                # puntaje saco un aviso y nunca POR QUE.
                 db.update_tier(job.url, tiered.tier, tiered.match_score,
-                               salary_raw=job.salary_raw)
+                               salary_raw=job.salary_raw, tiered=tiered)
             except Exception as exc:
                 logger.warning("[DB] Could not update tier for %s: %s", job.url, exc)
 

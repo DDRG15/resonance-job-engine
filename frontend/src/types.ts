@@ -127,6 +127,19 @@ export interface RegistryJob {
   match_score: number | null
   location_raw: string | null
   salary_raw: string | null
+  // Fase 5: el razonamiento dejo de morir con la sesion. Opcionales porque las
+  // filas anteriores al 2026-09-16 no los tienen y nunca los van a tener —
+  // se guardan al puntuar, y esas ya se puntuaron.
+  match_reasons: string | null
+  miss_reasons: string | null
+  location_verdict: string | null
+  location_note: string | null
+  language_verdict: string | null
+  language_note: string | null
+  // Un score v1 y uno v2 NO son comparables: la Fase 3 saco la ubicacion del
+  // puntaje y la Fase 4 renormalizo las dimensiones. Mostrar la version al lado
+  // del numero es lo que evita compararlos sin darse cuenta.
+  score_version: string | null
 }
 
 export interface ReviewJob {

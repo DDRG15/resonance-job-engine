@@ -49,6 +49,27 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Un aviso con 40 razones de match es un aviso con un bug en el matcher, no un aviso
+# muy bien explicado. El tope existe para que ese bug no infle la fila a kilobytes.
+_MAX_RAZONES = 20
+
+
+def _json_o_none(valor) -> Optional[str]:
+    """Una lista de razones a JSON, o None si no hay nada que guardar.
+
+    None y no `"[]"`: la columna usa COALESCE, y un `"[]"` pisaría con una lista
+    vacía lo que una corrida anterior sí averiguó. La diferencia entre «no sé» y
+    «sé que no hay» tiene que sobrevivir al guardado.
+    """
+    if not valor:
+        return None
+    try:
+        return json.dumps([_clip(str(v), 300) for v in list(valor)[:_MAX_RAZONES]],
+                          ensure_ascii=False)
+    except Exception:
+        return None
+
+
 # =============================================================================
 # Schema DDL
 # =============================================================================
@@ -283,6 +304,31 @@ class GemaDatabase:
                 ("output_chars", "ALTER TABLE llm_calls ADD COLUMN output_chars INTEGER"),
                 ("location_raw", "ALTER TABLE seen_jobs_registry ADD COLUMN location_raw TEXT"),
                 ("salary_raw",   "ALTER TABLE seen_jobs_registry ADD COLUMN salary_raw TEXT"),
+
+                # ── Fase 5 (2026-09-16): el razonamiento deja de morir con la sesión ──
+                # Cada aviso puntuado lleva `match_reasons` y `miss_reasons` — la razón
+                # exacta de por qué sacó 90 o 38 — y `update_tier` guardaba tier, score
+                # y salario. Resultado: cualquier vista que leyera de la base podía decir
+                # QUÉ puntaje sacó un aviso y nunca POR QUÉ. El panel de detalle ya sabe
+                # mostrarlas; le llegan por /api/results mientras la sesión vive y
+                # desaparecen al reiniciar.
+                ("match_reasons", "ALTER TABLE seen_jobs_registry ADD COLUMN match_reasons TEXT"),
+                ("miss_reasons",  "ALTER TABLE seen_jobs_registry ADD COLUMN miss_reasons TEXT"),
+
+                # Los veredictos de la Fase 3. Sin persistirlos no se puede responder
+                # cuántos Tier 1 se perdieron por elegibilidad y no por calidad, que es
+                # exactamente la pregunta que esa fase existe para poder contestar.
+                ("location_verdict", "ALTER TABLE seen_jobs_registry ADD COLUMN location_verdict TEXT"),
+                ("location_note",    "ALTER TABLE seen_jobs_registry ADD COLUMN location_note TEXT"),
+                ("language_verdict", "ALTER TABLE seen_jobs_registry ADD COLUMN language_verdict TEXT"),
+                ("language_note",    "ALTER TABLE seen_jobs_registry ADD COLUMN language_note TEXT"),
+
+                # Riesgo R6 del plan, con dos fases de deuda encima. Las Fases 3 y 4
+                # cambiaron cómo se puntúa, así que un score guardado el 01-09 y uno
+                # guardado hoy NO son comparables. Sin esta columna no hay forma de
+                # saberlo mirando la fila, y comparar dos números incomparables es
+                # peor que no tener ninguno.
+                ("score_version", "ALTER TABLE seen_jobs_registry ADD COLUMN score_version TEXT"),
             ):
                 try:
                     conn.execute(mig_sql)
@@ -516,18 +562,50 @@ class GemaDatabase:
         logger.info("Batch-registered %d jobs.", len(records))
 
     def update_tier(self, url: str, tier: str, match_score: int,
-                    salary_raw: Optional[str] = None) -> None:
+                    salary_raw: Optional[str] = None,
+                    tiered: Optional[object] = None) -> None:
         """Backfills tier and match_score after the matcher has run.
 
         FIX 2b live-test 07-18: también backfillea salary_raw si viene — un job
         RE-procesado (hash existente, INSERT OR IGNORE no-op) que ahora sí trae
         salario (FIX 1: extraído del texto) actualiza la fila vieja. COALESCE:
-        nunca pisa un salario ya guardado con NULL."""
+        nunca pisa un salario ya guardado con NULL.
+
+        Fase 5 (2026-09-16): `tiered` es el `TieredJob` completo, opcional. Cuando
+        viene, se persisten también las razones del match y los veredictos de
+        elegibilidad. Es opcional a propósito — la firma vieja sigue funcionando y
+        los llamadores que no tengan el objeto no se rompen.
+
+        Se acepta un `object` y no un `TieredJob` tipado para no importar `models`
+        acá: `database` es la capa de abajo y no debería depender de la de arriba.
+        Los campos se leen con getattr, así que un objeto sin ellos degrada a NULL
+        en vez de explotar.
+        """
+        razones = _json_o_none(getattr(tiered, "match_reasons", None))
+        faltas  = _json_o_none(getattr(tiered, "miss_reasons", None))
+        loc_v   = getattr(tiered, "location_verdict", None)
+        loc_n   = getattr(tiered, "location_note", None)
+        lang_v  = getattr(tiered, "language_verdict", None)
+        lang_n  = getattr(tiered, "language_note", None)
+        version = getattr(config, "SCORE_VERSION", None) if tiered is not None else None
+
         with _get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
-                "salary_raw=COALESCE(?, salary_raw) WHERE job_hash=?",
-                (tier, match_score, salary_raw, self.compute_hash(url)),
+                "salary_raw=COALESCE(?, salary_raw), "
+                # COALESCE en los campos nuevos por la misma razón que en salary_raw:
+                # un re-procesamiento sin `tiered` no puede borrar lo que una corrida
+                # anterior sí averiguó.
+                "match_reasons=COALESCE(?, match_reasons), "
+                "miss_reasons=COALESCE(?, miss_reasons), "
+                "location_verdict=COALESCE(?, location_verdict), "
+                "location_note=COALESCE(?, location_note), "
+                "language_verdict=COALESCE(?, language_verdict), "
+                "language_note=COALESCE(?, language_note), "
+                "score_version=COALESCE(?, score_version) "
+                "WHERE job_hash=?",
+                (tier, match_score, salary_raw, razones, faltas,
+                 loc_v, loc_n, lang_v, lang_n, version, self.compute_hash(url)),
             )
 
     # =========================================================================

@@ -79,6 +79,21 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 # Cierra el ítem abierto anotado en LLM_PROVIDERS.md.
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
+# ── Fase 5 (2026-09-16): version del algoritmo de scoring ─────────────────
+# Riesgo R6 del , con dos fases de deuda encima. La Fase 3 saco la
+# ubicacion del puntaje y la Fase 4 renormalizo las dimensiones: un score guardado el
+# 2026-09-01 y uno guardado hoy NO son comparables entre si. Sin esta marca en la fila
+# no hay forma de saberlo mirandola, y comparar dos numeros incomparables es peor que
+# no tener ninguno.
+#
+# Se sube cuando cambia COMO se puntua, no cuando cambia el resultado: dos corridas con
+# configs distintas y el mismo algoritmo comparten version.
+#
+#   v1  hasta 2026-09-14  presupuesto absoluto, ubicacion sumada al puntaje
+#   v2  desde 2026-09-15  vetos fuera del score, dimensiones renormalizadas, GBP/EUR
+SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v2")
+
+
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────
 # Los cinco Tier 4 de la corrida del 2026-09-04 tenian salario NUMERICO -- GBP 75k-90k,
 # EUR 72k-82k, EUR 95k-115k -- y caian a revision manual porque el parser solo entendia

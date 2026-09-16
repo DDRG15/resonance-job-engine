@@ -53,7 +53,39 @@ const COLUMNS: ColumnDef<RegistryJob>[] = [
   {
     accessorKey: 'match_score',
     header: 'Score',
-    cell: (c) => c.getValue<number | null>() ?? '—',
+    cell: (c) => {
+      const v = c.getValue<number | null>()
+      if (v === null) return '—'
+      // La version al lado del numero: un score v1 y uno v2 no son comparables
+      // (la Fase 3 saco la ubicacion del puntaje, la Fase 4 renormalizo las
+      // dimensiones). Sin la marca, dos numeros incomparables parecen iguales.
+      const ver = c.row.original.score_version
+      return (
+        <span style={{ whiteSpace: 'nowrap' }}>
+          {v}
+          {ver && <small className="side-note" style={{ marginLeft: 5 }}>{ver}</small>}
+        </span>
+      )
+    },
+  },
+  {
+    id: 'elegibilidad',
+    header: 'Elegible',
+    accessorFn: (r) => `${r.location_verdict ?? ''} ${r.language_verdict ?? ''}`,
+    cell: (c) => {
+      const { location_verdict: loc, language_verdict: lang,
+              location_note: nota } = c.row.original
+      if (!loc && !lang) return <span className="side-note">—</span>
+      const peor = loc === 'FAIL' || lang === 'FAIL' ? 'FAIL'
+        : loc === 'FLAG' || lang === 'FLAG' ? 'FLAG' : 'PASS'
+      if (peor === 'PASS') return <span className="side-note">ok</span>
+      return (
+        <span className={peor === 'FAIL' ? 'cell-dirty' : 'cell-absent'}
+              title={nota ?? undefined}>
+          {peor}
+        </span>
+      )
+    },
   },
   {
     accessorKey: 'salary_raw',
