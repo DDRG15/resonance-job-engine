@@ -149,8 +149,35 @@ def select_provider(state: LLMState, config: RunnableConfig) -> dict:
     chain = state["chain"]
     idx = state.get("provider_index", 0)
 
-    while idx < len(chain) and not _provider_available(cooldowns, chain[idx]):
-        rt["log"](f"[LLM] {chain[idx]} still cooling down — skipping.")
+    # Fase 10: el presupuesto se consulta ANTES de llamar, no despues de comerse el
+    # 429. `_cooldowns` es reactivo — cada descubrimiento cuesta una llamada perdida,
+    # un round-trip y un salto de fallback. El 2026-09-03 sambanova devolvio 429 en el
+    # primer intento y cerebras 402, y los dos eran primarios de un proposito.
+    #
+    # Un proveedor sin limite declarado SIEMPRE pasa: el presupuesto restringe donde
+    # hay dato, no donde falta.
+    db = rt.get("db") or getattr(rt.get("ctx"), "db", None)
+
+    def _saltear(nombre: str) -> tuple[bool, str]:
+        if not _provider_available(cooldowns, nombre):
+            return True, "en cooldown"
+        if db is not None:
+            try:
+                import provider_budget
+                alcanza, frac = provider_budget.hay_presupuesto(db, nombre)
+                if not alcanza:
+                    return True, f"presupuesto al {frac * 100:.0f}%"
+            except Exception:
+                # Que el presupuesto no se pueda leer no puede impedir una llamada:
+                # se degrada a descubrir el limite chocandolo, como antes.
+                pass
+        return False, ""
+
+    while idx < len(chain):
+        saltear, motivo = _saltear(chain[idx])
+        if not saltear:
+            break
+        rt["log"](f"[LLM] {chain[idx]} {motivo} — skipping.")
         idx += 1
 
     return {"provider_index": idx}

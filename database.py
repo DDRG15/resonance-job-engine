@@ -140,6 +140,29 @@ CREATE TABLE IF NOT EXISTS application_events (
 );
 """
 
+# Fase 11 (2026-09-17) — identidad como pipeline, no como campo.
+#
+# `compute_hash` es SHA-256 de la URL canónica: un aviso es «el mismo» solo si su URL
+# lo es. Medido el 2026-09-11: 1.536 filas, 1.407 pares (título, empresa) únicos —
+# 129 de más, 8,4%. La duplicación no es entre boards, es el mismo board relistando.
+#
+# `estado` calca el modelo de Version Tracking de Ghidra: aceptar un canónico BLOQUEA
+# al rival en vez de borrarlo. El duplicado sigue ahí como evidencia de que el board
+# relista, y la decisión es reversible.
+_DDL_JOB_LINKS = """
+CREATE TABLE IF NOT EXISTS job_links (
+    job_hash       TEXT NOT NULL,
+    hash_duplicado TEXT NOT NULL,
+    correlator     TEXT NOT NULL,
+    confianza      REAL NOT NULL,
+    motivo         TEXT,
+    estado         TEXT NOT NULL,
+    decidido_en    TEXT,
+    creado_en      TEXT NOT NULL,
+    PRIMARY KEY (job_hash, hash_duplicado)
+);
+"""
+
 _DDL_SEARCH_VAULT = """
 CREATE TABLE IF NOT EXISTS search_vault (
     vault_id        TEXT PRIMARY KEY,
@@ -343,6 +366,10 @@ class GemaDatabase:
             conn.execute(_DDL_NODE_TRACES)    # v3 Fase 4
             conn.execute(_DDL_LLM_CALLS)      # v3 Fase 4
             conn.execute(_DDL_EVAL_RESULTS)   # v3 Fase 7
+            conn.execute(_DDL_JOB_LINKS)           # Fase 11
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_job_links_dup "
+                "ON job_links(hash_duplicado)")
             conn.execute(_DDL_APPLICATIONS)        # Fase 7 (ingesta/scoring)
             conn.execute(_DDL_APPLICATION_EVENTS)  # Fase 7
             conn.execute(
@@ -961,6 +988,98 @@ class GemaDatabase:
             )
         logger.info("Batch-updated tier for %d jobs.", len(params))
         return len(params)
+
+    def _conn(self):
+        """Una conexión al mismo archivo, para consultas de solo lectura de otros
+        módulos.
+
+        Existe para que `provider_budget` no tenga que importar `_get_connection`, que
+        es privada del módulo. Un accesor con nombre es más honesto que un import de
+        algo marcado con guión bajo: si mañana cambia cómo se conecta, cambia acá.
+        """
+        return _get_connection(self.db_path)
+
+    # =========================================================================
+    # Fase 11 — Correlators de identidad
+    # =========================================================================
+
+    def correlacionar_duplicados(self, umbral_auto: float = 0.90,
+                                 limite: int = 5000) -> dict:
+        """
+        Corre los correlators sobre el registry y registra lo que encuentran.
+
+        **Auto-acepta solo por encima del umbral.** Mismo board, mismo día, mismo
+        título y misma empresa es inequívoco; el resto queda `AVAILABLE` para que lo
+        decida un humano. Un correlator que decide solo con poca confianza convierte
+        un problema de duplicados en uno de avisos desaparecidos, que es peor.
+
+        Nunca borra nada. El duplicado queda `BLOCKED` apuntando a su canónico: sigue
+        en el registry como evidencia de que ese board relista, y la decisión se puede
+        revertir. Y nunca toca un par ya decidido —`ACCEPTED` o `REJECTED`— para que
+        una corrida nueva no pise lo que un humano resolvió.
+        """
+        import correlators as corr
+
+        with _get_connection(self.db_path) as conn:
+            filas = [dict(r) for r in conn.execute(
+                "SELECT url, title, company, source_domain, scraped_at "
+                "FROM seen_jobs_registry ORDER BY scraped_at DESC LIMIT ?",
+                (limite,)).fetchall()]
+            ya_decididos = {
+                (r["job_hash"], r["hash_duplicado"])
+                for r in conn.execute(
+                    "SELECT job_hash, hash_duplicado FROM job_links "
+                    "WHERE estado IN (?, ?)", (corr.ACCEPTED, corr.REJECTED)).fetchall()
+            }
+
+        candidatos = corr.correr(filas)
+        ahora = _now_iso()
+        nuevos, auto, a_revisar = 0, 0, 0
+        registros = []
+        for c in candidatos:
+            h_can = self.compute_hash(c.canonico_url)
+            h_dup = self.compute_hash(c.duplicado_url)
+            if h_can == h_dup or (h_can, h_dup) in ya_decididos:
+                continue
+            estado = corr.ACCEPTED if c.confianza >= umbral_auto else corr.AVAILABLE
+            registros.append((h_can, h_dup, c.correlator, c.confianza, c.motivo,
+                              estado, ahora if estado == corr.ACCEPTED else None,
+                              ahora))
+            nuevos += 1
+            if estado == corr.ACCEPTED:
+                auto += 1
+            else:
+                a_revisar += 1
+
+        if registros:
+            with _get_connection(self.db_path) as conn:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO job_links "
+                    "(job_hash, hash_duplicado, correlator, confianza, motivo, "
+                    " estado, decidido_en, creado_en) VALUES (?,?,?,?,?,?,?,?)",
+                    registros)
+
+        resultado = {"candidatos": len(candidatos), "nuevos": nuevos,
+                     "auto_aceptados": auto, "a_revisar": a_revisar}
+        if nuevos:
+            logger.info("[CORRELATOR] %s", resultado)
+        return resultado
+
+    def hashes_bloqueados(self) -> set:
+        """Los `job_hash` que perdieron contra un canónico. El front los excluye del
+        conteo; siguen en la base."""
+        with _get_connection(self.db_path) as conn:
+            import correlators as corr
+            return {r[0] for r in conn.execute(
+                "SELECT hash_duplicado FROM job_links WHERE estado=?",
+                (corr.ACCEPTED,)).fetchall()}
+
+    def duplicados_de(self, url: str) -> list[dict]:
+        """Los duplicados registrados de un aviso, con su correlator y confianza."""
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT * FROM job_links WHERE job_hash=? ORDER BY confianza DESC",
+                (self.compute_hash(url),)).fetchall()]
 
     def hashes_puntuados(self, version: Optional[str] = None) -> set:
         """

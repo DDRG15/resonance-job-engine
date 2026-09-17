@@ -61,6 +61,20 @@ class ExtractionMode(str, Enum):
     LLM_FALLBACK = "llm_fallback"  # drift → LLM reads text (Phase 27)
 
 
+class AccessPolicy(str, Enum):
+    """Que permite el sitio, declarado por el sitio.
+
+    No es una opinion legal: es lo que dice su robots.txt y lo que devolvio cuando se
+    lo probo. Existe para que un board que no se puede scrapear deje de reaparecer
+    como un fallo tecnico que alguien va a intentar arreglar por cuarta vez.
+    """
+    OPEN = "open"                      # robots.txt permite el path
+    PERSONAL_USE_ONLY = "personal_use_only"   # ToS restrictivo, uso personal
+    AUTH_REQUIRED = "auth_required"    # muro de login: no hay nada que rescatar sin auth
+    RATE_LIMITED = "rate_limited"      # responde 429 al primer pedido
+    DECLINED = "declined"              # no se scrapea, y la razon esta escrita
+
+
 class Health(str, Enum):
     HEALTHY = "healthy"
     PROBATION = "probation"    # recipe just changed — verify next run (Phase 29)
@@ -106,6 +120,13 @@ class BoardStrategy(BaseModel):
     crawl_delay_s: float = 0.0
     """Segundos entre pedidos, declarados por el robots.txt del sitio. api.lever.co
     pide 1. Es un limite, no una sugerencia."""
+
+    # ── Fase 9 (2026-09-17): politica de acceso declarada ────────────────────
+    access_policy: AccessPolicy = AccessPolicy.OPEN
+    policy_reason: str = ""
+    """Por que. Una politica sin razon escrita se vuelve a cuestionar cada vez que
+    alguien mira la lista de boards muertos — que es exactamente lo que paso con
+    remote.co y welcometothejungle.com entre julio y septiembre."""
 
     titulo_trae_empresa: bool = False
     """El feed mete la empresa en el titulo (`"Reddit: Backend Engineer"`) porque no
@@ -158,6 +179,16 @@ class BoardStrategyRegistry:
             import endpoint_registry
         except Exception:      # el modulo es opcional: sin el, todo sigue como antes
             return
+        # La politica se aplica a TODOS los boards que tengan una escrita, tengan
+        # endpoint o no: remote.co y welcometothejungle.com no tienen endpoint y son
+        # justamente los dos que hay que dejar de intentar.
+        for domain, pol in getattr(endpoint_registry, "POLITICAS", {}).items():
+            strat = self._strategies.get(domain) or BoardStrategy(domain=domain)
+            for campo, valor in pol.items():
+                if campo in BoardStrategy.model_fields:
+                    setattr(strat, campo, valor)
+            self._strategies[domain] = strat
+
         for domain, cfg in endpoint_registry.ENDPOINTS.items():
             strat = self._strategies.get(domain) or BoardStrategy(domain=domain)
             strat.access_vector = AccessVector.ENDPOINT

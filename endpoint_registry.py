@@ -65,6 +65,48 @@ ENDPOINTS: dict[str, dict] = {
 }
 
 
+# ── Fase 9 (2026-09-17): politica de acceso por board ────────────────────────
+#
+# Los cuatro primeros salieron del inventario del 2026-09-09 y no son opiniones:
+# son lo que el sitio devolvio o lo que declara su robots.txt.
+#
+# Un board `declined` deja de reaparecer como un fallo tecnico recurrente. remote.co
+# y welcometothejungle.com se "diagnosticaron" dos veces entre julio y septiembre
+# porque la razon vivia en un comentario de Python y no en la estrategia que el
+# router lee.
+POLITICAS: dict[str, dict] = {
+    # ReadTimeout de 21 s en dos endpoints distintos. No es anti-bot ni template
+    # viejo: el host no responde.
+    "remote.co": {"access_policy": "declined", "policy_reason":
+                  "host muerto — ReadTimeout 21s en dos endpoints (2026-09-09)"},
+
+    # Responde 200 con cero items, consistente con su muro de login. Un board con
+    # auth-wall no se scrapea.
+    "welcometothejungle.com": {"access_policy": "auth_required", "policy_reason":
+                               "muro de login — 200 con cero items (2026-09-09)"},
+
+    # HTTP 429 al PRIMER pedido, sin haber hecho nada antes. Era el unico board
+    # activo produciendo cero y sin diagnostico: no eran selectores stale.
+    "remotivated.com": {"access_policy": "rate_limited", "policy_reason":
+                        "HTTP 429 al primer pedido (2026-09-09) — bajar frecuencia"},
+
+    # robots.txt: `User-agent: * / Allow: /`, bloquea a Amazonbot y Applebot-Extended
+    # por nombre, no a genericos.
+    "remoteok.com": {"access_policy": "open", "policy_reason":
+                     "robots.txt: Allow: / (2026-09-09)"},
+
+    # `Allow: /`, prohibe solo /admin/, /account/ y /job-seekers/account/. El RSS no
+    # esta en la lista.
+    "weworkremotely.com": {"access_policy": "open", "policy_reason":
+                           "robots.txt permite el RSS (2026-09-09)"},
+}
+
+
+def politica_de(domain: str) -> dict | None:
+    """La politica declarada de un board, o None si no hay una escrita."""
+    return POLITICAS.get(domain)
+
+
 def para(domain: str) -> dict | None:
     """La definición de endpoint de un board, o None si no tiene."""
     return ENDPOINTS.get(domain)

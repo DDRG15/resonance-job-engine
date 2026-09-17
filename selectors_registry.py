@@ -806,6 +806,19 @@ def active_domains() -> list[str]:
                 activos.append(d)
     except Exception:
         pass
+
+    # Fase 9: un board con politica de acceso que lo impide sale de la lista. Es la
+    # diferencia entre "lo intentamos y falla" y "no se intenta, y por esto".
+    # remote.co (host muerto) y welcometothejungle.com (muro de login) se
+    # "diagnosticaron" dos veces entre julio y septiembre porque la razon vivia en un
+    # comentario y no en la estrategia que el router lee.
+    try:
+        import endpoint_registry
+        bloqueados = {d for d, p in endpoint_registry.POLITICAS.items()
+                      if p.get("access_policy") in ("declined", "auth_required")}
+        activos = [d for d in activos if d not in bloqueados]
+    except Exception:
+        pass
     return activos
 
 
