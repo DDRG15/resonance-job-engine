@@ -68,27 +68,51 @@ FULL_PROFILE = {
 # 1. _score_title
 # =============================================================================
 
+# Calibracion 2026-09-17: el titulo dejo de puntuarse en cinco escalones
+# (0/15/35/40/50) y pasa a una curva continua sobre cobertura y precision. Con la
+# renormalizacion de la Fase 4 esos cinco escalones se volvian 0/30/70/80/100, y como
+# el titulo es el unico eje que casi siempre participa, un calce exacto bastaba para
+# llegar a 100: 205 avisos con score 100 en la corrida del 17-09.
+#
+# Estos tests verifican el ORDEN, no los numeros exactos: un escalon puntual es un
+# detalle de implementacion, que un calce mejor puntue mas alto que uno peor no lo es.
+
 def test_score_title_exact_match():
     score, match, miss = _score_title("Backend Engineer", ["Backend Engineer"])
     assert score == 50
-    assert any("Exact" in r for r in match)
+    assert match
 
 
-def test_score_title_contains_match():
-    score, match, miss = _score_title("Senior Backend Engineer", ["Backend Engineer"])
-    assert score == 40
-    assert any("contains" in r.lower() for r in match)
+def test_un_calce_exacto_puntua_mas_que_uno_con_palabras_de_mas():
+    """Lo que la calibracion vino a arreglar: "Senior Backend Engineer, Payments
+    (EMEA)" y "Backend Engineer" puntuaban igual contra el target "backend engineer",
+    porque los dos lo contienen. El primero es un puesto distinto con el target
+    adentro."""
+    exacto, _, _ = _score_title("Backend Engineer", ["Backend Engineer"])
+    con_ruido, _, _ = _score_title("Senior Backend Engineer, Payments (EMEA)",
+                                   ["Backend Engineer"])
+    assert exacto > con_ruido > 0
 
 
-def test_score_title_all_words_match():
-    score, match, miss = _score_title("Engineer Backend Senior", ["Senior Backend Engineer"])
-    assert score == 35
+def test_el_orden_de_las_palabras_no_penaliza():
+    """El match es por tokens: "Engineer Backend Senior" es el mismo puesto que
+    "Senior Backend Engineer" escrito al reves."""
+    score, _, _ = _score_title("Engineer Backend Senior", ["Senior Backend Engineer"])
+    assert score >= 40
 
 
 def test_score_title_partial_match():
+    """Tolerante a la raiz: `engineer` cuenta como cubierto por `engineering`. La
+    version de escalones comparaba subcadenas; pasar a tokens exactos perdia esto."""
     score, match, miss = _score_title("Engineering Lead", ["Backend Engineer"])
-    assert score == 15
-    assert any("Partial" in r for r in match)
+    assert 0 < score < 50
+    assert match
+
+
+def test_un_titulo_sin_nada_en_comun_da_cero():
+    score, match, miss = _score_title("Chef de Cuisine", ["Backend Engineer"])
+    assert score == 0
+    assert miss
 
 
 def test_score_title_no_match():

@@ -159,7 +159,13 @@ class TestTraerFuente:
         monkeypatch.setattr(es, "fetch",
                             lambda url, **kw: (pedidas.append(url), ASHBY)[1])
         ats_scraper.traer_fuente(FuenteATS("ashby", "posthog", "PostHog"))
-        assert pedidas == ["https://api.ashbyhq.com/posting-api/job-board/posthog"]
+        assert len(pedidas) == 1
+        assert pedidas[0].startswith(
+            "https://api.ashbyhq.com/posting-api/job-board/posthog")
+        # Calibración 2026-09-17: sin este flag la clave `compensation` no viene, y
+        # el salario estaba en 0% para las tres plataformas ATS. Medido en modal:
+        # 31 de 34 avisos con rango real.
+        assert "includeCompensation=true" in pedidas[0]
 
     def test_un_403_queda_en_error_y_no_lanza(self, monkeypatch):
         def _explota(url, **kw):

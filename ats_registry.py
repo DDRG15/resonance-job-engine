@@ -76,14 +76,21 @@ PLATAFORMAS: dict[str, Plataforma] = {
     # Ashby tampoco trae empresa. `jobUrl` es la oferta; `applyUrl` es el formulario,
     # y usar ese como URL del aviso rompería la deduplicación contra el resto.
     # api.ashbyhq.com devuelve 401 al pedir robots.txt: sin política publicada.
+    # `?includeCompensation=true` (calibracion 2026-09-17): sin el flag, la clave
+    # `compensation` no viene. Con el flag viene siempre, pero solo tiene contenido si
+    # la empresa lo cargo — medido: modal 31 de 34, supabase 1 de 60, posthog y linear
+    # 0. Vale igual: el salario estaba en 0% para las tres plataformas ATS, y cuando
+    # esta es un rango real ("$220K - $300K") que el parser ya entiende.
     "ashby": Plataforma(
         nombre="ashby",
-        url_template="https://api.ashbyhq.com/posting-api/job-board/{token}",
+        url_template=("https://api.ashbyhq.com/posting-api/job-board/{token}"
+                      "?includeCompensation=true"),
         items_path="jobs",
         field_map={
             "title": "title",
             "url": "jobUrl",
             "location": "location",
+            "salary_raw": "compensation.compensationTierSummary",
         },
     ),
 }

@@ -91,32 +91,82 @@ def _score_title(job_title: str, target_titles: list[str]) -> tuple[int, list[st
         Any word present                → 15 pts
         No match                        → 0 pts
     """
-    title_lower = job_title.lower()
+    title_lower = (job_title or "").lower()
     best_score = 0
+    mejor_target = ""
     match_reasons = []
     miss_reasons = []
 
+    tokens_titulo = _meaningful_tokens(title_lower)
+
     for target in target_titles:
         target_lower = target.lower()
-        target_words = set(re.split(r"\W+", target_lower)) - {""}
+        tokens_target = _meaningful_tokens(target_lower)
 
         if target_lower == title_lower:
-            best_score = max(best_score, 50)
-            match_reasons.append(f"Exact title match: '{target}'")
-        elif target_lower in title_lower:
-            best_score = max(best_score, 40)
-            match_reasons.append(f"Title contains: '{target}'")
-        elif all(w in title_lower for w in target_words):
-            best_score = max(best_score, 35)
-            match_reasons.append(f"All words of '{target}' in title")
-        elif any(w in title_lower for w in target_words if len(w) > 2):
-            best_score = max(best_score, 15)
-            match_reasons.append(f"Partial title match: '{target}'")
+            puntaje = 50.0
+        elif not tokens_target:
+            continue
+        else:
+            # ── Calibración 2026-09-17: curva continua, no cinco escalones ────
+            #
+            # La escala tenía cinco niveles (0/15/35/40/50) y con la
+            # renormalización de la Fase 4 quedaban 0/30/70/80/100. Como el
+            # título es el único eje que casi siempre participa, un calce exacto
+            # bastaba para llegar a 100: la corrida del 17-09 dio **274 Tier 1
+            # de 1095 avisos (25%)**, que para una lista de prioridades es
+            # demasiado.
+            #
+            # Dos factores, y el segundo es el que faltaba:
+            #
+            #   cobertura  cuánto del target está en el título
+            #   precision  cuánto del título es el target
+            #
+            # Sin `precision`, "Senior Staff Backend Engineer, Payments Platform
+            # (EMEA)" puntuaba igual que "Backend Engineer" contra el target
+            # "backend engineer" — los dos lo contienen. Pero el primero es un
+            # puesto distinto con el target adentro, y tratarlos igual es lo que
+            # llenaba el Tier 1.
+            # Tolerante a la raíz: `engineer` cuenta como cubierto por `engineering`.
+            # La versión de escalones comparaba subcadenas, así que "Engineering Lead"
+            # matcheaba parcialmente con "Backend Engineer"; pasar a tokens exactos
+            # perdía eso en silencio. El piso de 5 caracteres evita que `dev` matchee
+            # `development`, `device` y `devops` a la vez.
+            cubiertos = {
+                t for t in tokens_target
+                if t in tokens_titulo
+                or any(len(t) >= 5 and (u.startswith(t) or t.startswith(u))
+                       for u in tokens_titulo if len(u) >= 5)
+            }
+            if not cubiertos:
+                continue
+            cobertura = len(cubiertos) / len(tokens_target)
 
-    if best_score == 0:
+            # `precision` se mide contra TODOS los tokens del título, no contra los
+            # "significativos". Ese fue el error del primer intento de esta
+            # calibración: `_meaningful_tokens` descarta senior/staff/principal como
+            # stopwords, así que "Principal Platform Engineer" y "Platform Engineer"
+            # quedaban idénticos y la precisión no penalizaba nada. Medido: Tier 1
+            # subió de 274 a 338 y 640 avisos se apilaron en un solo decil.
+            todos_titulo = {t for t in re.split(r"[^a-z0-9]+", title_lower) if len(t) > 1}
+            precision = len(cubiertos & todos_titulo) / max(1, len(todos_titulo))
+
+            # La cobertura pesa más: que falte medio target es peor que que sobren
+            # palabras. Pero la precisión no es cero — es lo que separa un título que
+            # ES el puesto de uno que lo menciona de paso.
+            puntaje = 50.0 * (0.70 * cobertura + 0.30 * precision)
+
+        if puntaje > best_score:
+            best_score = puntaje
+            mejor_target = target
+
+    if best_score <= 0:
         miss_reasons.append(f"Title '{job_title}' did not match any target")
+    else:
+        match_reasons.append(
+            f"Title match {best_score / 50 * 100:.0f}% vs '{mejor_target}'")
 
-    return min(best_score, 50), match_reasons, miss_reasons
+    return int(round(min(best_score, 50))), match_reasons, miss_reasons
 
 
 def _score_salary(
