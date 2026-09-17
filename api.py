@@ -500,6 +500,94 @@ def resolve_review(review_hash: str, body: ReviewResolve):
     return {"resolved": True, "review_hash": review_hash}
 
 
+# =============================================================================
+# Fase 7 — Ciclo de vida de la postulación
+#
+# GEMA terminaba en "encontrado y empujado a Notion". Sin esto no se puede
+# responder "de los Tier 1 que apliqué, cuántos convirtieron", y esa pregunta es
+# el único feedback real que tiene el matcher: hoy el scoring se calibra a ojo.
+# =============================================================================
+
+class PostulacionNueva(BaseModel):
+    url: str
+    status: str = "postulado"
+    notes: Optional[str] = None
+    follow_up_at: Optional[str] = None
+
+
+class PostulacionMovida(BaseModel):
+    status: str
+    nota: Optional[str] = None
+    salary_offered: Optional[int] = None
+
+
+@app.get("/api/applications")
+def list_applications(status: Optional[str] = None):
+    """Las postulaciones, más recientemente movidas primero.
+
+    `estados` y `cadena` viajan con la respuesta para que el front no tenga que
+    duplicar la máquina de estados: si la lista de estados vive en dos lugares,
+    el día que se agregue uno solo se va a actualizar uno.
+    """
+    import applications as app_dom
+    return {
+        "applications": app.state.db.listar_postulaciones(status=status),
+        "estados": sorted(app_dom.ESTADOS),
+        "cadena": list(app_dom.CADENA),
+        "terminales": sorted(app_dom.TERMINALES),
+    }
+
+
+@app.post("/api/applications", status_code=201)
+def create_application(body: PostulacionNueva):
+    import applications as app_dom
+    try:
+        return app.state.db.crear_postulacion(
+            body.url, status=body.status, notes=body.notes,
+            follow_up_at=body.follow_up_at)
+    except app_dom.TransicionInvalida as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.patch("/api/applications/{app_id}")
+def move_application(app_id: str, body: PostulacionMovida):
+    import applications as app_dom
+    try:
+        return app.state.db.mover_postulacion(
+            app_id, body.status, nota=body.nota,
+            salary_offered=body.salary_offered)
+    except KeyError:
+        raise HTTPException(404, "postulación no encontrada")
+    except app_dom.TransicionInvalida as exc:
+        # 409 y no 400: el pedido está bien formado, lo que no se puede es ese
+        # movimiento DESDE donde está hoy. Un 400 mandaría a revisar el payload.
+        raise HTTPException(409, str(exc))
+
+
+@app.get("/api/applications/{app_id}/history")
+def application_history(app_id: str):
+    """Por dónde pasó, no dónde está. `status` contesta lo segundo; un embudo
+    necesita lo primero para poder decir en qué etapa se cae la gente."""
+    historial = app.state.db.historial_postulacion(app_id)
+    if not historial:
+        raise HTTPException(404, "postulación no encontrada")
+    return {"app_id": app_id, "eventos": historial}
+
+
+@app.get("/api/applications/stats")
+def application_stats(dimension: str = "tier_al_aplicar"):
+    """Tasa de conversión por tier, board o rango de score.
+
+    Es la métrica que justifica la fase: convierte tu propio historial en ground
+    truth para calibrar el matcher, que hoy se calibra a ojo.
+    """
+    try:
+        return {"dimension": dimension,
+                "grupos": app.state.db.conversion_por(dimension)}
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
 @app.post("/api/cv")
 def upload_cv(file: UploadFile = File(...)):
     file_bytes = file.file.read()

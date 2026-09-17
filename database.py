@@ -89,6 +89,57 @@ CREATE TABLE IF NOT EXISTS seen_jobs_registry (
 );
 """
 
+# Fase 7 (2026-09-16) — el ciclo de vida de una postulación.
+#
+# GEMA terminaba en «encontrado y empujado a Notion». Sin esto no se puede responder
+# «de los Tier 1 que apliqué, cuántos convirtieron», y esa pregunta es el único
+# feedback real que tiene el matcher: hoy el scoring se calibra a ojo.
+#
+# `job_hash` es la misma clave que usa el registry, no un id nuevo. Una postulación
+# sin aviso no existe, y duplicar la identidad sería inventarse una segunda forma de
+# decir cuál es el mismo trabajo — que es exactamente el problema que la Fase 11
+# (correlators) existe para arreglar en el registry.
+#
+# UNIQUE en job_hash: una postulación por aviso. Postularse dos veces al mismo puesto
+# es un error de la persona, y la base no debería ayudarlo a pasar desapercibido.
+_DDL_APPLICATIONS = """
+CREATE TABLE IF NOT EXISTS applications (
+    app_id           TEXT PRIMARY KEY,
+    job_hash         TEXT NOT NULL UNIQUE,
+    url              TEXT NOT NULL,
+    title            TEXT,
+    company          TEXT,
+    source_domain    TEXT,
+    tier_al_aplicar  TEXT,
+    score_al_aplicar INTEGER,
+    status           TEXT NOT NULL,
+    created_at       TEXT NOT NULL,
+    stage_changed_at TEXT NOT NULL,
+    applied_at       TEXT,
+    closed_at        TEXT,
+    salary_offered   INTEGER,
+    follow_up_at     TEXT,
+    notes            TEXT
+);
+"""
+
+# El histórico de transiciones va en su propia tabla, no en una columna JSON.
+#
+# `applications.status` dice dónde está hoy; esto dice por dónde pasó. Sin el
+# histórico, un embudo no puede decir en qué etapa se cae la gente — solo dónde
+# quedó la que ya terminó, que es otra pregunta. Y un rechazo en `tecnica` y uno en
+# `screening` cuentan distinto para calibrar el matcher.
+_DDL_APPLICATION_EVENTS = """
+CREATE TABLE IF NOT EXISTS application_events (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    app_id     TEXT NOT NULL,
+    desde      TEXT,
+    hasta      TEXT NOT NULL,
+    ocurrio_en TEXT NOT NULL,
+    nota       TEXT
+);
+"""
+
 _DDL_SEARCH_VAULT = """
 CREATE TABLE IF NOT EXISTS search_vault (
     vault_id        TEXT PRIMARY KEY,
@@ -292,6 +343,11 @@ class GemaDatabase:
             conn.execute(_DDL_NODE_TRACES)    # v3 Fase 4
             conn.execute(_DDL_LLM_CALLS)      # v3 Fase 4
             conn.execute(_DDL_EVAL_RESULTS)   # v3 Fase 7
+            conn.execute(_DDL_APPLICATIONS)        # Fase 7 (ingesta/scoring)
+            conn.execute(_DDL_APPLICATION_EVENTS)  # Fase 7
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_app_events_app "
+                "ON application_events(app_id)")
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
             # Migrations: add columns to existing DBs that predate these fields.
@@ -856,6 +912,262 @@ class GemaDatabase:
                 salida.append(d)
         salida.sort(key=lambda d: d["dias_restantes"])
         return salida[:limit]
+
+    def update_tiers_batch(self, filas: list[tuple]) -> int:
+        """
+        Backfillea tier, score y razonamiento para muchos avisos en UNA transacción.
+
+        Medido el 2026-09-16: `update_tier` cuesta **107 ms por aviso**, consistente
+        entre tandas. La causa está en `_get_connection`, que abre una conexión, corre
+        `PRAGMA journal_mode=WAL`, commitea y cierra — un fsync por fila. Con las
+        Fases 1 y 2 una corrida ya trae 940 avisos, así que eso son ~100 segundos de
+        puro escribir contra los 7,7 s que tarda traerlos.
+
+        Una transacción para todos lo vuelve proporcional al disco y no al catálogo.
+
+        `filas` son tuplas `(url, tier, match_score, salary_raw, tiered)` — la misma
+        forma que `update_tier`, para que no haya dos maneras de decir lo mismo.
+        Devuelve cuántas se escribieron.
+        """
+        if not filas:
+            return 0
+        version = getattr(config, "SCORE_VERSION", None)
+        params = []
+        for url, tier, score, salary_raw, tiered in filas:
+            params.append((
+                tier, score, salary_raw,
+                _json_o_none(getattr(tiered, "match_reasons", None)),
+                _json_o_none(getattr(tiered, "miss_reasons", None)),
+                getattr(tiered, "location_verdict", None),
+                getattr(tiered, "location_note", None),
+                getattr(tiered, "language_verdict", None),
+                getattr(tiered, "language_note", None),
+                version if tiered is not None else None,
+                self.compute_hash(url),
+            ))
+        with _get_connection(self.db_path) as conn:
+            conn.executemany(
+                "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
+                "salary_raw=COALESCE(?, salary_raw), "
+                "match_reasons=COALESCE(?, match_reasons), "
+                "miss_reasons=COALESCE(?, miss_reasons), "
+                "location_verdict=COALESCE(?, location_verdict), "
+                "location_note=COALESCE(?, location_note), "
+                "language_verdict=COALESCE(?, language_verdict), "
+                "language_note=COALESCE(?, language_note), "
+                "score_version=COALESCE(?, score_version) "
+                "WHERE job_hash=?",
+                params,
+            )
+        logger.info("Batch-updated tier for %d jobs.", len(params))
+        return len(params)
+
+    def hashes_puntuados(self, version: Optional[str] = None) -> set:
+        """
+        Los `job_hash` que ya tienen tier, para que `bucket_jobs` no los repita.
+
+        **La versión importa.** Un aviso puntuado con `v1` tiene que volver a pasar:
+        las Fases 3 y 4 cambiaron cómo se puntúa —la ubicación salió del score, las
+        dimensiones se renormalizaron— y ese número ya no es comparable con los
+        nuevos. Saltearlo dejaría la base con dos escalas mezcladas y sin forma de
+        distinguirlas al ordenar.
+
+        Con `version=None` devuelve todo lo puntuado, sin importar con qué algoritmo.
+        """
+        q = "SELECT job_hash FROM seen_jobs_registry WHERE tier IS NOT NULL"
+        params: list = []
+        if version is not None:
+            q += " AND score_version = ?"
+            params.append(version)
+        with _get_connection(self.db_path) as conn:
+            return {r[0] for r in conn.execute(q, params).fetchall()}
+
+    # =========================================================================
+    # Fase 7 — Postulaciones
+    # =========================================================================
+
+    def crear_postulacion(self, url: str, *, status: str = "postulado",
+                          notes: Optional[str] = None,
+                          follow_up_at: Optional[str] = None) -> dict:
+        """
+        Registra una postulación contra un aviso del registry.
+
+        El default es `postulado` y no `borrador` porque registrar una postulación
+        normalmente significa que ya aplicaste — el botón de la UI dice «Apliqué».
+        `borrador` es el caso especial y se pide explícito. Un default distinto acá
+        que en el endpoint sería la misma acción con dos significados.
+
+        El tier y el score se copian **al momento de aplicar**, no se leen después.
+        El matcher cambia —las Fases 3 y 4 ya lo cambiaron dos veces— y la pregunta
+        que esta tabla existe para contestar es «el score que yo vi cuando apliqué,
+        ¿predijo algo?». Leerlo después contestaría otra cosa.
+
+        Idempotente por aviso: si ya hay una postulación para esa URL, la devuelve
+        sin tocarla. Postularse dos veces al mismo puesto es un error de la persona,
+        y la base no debería ayudarlo a pasar desapercibido.
+        """
+        import uuid
+        import applications as app
+
+        if status not in app.ESTADOS:
+            raise app.TransicionInvalida(f"Estado desconocido: {status!r}")
+
+        job_hash = self.compute_hash(url)
+        ahora = _now_iso()
+
+        with _get_connection(self.db_path) as conn:
+            ya = conn.execute(
+                "SELECT * FROM applications WHERE job_hash=?", (job_hash,)
+            ).fetchone()
+            if ya:
+                return dict(ya)
+
+            aviso = conn.execute(
+                "SELECT title, company, source_domain, tier, match_score "
+                "FROM seen_jobs_registry WHERE job_hash=?", (job_hash,)
+            ).fetchone()
+
+            app_id = uuid.uuid4().hex
+            conn.execute(
+                """INSERT INTO applications
+                   (app_id, job_hash, url, title, company, source_domain,
+                    tier_al_aplicar, score_al_aplicar, status, created_at,
+                    stage_changed_at, applied_at, follow_up_at, notes)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (app_id, job_hash, url,
+                 aviso["title"] if aviso else None,
+                 aviso["company"] if aviso else None,
+                 aviso["source_domain"] if aviso else None,
+                 aviso["tier"] if aviso else None,
+                 aviso["match_score"] if aviso else None,
+                 status, ahora, ahora,
+                 ahora if status != app.BORRADOR else None,
+                 follow_up_at, notes),
+            )
+            conn.execute(
+                "INSERT INTO application_events (app_id, desde, hasta, ocurrio_en, nota) "
+                "VALUES (?,?,?,?,?)",
+                (app_id, None, status, ahora, notes),
+            )
+            fila = conn.execute(
+                "SELECT * FROM applications WHERE app_id=?", (app_id,)).fetchone()
+        logger.info("[APP] Postulacion %s creada en %s", app_id[:8], status)
+        return dict(fila)
+
+    def mover_postulacion(self, app_id: str, hasta: str,
+                          nota: Optional[str] = None,
+                          salary_offered: Optional[int] = None) -> dict:
+        """
+        Mueve una postulación de estado, validando que la transición sea legal.
+
+        La validación no es defensiva por costumbre: un embudo con saltos de etapa no
+        puede decir dónde se cae la gente, que es lo único para lo que sirve un embudo.
+        Ver `applications.transiciones_validas` para el porqué de cada regla.
+
+        Cada movimiento deja una fila en `application_events`. `status` dice dónde
+        está hoy; el histórico dice por dónde pasó, y son preguntas distintas.
+        """
+        import applications as app
+
+        with _get_connection(self.db_path) as conn:
+            fila = conn.execute(
+                "SELECT * FROM applications WHERE app_id=?", (app_id,)).fetchone()
+            if fila is None:
+                raise KeyError(f"No existe la postulacion {app_id!r}")
+
+            desde = fila["status"]
+            app.validar_transicion(desde, hasta)   # lanza si no es legal
+
+            ahora = _now_iso()
+            conn.execute(
+                "UPDATE applications SET status=?, stage_changed_at=?, "
+                "applied_at=COALESCE(applied_at, ?), "
+                "closed_at=?, "
+                "salary_offered=COALESCE(?, salary_offered), "
+                "notes=COALESCE(?, notes) "
+                "WHERE app_id=?",
+                (hasta, ahora,
+                 ahora if hasta != app.BORRADOR else None,
+                 ahora if app.es_terminal(hasta) else fila["closed_at"],
+                 salary_offered, nota, app_id),
+            )
+            conn.execute(
+                "INSERT INTO application_events (app_id, desde, hasta, ocurrio_en, nota) "
+                "VALUES (?,?,?,?,?)",
+                (app_id, desde, hasta, ahora, nota),
+            )
+            nueva = conn.execute(
+                "SELECT * FROM applications WHERE app_id=?", (app_id,)).fetchone()
+        logger.info("[APP] %s: %s -> %s", app_id[:8], desde, hasta)
+        return dict(nueva)
+
+    def listar_postulaciones(self, status: Optional[str] = None,
+                             limit: int = 500) -> list[dict]:
+        q = "SELECT * FROM applications"
+        params: list = []
+        if status:
+            q += " WHERE status=?"
+            params.append(status)
+        q += " ORDER BY stage_changed_at DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 2000)))
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(q, params).fetchall()]
+
+    def historial_postulacion(self, app_id: str) -> list[dict]:
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT * FROM application_events WHERE app_id=? ORDER BY id",
+                (app_id,)).fetchall()]
+
+    def conversion_por(self, dimension: str = "tier_al_aplicar") -> list[dict]:
+        """
+        Tasa de conversión agrupada por tier, board o rango de score.
+
+        **Esta es la métrica que justifica toda la fase.** Convierte tu propio
+        historial en ground truth para calibrar el matcher, que hoy se calibra a ojo
+        y cuyo corpus de evaluación sigue con dos casos sintéticos.
+
+        «Convirtió» significa que llegó a `screening` o más lejos — ver
+        `applications.CONVIRTIO`. Un `postulado` sin respuesta no dice nada sobre el
+        aviso, solo sobre cuántos candidatos había.
+
+        Se mide sobre el HISTÓRICO, no sobre el estado actual: una postulación
+        rechazada después de una técnica convirtió, aunque hoy figure `rechazado`.
+        Mirar solo el estado final contaría eso como un fracaso del matcher, que es
+        exactamente al revés.
+        """
+        import applications as app
+
+        permitidas = {"tier_al_aplicar", "source_domain", "rango_score"}
+        if dimension not in permitidas:
+            raise ValueError(f"dimension debe ser una de {sorted(permitidas)}")
+
+        with _get_connection(self.db_path) as conn:
+            apps = conn.execute("SELECT * FROM applications").fetchall()
+            eventos = conn.execute(
+                "SELECT app_id, hasta FROM application_events").fetchall()
+
+        alcanzados: dict[str, set] = {}
+        for e in eventos:
+            alcanzados.setdefault(e["app_id"], set()).add(e["hasta"])
+
+        grupos: dict[str, list[int]] = {}
+        for a in apps:
+            if dimension == "rango_score":
+                s = a["score_al_aplicar"]
+                clave = "sin score" if s is None else f"{(s // 10) * 10}-{(s // 10) * 10 + 9}"
+            else:
+                clave = a[dimension] or "sin dato"
+            convirtio = bool(alcanzados.get(a["app_id"], set()) & app.CONVIRTIO)
+            grupos.setdefault(clave, []).append(1 if convirtio else 0)
+
+        salida = [
+            {"grupo": k, "postulaciones": len(v), "convirtieron": sum(v),
+             "tasa": round(sum(v) / len(v), 3) if v else 0.0}
+            for k, v in grupos.items()
+        ]
+        salida.sort(key=lambda d: (-d["tasa"], -d["postulaciones"]))
+        return salida
 
     def get_registry_stats(self) -> dict:
         with _get_connection(self.db_path) as conn:

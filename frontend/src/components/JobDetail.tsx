@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { TieredJobDto } from '../types'
 import { companyIsDirty, fieldConfidence } from './jobQuality'
 
@@ -26,6 +27,29 @@ function scoreClass(score: number): string {
  * /api/results dentro del TieredJobDto — no hace falta tocar el backend.
  */
 export default function JobDetail({ tj }: Props) {
+  // Estado por URL y no un booleano suelto: el panel se reusa al cambiar de aviso,
+  // y un booleano dejaria el "Marcado" pegado al siguiente que abras.
+  const [marcada, setMarcada] = useState<string | null>(null)
+  const [errorApp, setErrorApp] = useState<string | null>(null)
+
+  async function marcarPostulado(url: string) {
+    setErrorApp(null)
+    try {
+      const r = await fetch('/api/applications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, status: 'postulado' }),
+      })
+      if (!r.ok) {
+        const cuerpo = await r.json().catch(() => ({}))
+        throw new Error(cuerpo.detail ?? `HTTP ${r.status}`)
+      }
+      setMarcada(url)
+    } catch (e) {
+      setErrorApp(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   if (tj === null) {
     return (
       <div className="detail detail-empty">
@@ -113,6 +137,15 @@ export default function JobDetail({ tj }: Props) {
         <a className="btn" href={j.url} target="_blank" rel="noopener noreferrer">
           Abrir oferta ↗
         </a>
+        <button
+          className="btn"
+          disabled={marcada === j.url}
+          onClick={() => void marcarPostulado(j.url)}
+          title="Registra la postulacion para poder medir despues si el score predijo algo"
+        >
+          {marcada === j.url ? 'Marcado como postulado' : 'Apliqué'}
+        </button>
+        {errorApp && <div className="error-banner">{errorApp}</div>}
       </div>
     </div>
   )

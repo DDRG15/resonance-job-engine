@@ -7,6 +7,7 @@ import {
 import CommandCenter from './components/CommandCenter'
 import DbViewer from './components/DbViewer'
 import Header from './components/Header'
+import Pipeline from './components/Pipeline'
 import PipelineConsole from './components/PipelineConsole'
 import Results from './components/Results'
 import ReviewPanel from './components/ReviewPanel'
@@ -42,6 +43,7 @@ export default function App() {
   const [showDb, setShowDb] = useState(false)
   const [showStats, setShowStats] = useState(false)
   const [showReview, setShowReview] = useState(false)
+  const [showPipeline, setShowPipeline] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -119,7 +121,12 @@ export default function App() {
         onKill={handleReset}
         onOpenDb={() => { setShowDb(true); setShowStats(false); setShowReview(false) }}
         onOpenStats={() => { setShowStats(true); setShowDb(false); setShowReview(false) }}
-        onOpenReview={() => { setShowReview(true); setShowDb(false); setShowStats(false) }}
+        onOpenReview={() => {
+          setShowReview(true); setShowDb(false); setShowStats(false); setShowPipeline(false)
+        }}
+        onOpenPipeline={() => {
+          setShowPipeline(true); setShowDb(false); setShowStats(false); setShowReview(false)
+        }}
         reviewPending={reviewQ.data?.stats.pending ?? 0}
       />
       <main>
@@ -135,6 +142,7 @@ export default function App() {
         {showReview && (
           <ReviewPanel onClose={() => setShowReview(false)} onChanged={refresh} />
         )}
+        {showPipeline && <Pipeline onClose={() => setShowPipeline(false)} />}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />
         {config && (

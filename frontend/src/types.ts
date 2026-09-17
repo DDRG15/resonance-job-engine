@@ -155,6 +155,37 @@ export interface ReviewJob {
   resolved_url: string | null
 }
 
+// Fase 7 — el ciclo de vida de una postulacion.
+export interface Application {
+  app_id: string
+  job_hash: string
+  url: string
+  title: string | null
+  company: string | null
+  source_domain: string | null
+  // Copiados AL APLICAR, no leidos despues: el matcher cambia (las Fases 3 y 4 ya
+  // lo cambiaron dos veces) y la pregunta es si el score que viste predijo algo.
+  tier_al_aplicar: string | null
+  score_al_aplicar: number | null
+  status: string
+  created_at: string
+  stage_changed_at: string
+  applied_at: string | null
+  closed_at: string | null
+  salary_offered: number | null
+  follow_up_at: string | null
+  notes: string | null
+}
+
+export interface ApplicationsResponse {
+  applications: Application[]
+  // La maquina de estados viaja con la respuesta para que el front no la duplique:
+  // si vive en dos lugares, el dia que se agregue un estado se actualiza uno solo.
+  estados: string[]
+  cadena: string[]
+  terminales: string[]
+}
+
 export interface CvProfile {
   [key: string]: unknown
   role?: string

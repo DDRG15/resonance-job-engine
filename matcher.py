@@ -624,6 +624,7 @@ def bucket_jobs(
     search_config: SearchConfig,
     db=None,
     profile: Optional[dict] = None,
+    repuntuar_todo: bool = False,
 ) -> tuple[list[TieredJob], list[TieredJob], list[TieredJob], list[TieredJob]]:
     """
     Scores and buckets all jobs into four tiers. Returns (t1, t2, t3, t4).
@@ -643,12 +644,44 @@ def bucket_jobs(
     filtrados_no_elegibles = 0
     no_elegibles: list[TieredJob] = []
 
+    # ── Fase 8: re-puntuar solo lo que hace falta ────────────────────────────
+    #
+    # `bucket_jobs` re-puntuaba TODO en cada corrida. Con 1.574 filas todavia no
+    # duele, pero las Fases 1 y 2 abrieron la ingesta por endpoint y ATS: una
+    # corrida ya trae 940 avisos relevantes en 7,7 s, y las 40 fuentes registradas
+    # suman ~8.700. Re-puntuar lo ya puntuado es trabajo que crece con el catalogo
+    # y no aporta nada — salvo cuando cambia el algoritmo, que es justo el caso que
+    # `repuntuar_todo` habilita.
+    #
+    # Lo que NO se saltea es el barrido de deadlines de la Fase 6: cuesta cero red
+    # y corre siempre. La excepcion es deliberada y esta declarada en el plan.
+    from database import GemaDatabase   # import diferido: evita el ciclo
+
+    ya_puntuados: set = set()
+    if db is not None and not repuntuar_todo:
+        try:
+            ya_puntuados = db.hashes_puntuados(version=getattr(config, "SCORE_VERSION", None))
+        except Exception as exc:
+            # Que el atajo falle no puede impedir la corrida: se degrada a
+            # re-puntuar todo, que es el comportamiento anterior.
+            logger.debug("[BUCKET] no se pudo leer lo ya puntuado (%s) — se repuntua todo", exc)
+    saltados_ya_puntuados = 0
+    pendientes: list[tuple] = []
+
     for job in jobs:
         # AUDIT NEW #1: descartar ruido off-topic ANTES de puntuar (File Clerk,
         # Crypto Trader…). Conservador: solo cae si NO comparte ningún token
         # significativo con la búsqueda ni el perfil.
         if not title_is_relevant(job.title, search_config.target_titles, profile):
             filtered_off_topic += 1
+            continue
+
+        # Fase 8: ya puntuado con ESTA version del algoritmo -> se saltea.
+        # La version importa: un aviso puntuado con v1 tiene que volver a pasar,
+        # porque las Fases 3 y 4 cambiaron como se puntua y ese numero ya no es
+        # comparable con los nuevos.
+        if ya_puntuados and GemaDatabase.compute_hash(job.url) in ya_puntuados:
+            saltados_ya_puntuados += 1
             continue
 
         tiered = score_job(job, search_config, profile=profile)
@@ -674,16 +707,32 @@ def bucket_jobs(
         else:
             tier4.append(tiered)
 
+        # Fase 8: se acumulan y se escriben en UNA transaccion al final.
+        # `update_tier` cuesta 107 ms por aviso medidos — abre conexion, corre
+        # PRAGMA journal_mode=WAL, commitea y cierra, un fsync por fila. Con 940
+        # avisos por corrida eso son ~100 s de puro escribir contra los 7,7 s que
+        # tarda traerlos.
+        #
+        # Se pasa el TieredJob entero (Fase 5) para que las razones del match y los
+        # veredictos de elegibilidad tambien se persistan: sin eso la base puede
+        # decir QUE puntaje saco un aviso y nunca POR QUE.
         if db:
-            try:
-                # Fase 5: se pasa el TieredJob entero para que las razones del
-                # match y los veredictos de elegibilidad tambien se persistan. Antes
-                # solo sobrevivian tier, score y salario: la base podia decir QUE
-                # puntaje saco un aviso y nunca POR QUE.
-                db.update_tier(job.url, tiered.tier, tiered.match_score,
-                               salary_raw=job.salary_raw, tiered=tiered)
-            except Exception as exc:
-                logger.warning("[DB] Could not update tier for %s: %s", job.url, exc)
+            pendientes.append((job.url, tiered.tier, tiered.match_score,
+                               job.salary_raw, tiered))
+
+    if db and pendientes:
+        try:
+            db.update_tiers_batch(pendientes)
+        except Exception as exc:
+            # El scrape ya guardo los avisos; perder el backfill del tier degrada la
+            # vista, no la data. Se reporta y se sigue.
+            logger.warning("[DB] No se pudo backfillear el tier de %d avisos: %s",
+                           len(pendientes), exc)
+
+    if saltados_ya_puntuados:
+        logger.info("[BUCKET] %d avisos ya puntuados con %s — salteados",
+                    saltados_ya_puntuados, getattr(config, "SCORE_VERSION", "?"))
+        metrics.emit("jobs_ya_puntuados", saltados_ya_puntuados)
 
     logger.info(
         "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | no-elegibles=%d",

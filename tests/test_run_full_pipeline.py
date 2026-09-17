@@ -88,18 +88,24 @@ class TestRunFullPipeline:
         assert len(t1) == 0
         assert len(t1 + t2 + t3 + t4) == 0
 
-    def test_db_update_tier_called_for_each_job(self):
+    def test_el_tier_de_cada_job_se_persiste(self):
+        """Fase 8: una escritura en lote en vez de una por aviso. Lo que importa
+        sigue siendo que los tres avisos queden persistidos, no cuantas veces se
+        llamo al metodo."""
         from scraper import run_full_pipeline
         from database import GemaDatabase
 
         jobs = [_make_job("Python Engineer", n=i) for i in range(3)]
         summary = ScrapeRunSummary()
         db = MagicMock(spec=GemaDatabase)
+        db.hashes_puntuados.return_value = set()
 
         with patch("scraper.run_scrape_session", return_value=(jobs, summary)):
             run_full_pipeline(_CFG, db, queue.Queue())
 
-        assert db.update_tier.call_count == 3
+        db.update_tiers_batch.assert_called_once()
+        (filas,), _ = db.update_tiers_batch.call_args
+        assert len(filas) == 3
 
     def test_total_jobs_equals_sum_of_tiers(self):
         jobs = [

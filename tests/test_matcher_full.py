@@ -305,13 +305,26 @@ def test_bucket_jobs_distributes_into_four_tiers():
     assert "File Clerk" not in all_titles
 
 
-def test_bucket_jobs_calls_db_update_tier_per_job():
-    """When a db object is provided, update_tier must be called for every job."""
+def test_bucket_jobs_persiste_el_tier_de_cada_job():
+    """Con un db, el tier de cada aviso tiene que quedar persistido.
+
+    Fase 8: la escritura pasa a ser en LOTE. `update_tier` por fila costaba 107 ms
+    medidos -- _get_connection abre, corre PRAGMA journal_mode=WAL, commitea y
+    cierra, un fsync por fila -- y con 940 avisos por corrida eso eran ~100 s de
+    puro escribir. Lo que el test verifica sigue siendo lo mismo: que ningun aviso
+    se quede sin persistir.
+    """
     mock_db = MagicMock()
+    mock_db.hashes_puntuados.return_value = set()
     jobs = [_job("Backend Engineer", salary_raw="$150k", url_id=200)]
     config = _config(titles=["Backend Engineer"])
     bucket_jobs(jobs, config, db=mock_db)
-    mock_db.update_tier.assert_called_once()
+
+    mock_db.update_tiers_batch.assert_called_once()
+    (filas,), _ = mock_db.update_tiers_batch.call_args
+    assert len(filas) == 1
+    url, tier, score, _salario, tiered = filas[0]
+    assert url == jobs[0].url and tier and tiered is not None
 
 
 def test_bucket_jobs_empty_input_returns_four_empty_lists():

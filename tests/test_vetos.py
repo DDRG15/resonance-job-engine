@@ -161,15 +161,20 @@ class TestBucketJobs:
         escrituras = []
 
         class DbFalsa:
-            def update_tier(self, url, tier, score, salary_raw=None, tiered=None):
-                escrituras.append((url, tier, score, tiered))
+            def hashes_puntuados(self, version=None):
+                return set()
+
+            def update_tiers_batch(self, filas):
+                escrituras.extend(filas)
+                return len(filas)
 
         matcher.bucket_jobs(
             [_job("Backend Engineer with security clearance")], CFG, db=DbFalsa())
         assert len(escrituras) == 1
-        assert escrituras[0][2] > 0, "se persistió con score 0: se perdió el dato"
+        _url, _tier, score, _salario, tiered = escrituras[0]
+        assert score > 0, "se persistió con score 0: se perdió el dato"
         # Fase 5: el TieredJob entero llega a la capa de persistencia, con su
         # veredicto y sus razones. Sin esto la base sabría qué puntaje sacó y
         # nunca por qué.
-        assert escrituras[0][3] is not None
-        assert escrituras[0][3].location_verdict == "FAIL"
+        assert tiered is not None
+        assert tiered.location_verdict == "FAIL"
