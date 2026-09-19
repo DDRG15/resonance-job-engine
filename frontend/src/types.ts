@@ -87,6 +87,13 @@ export interface TieredJobDto {
   tier: string
   match_reasons: string[]
   miss_reasons: string[]
+  // Fase 3: la elegibilidad sale del score. El backend los manda siempre
+  // (models.py les da default PASS/""), asi que no son opcionales: declararlos
+  // opcionales invitaria a no mostrarlos, que es como estuvieron hasta hoy.
+  location_verdict: string
+  location_note: string
+  language_verdict: string
+  language_note: string
 }
 
 export interface SummaryDto {

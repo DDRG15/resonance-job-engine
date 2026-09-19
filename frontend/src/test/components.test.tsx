@@ -22,6 +22,10 @@ function makeJob(over: Partial<TieredJobDto['job']> = {}, tj: Partial<TieredJobD
     tier: 'Tier 1',
     match_reasons: ['senior backend'],
     miss_reasons: [],
+    location_verdict: 'PASS',
+    location_note: '',
+    language_verdict: 'PASS',
+    language_note: '',
     ...tj,
   }
 }
@@ -152,6 +156,40 @@ describe('Results', () => {
     render(<Results results={RESULTS} />)
     expect(screen.getByText(/1 error\(es\) durante el run/)).toBeInTheDocument()
     expect(screen.getByText(/remoteok.com aborted: timeout/)).toBeInTheDocument()
+  })
+
+  // Los 94 PASS-sin-ubicacion y los 37 PASS-con-ubicacion de la corrida del 17-09
+  // se dibujaban identicos. Este test congela los tres estados: si alguien vuelve a
+  // colapsar FLAG contra PASS, o PASS-por-evidencia contra PASS-por-ausencia, falla.
+  it('distingue FLAG, PASS con ubicacion y PASS sin ubicacion', () => {
+    const results: ResultsResponse = {
+      ...RESULTS,
+      tiers: {
+        tier1: [
+          makeJob(
+            { location_raw: 'USA', url: 'https://example.com/flag' },
+            { location_verdict: 'FLAG', location_note: 'USA sin requisito declarado' },
+          ),
+          makeJob(
+            { location_raw: 'Worldwide', url: 'https://example.com/pass' },
+            { location_verdict: 'PASS' },
+          ),
+          makeJob(
+            { location_raw: '', url: 'https://example.com/vacio' },
+            { location_verdict: 'PASS' },
+          ),
+        ],
+        tier2: [], tier3: [], tier4: [],
+      },
+    }
+    render(<Results results={results} />)
+
+    expect(screen.getByTitle('USA sin requisito declarado')).toBeInTheDocument()
+    expect(screen.getByText(/⚑/)).toBeInTheDocument()
+    expect(screen.getByText('Worldwide')).toBeInTheDocument()
+    expect(
+      screen.getByTitle(/pasa por ausencia de dato, no por evidencia/),
+    ).toBeInTheDocument()
   })
 })
 

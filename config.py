@@ -91,7 +91,13 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 #
 #   v1  hasta 2026-09-14  presupuesto absoluto, ubicacion sumada al puntaje
 #   v2  desde 2026-09-15  vetos fuera del score, dimensiones renormalizadas, GBP/EUR
-SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v2")
+#   v3  desde 2026-09-19  score de titulo continuo (cobertura 0.70 / precision 0.30)
+#
+# El salto a v3 es retroactivo: 9bc8e4b cambio _score_title y dejo la version en v2,
+# asi que 1024 filas quedaron con puntajes escalonados bajo la misma etiqueta que los
+# continuos. Medido sobre titulos reales del registry, 38 de 40 cambian de puntaje
+# entre las dos escalas. Subir la version las devuelve a la cola de re-puntaje.
+SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v3")
 
 
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────

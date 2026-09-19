@@ -56,7 +56,10 @@ google-auth==2.52.0
 requests==2.33.0       # Discord webhook delivery — bumped from 2.32.3, fixes GHSA-9hjg + GHSA-gc5v (AUDIT #2)
 
 # ── CV Parsing — Ephemeral Identity (Phase 7) ────────────────────────────────
-pdfplumber==0.11.4     # PDF text extraction for CV upload
+pdfplumber==0.11.10    # PDF text extraction for CV upload — subido desde 0.11.4 para
+                       # arrastrar pdfminer.six 20260107 y cerrar PYSEC-2026-1761/1762.
+                       # pdfminer.six es transitiva: pinearla aca la desincronizaria del
+                       # rango que pdfplumber declara.
 python-docx==1.1.2     # DOCX text extraction for CV upload
 
 # ── Data & Export ─────────────────────────────────────────────────────────────
@@ -75,7 +78,9 @@ camoufox==0.4.11       # Firefox-based Playwright fork — bypasses Cloudflare B
 # ── API Layer (B6 — backend para el front React) ─────────────────────────────
 fastapi==0.116.1       # adapter fino sobre el engine; requiere starlette <0.48 (pin de arriba OK)
 uvicorn[standard]==0.35.0  # server ASGI — correr SIEMPRE con --workers 1 (SchedulerService es singleton por proceso)
-python-multipart==0.0.20   # upload de CV (multipart/form-data)
+python-multipart==0.0.31   # upload de CV (multipart/form-data) — subido desde 0.0.20:
+                           # cierra 6 avisos (PYSEC-2026-1852/3036/3037/3038/3039/3040)
+                           # sin cruzar un major. Es el parser que ve POST /api/cv.
 
 # ── Testing ───────────────────────────────────────────────────────────────────
 pytest==8.2.2          # Test runner — LLM callers are mocked; no real API calls made

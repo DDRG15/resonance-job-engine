@@ -306,6 +306,12 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 /* Ausencia y suciedad se dibujan distinto: el punto es "se busco y no estaba",
    "sin empresa" es "vino algo y no era un nombre". */
 .cell-absent { color: var(--faint); font-family: var(--mono); }
+/* FLAG de ubicacion: region restringida sin requisito declarado. Pesa mas que un
+   PASS (--text contra --muted) y menos que un tier, porque no es un tier. No usa
+   hue propio a proposito: la paleta de tiers esta validada para daltonismo y un
+   ambar nuevo al lado de --t2 se lee como "Tier 2". El glifo carga el significado. */
+.cell-flag { color: var(--text); font-weight: 500; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; display: block; }
 .cell-dirty {
   color: var(--t3-ink); font-size: 11px; font-family: var(--mono);
   border: 1px dashed rgba(225,29,72,.4); border-radius: 5px; padding: 1px 6px;

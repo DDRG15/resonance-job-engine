@@ -56,10 +56,29 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
     header: 'Ubicación',
     cell: (c) => {
       const v = c.getValue<string>()
+      const tj = c.row.original
+      // Tres estados, no dos. Medido sobre los 274 Tier 1 del 17-09: 143 FLAG con
+      // ubicación (USA, Canada, Bangalore), 94 PASS SIN ubicación y 37 PASS con
+      // ubicación. Dibujar los 94 igual que los 37 convierte "nadie dijo nada" en
+      // "está abierto", y es lo que hace que veinte pestañas terminen en un
+      // formulario que pide autorización para trabajar en Estados Unidos.
+      //
+      // La jerarquía es de peso, no de color: los tiers ya se quedaron con la
+      // paleta y está validada para daltonismo. El glifo carga el significado.
+      if (tj.location_verdict === 'FLAG') {
+        return (
+          <span
+            className="cell-flag"
+            title={tj.location_note || 'Región restringida, sin requisito declarado en el aviso'}
+          >
+            ⚑ {v || 'región restringida'}
+          </span>
+        )
+      }
       // El guión mudo se lee como bug de la UI. El punto medio dice "se buscó".
       return v
-        ? <span className="cell-dim">{v}</span>
-        : <span className="cell-absent" title="El board no la expone, o GEMA no tiene selector">·</span>
+        ? <span className="cell-dim" title={tj.location_note || undefined}>{v}</span>
+        : <span className="cell-absent" title="El board no la expone: pasa por ausencia de dato, no por evidencia">·</span>
     },
   },
   {
