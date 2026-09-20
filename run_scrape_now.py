@@ -1,26 +1,41 @@
 """
-run_scrape_now.py — One-shot CLI scrape runner for GEMA.
+run_scrape_now.py — Corrida one-shot por linea de comandos.
 
-Runs a full scrape session using the current user_profile.yaml and all
-registered boards, then sends a Discord summary. No Streamlit required.
+Usa el MISMO grafo que la API y el cron, con trigger="cli". Sin Streamlit, sin
+servidor.
 
-Usage:
     python run_scrape_now.py
 
-Output:
-    - Results stored in gema_registry.db (same DB as the UI)
-    - Discord notification with Tier 1/2/3 counts + top Tier 1 jobs
-    - Console log while running
+Por que importa que pase por el grafo. Hasta el 2026-09-19 este script llamaba a
+`run_scrape_session` y `bucket_jobs` directo, saltandose `graph/run_graph.py`. La
+corrida de calibracion del 17-09 —1.095 avisos, la mas grande del proyecto— salio por
+aca, y dejo CERO filas en `runs` y CERO en `node_traces`. Ademas se salteaba
+`barrer_vencidos()`, que vive en el nodo `init_run` y se diseño para correr "en cada
+arranque sin pensarlo": en el arranque que importo, no corrio.
+
+Lo que se gana entrando por el grafo, sin escribir una linea de telemetria nueva:
+    init_run     record_run_start + barrer_vencidos
+    @traced_node una fila de node_traces por nodo
+    persist_run  record_run_end
+    notify       el reporte a Discord, en el MISMO formato que los otros triggers
+    push         Notion y Sheets, aislados
+
+Salida:
+    - Resultados en gema_registry.db (la misma base que usa la UI)
+    - Notificacion de Discord con el conteo por tier
+    - Log en consola mientras corre
 """
 
 import logging
 import queue
 import sys
-import yaml
 from pathlib import Path
 
-# Windows consoles default to cp1252, which crashes the logging StreamHandler on
-# non-latin-1 chars (e.g. the '->' arrow in scraper logs). Match gema_industrial.
+import yaml
+
+# Las consolas de Windows arrancan en cp1252 y el StreamHandler de logging explota con
+# cualquier caracter fuera de latin-1 (la flecha '->' de los logs del scraper, sin ir
+# mas lejos).
 try:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -44,35 +59,16 @@ def _load_profile() -> dict:
         return yaml.safe_load(f) or {}
 
 
-def _drain_log_queue(log_q: queue.Queue) -> None:
-    while not log_q.empty():
-        try:
-            msg = log_q.get_nowait()
-            logger.info("[SCRAPER] %s", msg)
-        except queue.Empty:
-            break
+def build_config():
+    """
+    La busqueda del CLI: todos los boards registrados, sin piso de salario.
 
-
-def main() -> None:
-    from database import GemaDatabase
-    from matcher import bucket_jobs
+    Vive aparte de main() para que un test la pueda construir sin correr la corrida.
+    """
     from models import SearchConfig
-    from scraper import run_scrape_session
-    from integrations.webhook_client import send_discord_alert
     import selectors_registry
 
-    # ── Profile ──────────────────────────────────────────────────────────────
-    profile = _load_profile()
-    role    = profile.get("role", "Python Backend Developer")
-    logger.info("Profile loaded: %s | %d skills | %d audit signals",
-                role,
-                len(profile.get("core_skills", [])),
-                len(profile.get("audit_signals", [])))
-
-    # ── Search config ─────────────────────────────────────────────────────────
-    # No minimum salary — all remote offers accepted.
-    # Titles cover backend, SRE, DevOps, and data engineering tracks.
-    cfg = SearchConfig(
+    return SearchConfig(
         target_titles=[
             # ── Original titles ───────────────────────────────────────────────
             "Python Backend Developer",
@@ -151,82 +147,79 @@ def main() -> None:
         min_salary=None,
         target_domains=list(selectors_registry.SELECTORS.keys()),
     )
+
+
+def main() -> int:
+    from database import GemaDatabase
+    from graph.run_graph import run_pipeline
+    from graph.runtime import RuntimeContext
+    from integrations import NotionClient, SheetsClient
+    from integrations.webhook_client import send_discord_alert
+
+    profile = _load_profile()
+    logger.info("Profile loaded: %s | %d skills | %d audit signals",
+                profile.get("role", "Python Backend Developer"),
+                len(profile.get("core_skills", [])),
+                len(profile.get("audit_signals", [])))
+
+    cfg = build_config()
     logger.info("Search config: %d titles × %d boards",
                 len(cfg.target_titles), len(cfg.target_domains))
 
-    # ── Database ──────────────────────────────────────────────────────────────
     db = GemaDatabase()
-
-    # ── Log queue ─────────────────────────────────────────────────────────────
     log_q: queue.Queue = queue.Queue()
 
-    # ── Notify start ──────────────────────────────────────────────────────────
-    send_discord_alert(
-        f"GEMA scrape iniciado — {len(cfg.target_titles)} títulos × "
-        f"{len(cfg.target_domains)} boards. Sin filtro de salario. "
-        "Los resultados llegan en unos minutos."
+    # Notion y Sheets se arman igual que en api.py. Si se dejaran en None, una corrida
+    # por CLI no empujaria a ningun lado y estariamos inventando la misma divergencia
+    # que este cambio vino a cerrar, corrida un escalon mas abajo.
+    ctx = RuntimeContext(
+        db=db,
+        notion=NotionClient(),
+        sheets=SheetsClient(),
+        discord=send_discord_alert,
+        log=lambda msg: logger.info("[GEMA] %s", msg),
     )
 
-    # ── Run ───────────────────────────────────────────────────────────────────
-    logger.info("Launching scrape session...")
+    send_discord_alert(
+        f"⌨️ GEMA scrape por CLI — {len(cfg.target_titles)} títulos × "
+        f"{len(cfg.target_domains)} boards. Sin filtro de salario."
+    )
+
+    logger.info("Launching pipeline (trigger=cli)...")
     try:
-        jobs, summary = run_scrape_session(cfg, db, log_q, ttl_hours=48, profile=profile)
+        estado = run_pipeline(
+            config=cfg,
+            ctx=ctx,
+            trigger="cli",
+            profile=profile,
+            ttl_hours=48,
+            log_queue=log_q,
+        )
     except Exception as exc:
-        logger.error("Scrape session failed: %s", exc)
-        send_discord_alert(f"GEMA scrape FAILED: {exc}")
-        sys.exit(1)
-    finally:
-        _drain_log_queue(log_q)
+        # run_pipeline ya cerro la fila de runs como 'crashed' antes de re-lanzar; lo
+        # unico que falta es que el humano se entere sin leer la base.
+        logger.error("Pipeline crashed: %s", exc)
+        send_discord_alert(f"🔴 GEMA scrape por CLI FALLO: {exc}")
+        return 1
 
-    _drain_log_queue(log_q)
-    logger.info("Scrape complete. Raw jobs returned: %d", len(jobs))
+    t1, t2, t3, t4 = (estado.get("tier1") or [], estado.get("tier2") or [],
+                      estado.get("tier3") or [], estado.get("tier4") or [])
+    total = len(estado.get("jobs") or [])
 
-    # ── Bucket ────────────────────────────────────────────────────────────────
-    t1, t2, t3, t4 = bucket_jobs(jobs, cfg, db, profile=profile)
-    logger.info("Tiers — T1: %d  T2: %d  T3: %d  T4: %d", len(t1), len(t2), len(t3), len(t4))
+    # El reporte a Discord ya lo mando el nodo `notify`, con el mismo formato que la API
+    # y el cron. Duplicarlo aca era justamente la divergencia: dos mensajes distintos
+    # para la misma corrida segun por donde entro.
+    logger.info("Run %s (%s) — T1:%d T2:%d T3:%d T4:%d",
+                (estado.get("run_id") or "?")[:8], estado.get("status"),
+                len(t1), len(t2), len(t3), len(t4))
 
-    # ── Build Discord summary ─────────────────────────────────────────────────
-    lines = [
-        "**GEMA Scrape Complete**",
-        f"Total new: **{len(jobs)}** jobs across {len(cfg.target_domains)} boards",
-        f"Tier 1 (aplicar ya):  **{len(t1)}**",
-        f"Tier 2 (revisar):     **{len(t2)}**",
-        f"Tier 3 (recycle bin): **{len(t3)}**",
-        f"Tier 4 (manual):      **{len(t4)}**",
-        "",
-    ]
-
-    if t1:
-        lines.append("**Tier 1 — Top matches:**")
-        for tj in t1[:8]:  # cap at 8 so message stays under Discord limit
-            salary = f" | {tj.job.salary_raw}" if tj.job.salary_raw else ""
-            lines.append(
-                f"• **{tj.job.title}** @ {tj.job.company} "
-                f"(score {tj.match_score}){salary}"
-            )
-            lines.append(f"  {tj.job.url}")
-    elif t2:
-        lines.append("**No Tier 1 this run. Top Tier 2:**")
-        for tj in t2[:5]:
-            lines.append(f"• {tj.job.title} @ {tj.job.company} (score {tj.match_score})")
-            lines.append(f"  {tj.job.url}")
-    else:
-        lines.append("No new matches this run. Boards may be returning cached results.")
-
-    message = "\n".join(lines)
-
-    # Discord has a 2000-char limit per message — trim if needed
-    if len(message) > 1900:
-        message = message[:1900] + "\n…(truncated — open GEMA UI for full list)"
-
-    send_discord_alert(message)
-    logger.info("Discord notification sent.")
-
-    # ── Console summary ───────────────────────────────────────────────────────
-    print("\n" + "="*60)
-    print(f"  DONE — {len(jobs)} new jobs | T1:{len(t1)} T2:{len(t2)} T3:{len(t3)} T4:{len(t4)}")
-    print("="*60 + "\n")
+    print("\n" + "=" * 60)
+    print(f"  DONE — {total} avisos nuevos | T1:{len(t1)} T2:{len(t2)} "
+          f"T3:{len(t3)} T4:{len(t4)}")
+    print(f"  run_id: {estado.get('run_id')}  ·  status: {estado.get('status')}")
+    print("=" * 60 + "\n")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

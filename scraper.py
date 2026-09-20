@@ -1162,6 +1162,17 @@ class GemaScraper:
 
                 # Build task grid: (domain × title_query) pairs
                 # Each pair becomes one concurrent Page (tab) under the Semaphore
+                # Telemetria por rama. `node_traces` tiene columnas `domain` y `title`
+                # desde que existe y estuvieron en NULL en las 14 filas que llego a
+                # escribir: el nodo `scrape` aparecia como un solo numero de 331.389 ms
+                # y no habia forma de saber cual de los boards se lo comia. Sin ese
+                # desglose, elegir cual migrar a endpoint es una apuesta — volumen de
+                # avisos no es tiempo de scraping.
+                #
+                # Se acumula en memoria y se escribe en lote despues del gather: una
+                # escritura por rama seria un fsync por rama, dentro del event loop.
+                trazas: list[dict] = []
+
                 async def _bounded(domain: str, title: str):
                     # Re-check circuit state: the domain may have been tripped
                     # while this task was waiting in the asyncio.gather queue.
@@ -1170,14 +1181,38 @@ class GemaScraper:
                     # attempt_half_open first: a domain that tripped on a transient
                     # burst flips OPEN → HALF_OPEN once its cooldown elapses, so this
                     # task probes it instead of skipping for the rest of the session.
+                    encolado = time.perf_counter()
+                    inicio_iso = datetime.now(timezone.utc).isoformat()
+
+                    def _traza(estado: str, arranco: float, err: str | None = None):
+                        # queue_wait_ms separa "el board es lento" de "el semaforo estaba
+                        # lleno". Son dos problemas distintos con dos arreglos distintos.
+                        trazas.append({
+                            "run_id": self.summary.run_id, "node": "scrape_srp",
+                            "graph": "run", "domain": domain, "title": title,
+                            "started_at": inicio_iso,
+                            "exec_ms": (time.perf_counter() - arranco) * 1000.0,
+                            "queue_wait_ms": (arranco - encolado) * 1000.0,
+                            "status": estado, "error": err,
+                        })
+
                     self.circuit.attempt_half_open(domain)
                     if self.circuit.is_open(domain):
+                        _traza("skipped_breaker", encolado)
                         return []
                     async with self._sem:
                         self.circuit.attempt_half_open(domain)
                         if self.circuit.is_open(domain):
+                            _traza("skipped_breaker", encolado)
                             return []
-                        return await self._scrape_srp(context, domain, title)
+                        arranco = time.perf_counter()
+                        try:
+                            salida = await self._scrape_srp(context, domain, title)
+                        except Exception as exc:
+                            _traza("error", arranco, f"{type(exc).__name__}: {exc}")
+                            raise
+                        _traza("ok", arranco)
+                        return salida
 
                 pairs = [
                     (domain, title)
@@ -1207,6 +1242,23 @@ class GemaScraper:
                             f"{type(result).__name__}: {result}"
                         )
                         self.summary.errors.append(str(result))
+
+                # Flush de la telemetria por rama, en una transaccion. Va fuera del
+                # event loop porque es I/O sincrono: bloquear el loop despues de que
+                # todas las ramas terminaron no cuesta nada, bloquearlo durante el
+                # fan-out costaria la corrida entera.
+                if trazas:
+                    escritas = await asyncio.get_running_loop().run_in_executor(
+                        None, self.db.record_node_traces_batch, trazas
+                    )
+                    por_dominio: dict[str, float] = {}
+                    for t in trazas:
+                        por_dominio[t["domain"]] = por_dominio.get(t["domain"], 0.0) + (t["exec_ms"] or 0.0)
+                    top = sorted(por_dominio.items(), key=lambda kv: kv[1], reverse=True)[:3]
+                    self._log(
+                        f"[TRACE] {escritas} trazas SRP escritas. Mas caros: "
+                        + ", ".join(f"{d} {ms/1000:.1f}s" for d, ms in top)
+                    )
 
                 # camoufox — route boards whose strategy vector is camoufox to the
                 # Firefox scraper (Cloudflare Bot Fight Mode bypass). Phase 28:

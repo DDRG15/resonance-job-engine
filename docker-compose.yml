@@ -1,13 +1,14 @@
 # =============================================================================
-# docker-compose.yml — Project GEMA
+# docker-compose.yml — Project GEMA (dev / build-from-source)
 # Usage: docker compose up --build
+# Serves the React UI + FastAPI on http://localhost:8000
 # =============================================================================
 
 services:
   gema:
     build: .
     ports:
-      - "8501:8501"
+      - "8000:8000"
 
     # Load API keys from your local .env file — never baked into the image
     env_file:
@@ -18,10 +19,12 @@ services:
       - ./gema_registry.db:/app/gema_registry.db
       # Mount credentials read-only — JSON key file never baked into the image
       - ./credentials:/app/credentials:ro
-      # Mount session cookies for login-gated boards (wellfound, arc.dev, etc.)
-      # Export cookies from Chrome using EditThisCookie V3 and drop JSON files here.
-      # Files are gitignored — never baked into the image.
+      # Manual cookie exports (EditThisCookie V3 JSON), read-only — never baked in
       - ./cookies:/app/cookies:ro
+      # Cookie jar (SessionJar) writes here — MUST be read-write or the jar cannot
+      # persist cf_clearance between runs. Overlays the ro cookies/ mount above;
+      # the more specific path wins, so manual exports stay ro and session/ is rw.
+      - ./cookies/session:/app/cookies/session
       # Mount user profile so matcher uses real CV data — gitignored, never baked in
       - ./user_profile.yaml:/app/user_profile.yaml:ro
 

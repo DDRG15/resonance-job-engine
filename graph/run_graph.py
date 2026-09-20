@@ -220,7 +220,13 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
     ctx = _rt(config)
     t1, t2, t3, t4 = (state.get("tier1") or [], state.get("tier2") or [],
                       state.get("tier3") or [], state.get("tier4") or [])
-    origen = "📅 Scheduled run" if state.get("trigger") == "cron" else "📊 Extraction Report"
+    # El trigger va en el encabezado: dos corridas con los mismos numeros y origenes
+    # distintos se investigan distinto — una del cron a las 3 AM no se mira igual que
+    # una que alguien lanzo a mano.
+    origen = {
+        "cron": "📅 Scheduled run",
+        "cli": "⌨️ CLI run",
+    }.get(state.get("trigger"), "📊 Extraction Report")
     report = (
         f"{origen}:\n"
         f"- Tier 1: {len(t1)}\n"

@@ -18,10 +18,19 @@ python -m venv .venv
 pip install -r requirements.txt
 playwright install chromium
 
+cd frontend && npm ci && npm run build && cd ..   # sin esto, / devuelve 404
+
 cp .env.example .env              # y cargar al menos una API key (ver abajo)
 
 uvicorn api:app --port 8000 --workers 1
 ```
+
+**El build del front no es opcional.** `frontend/dist/` está gitignoreado —los
+artefactos de build no van al repo— y `api.py` monta el estático solo si el directorio
+existe. Sin ese paso la API responde en los 29 endpoints y `/` devuelve 404. El servidor
+lo avisa al arrancar, y también avisa si el bundle quedó más viejo que `frontend/src`:
+entre el 04-09 y el 19-09 sirvió un build al que le faltaba la Fase 7 entera, sin fallar
+una sola vez.
 
 Abrir `http://localhost:8000`.
 
@@ -122,6 +131,7 @@ nlp_engine.py          los 7 proveedores LLM y sus callers
 database.py            SQLite: registro, vault, revisión manual, telemetría
 run_manager.py         ciclo de vida de una corrida manual
 scheduler_service.py   cron
+run_scrape_now.py      corrida one-shot por CLI — el mismo grafo, trigger="cli"
 selectors_registry.py  los 17 boards (10 activos) y sus selectores
 
 graph/                 el pipeline como grafo de estado

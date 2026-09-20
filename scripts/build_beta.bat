@@ -1,6 +1,5 @@
 @echo off
-REM =============================================================================
-REM build_beta.bat — Build and package GEMA for beta distribution
+REM ======================================================================REM build_beta.bat — Build and package GEMA for beta distribution
 REM Run from the project root: scripts\build_beta.bat
 REM Output: dist\gema-beta-v1\ (zip this folder and send to the friend)
 REM =============================================================================
@@ -16,13 +15,13 @@ echo  GEMA Beta Builder
 echo ============================================================
 echo.
 
-REM ── Supply-chain gate (AUDIT #2) ─────────────────────────────────────────
+REM ── Supply-chain gate, Python (AUDIT #2) ─────────────────────────────────
 REM A green test suite over a compromised dependency is a green light into an
 REM incident. No beta image ships without a clean CVE scan of its pinned deps.
-echo [0/4] Supply-chain gate: scanning requirements for known CVEs...
+echo [1/7] Supply-chain gate (Python): scanning requirements for known CVEs...
 python -m pip_audit -r requirements.txt --progress-spinner off
 if %ERRORLEVEL% neq 0 (
-    echo ERROR: pip-audit found known vulnerabilities in dependencies.
+    echo ERROR: pip-audit found known vulnerabilities in Python dependencies.
     echo        Fix or pin around the CVEs before shipping this image to a friend.
     pause
     exit /b 1
@@ -36,7 +35,7 @@ REM shipeaba con llama-3.3-70b-versatile dado de baja: 404 en cada llamada, abso
 REM en silencio por el fallback, y el sistema corriendo permanentemente degradado sin
 REM que ninguna senal lo dijera. Un beta que sale asi le entrega al tester un sistema
 REM que "funciona" con dos de siete proveedores muertos.
-echo [0b/4] Provider gate: verificando keys y pines de modelo...
+echo [2/7] Provider gate: verificando keys y pines de modelo...
 python tools\check_provider_models.py
 if %ERRORLEVEL% neq 0 (
     echo ERROR: hay credenciales vencidas o modelos dados de baja.
@@ -56,7 +55,7 @@ REM OJO con la sintaxis: dentro de un bloque parentizado, cmd expande %ERRORLEVE
 REM PARSEAR el bloque, no al ejecutarlo — asi que el if interno leeria el valor VIEJO y
 REM el gate nunca bloquearia. Reproducido: un comando que sale con 1 pasaba de largo.
 REM `if errorlevel 1` lee el valor vivo y es la forma que funciona dentro de bloques.
-echo [0c/4] Extraction quality gate...
+echo [3/7] Extraction quality gate...
 python tools\eval_extraction.py --dry-run >nul 2>&1
 if errorlevel 1 goto :sin_corpus
 python tools\eval_extraction.py --gate
@@ -70,10 +69,33 @@ goto :fin_eval_gate
 :sin_corpus
 echo       Sin corpus todavia — gate omitido. Ver tests\fixtures\extraction_corpus\README.md
 :fin_eval_gate
+=======
+REM ── Supply-chain gate, frontend ──────────────────────────────────────────
+REM The React bundle ships inside the image. A vulnerable npm dep is baked in
+REM exactly like a vulnerable pip dep. Same gate, same standard: no ship on high.
+echo [4/7] Supply-chain gate (frontend): npm audit on the locked deps...
+pushd frontend
+call npm ci --no-audit --no-fund
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: npm ci failed — cannot verify the frontend lockfile.
+    popd
+    pause
+    exit /b 1
+)
+call npm audit --audit-level=high
+if %ERRORLEVEL% neq 0 (
+    echo ERROR: npm audit found high/critical vulnerabilities in frontend deps.
+    echo        Fix or pin around them before shipping this image to a friend.
+    popd
+    pause
+    exit /b 1
+)
+popd
+echo       Clean — no high/critical npm advisories.
 echo.
 
 REM ── Build Docker image ────────────────────────────────────────────────────
-echo [1/4] Building Docker image %IMAGE_NAME%...
+echo [5/7] Building Docker image %IMAGE_NAME%...
 docker build -t %IMAGE_NAME% .
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Docker build failed.
@@ -84,15 +106,17 @@ echo       Done.
 echo.
 
 REM ── Create dist folder ───────────────────────────────────────────────────
-echo [2/4] Creating dist folder...
+echo [6/7] Creating dist folder...
 if exist %DIST_DIR% rmdir /s /q %DIST_DIR%
 mkdir %DIST_DIR%
 mkdir %DIST_DIR%\cookies
+REM cookies\session must exist so the rw bind mount has a host dir to bind to
+mkdir %DIST_DIR%\cookies\session
 echo       Done.
 echo.
 
 REM ── Export Docker image ──────────────────────────────────────────────────
-echo [3/4] Exporting image to tar (this may take a few minutes)...
+echo [7/7] Exporting image to tar (this may take a few minutes)...
 docker save -o %DIST_DIR%\gema-beta-v1.tar %IMAGE_NAME%
 if %ERRORLEVEL% neq 0 (
     echo ERROR: docker save failed.
@@ -103,7 +127,7 @@ echo       Done.
 echo.
 
 REM ── Copy companion files ─────────────────────────────────────────────────
-echo [4/4] Copying launcher, compose file, and guide...
+echo       Copying launcher, compose file, and guide...
 copy scripts\start_gema.bat        %DIST_DIR%\start_gema.bat        >nul
 copy scripts\docker-compose.beta.yml %DIST_DIR%\docker-compose.yml  >nul
 copy BETA_GUIDE.md                 %DIST_DIR%\BETA_GUIDE.md          >nul

@@ -1081,6 +1081,26 @@ class GemaDatabase:
                 "SELECT * FROM job_links WHERE job_hash=? ORDER BY confianza DESC",
                 (self.compute_hash(url),)).fetchall()]
 
+    def hashes_vencidos(self) -> set:
+        """
+        Los `job_hash` que el barrido de la Fase 6 ya dio por vencidos.
+
+        `barrer_vencidos()` los marca y hasta hoy nadie leía la marca: un aviso
+        cerrado que volvía a aparecer en una corrida entraba al shortlist como
+        cualquier otro. «Venció» es otra forma de «no podés postular», que es
+        exactamente el criterio de elegibilidad de la Fase 3.
+        """
+        try:
+            with _get_connection(self.db_path) as conn:
+                return {
+                    r[0] for r in conn.execute(
+                        "SELECT job_hash FROM seen_jobs_registry WHERE expired_at IS NOT NULL"
+                    )
+                }
+        except Exception as exc:
+            logger.warning("[DB] hashes_vencidos fallo: %s", exc)
+            return set()
+
     def hashes_puntuados(self, version: Optional[str] = None) -> set:
         """
         Los `job_hash` que ya tienen tier, para que `bucket_jobs` no los repita.
@@ -1504,6 +1524,43 @@ class GemaDatabase:
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_node_trace failed for %s: %s", node, exc)
+
+    def record_node_traces_batch(self, rows: list[dict]) -> int:
+        """
+        Escribe N trazas en UNA transaccion. Devuelve cuantas entraron.
+
+        `record_node_trace` abre una conexion, hace fsync y cierra: 107 ms por fila
+        medidos en la Fase 8 sobre este mismo patron. El fan-out del scraper produce
+        una traza por (dominio x titulo) —14 boards x 50 titulos son 700 filas— y
+        hacerlo de a una agregaria ~75 s a una corrida de 576. La telemetria que
+        encarece la corrida que mide se termina apagando, y entonces no mide nada.
+
+        Nunca levanta: una traza perdida no puede tumbar una corrida que ya scrapeo
+        bien. Se avisa por log y se sigue.
+        """
+        if not rows:
+            return 0
+        try:
+            with _get_connection(self.db_path) as conn:
+                conn.executemany(
+                    """INSERT INTO node_traces
+                       (run_id, node, graph, domain, title, started_at,
+                        exec_ms, queue_wait_ms, status, error)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    [
+                        (r.get("run_id"), r.get("node"), r.get("graph"),
+                         r.get("domain"), r.get("title"),
+                         r.get("started_at") or _now_iso(),
+                         r.get("exec_ms"), r.get("queue_wait_ms"),
+                         r.get("status", "ok"), _clip(r.get("error")))
+                        for r in rows
+                    ],
+                )
+            return len(rows)
+        except Exception as exc:
+            logger.warning("[TELEMETRY] record_node_traces_batch failed (%d filas): %s",
+                           len(rows), exc)
+            return 0
 
     def record_llm_calls(
         self,

@@ -715,6 +715,17 @@ def bucket_jobs(
             # Que el atajo falle no puede impedir la corrida: se degrada a
             # re-puntuar todo, que es el comportamiento anterior.
             logger.debug("[BUCKET] no se pudo leer lo ya puntuado (%s) — se repuntua todo", exc)
+    # Fase 6, conectada el 2026-09-19: el barrido marcaba `expired_at` y nadie leia
+    # la marca. Un aviso vencido que reaparece en una corrida competia por un lugar
+    # en el shortlist contra avisos a los que todavia se puede postular.
+    vencidos: set = set()
+    if db is not None:
+        try:
+            vencidos = db.hashes_vencidos()
+        except Exception as exc:
+            logger.debug("[BUCKET] no se pudo leer lo vencido (%s) — no se filtra", exc)
+    filtrados_vencidos = 0
+
     saltados_ya_puntuados = 0
     pendientes: list[tuple] = []
 
@@ -745,7 +756,13 @@ def bucket_jobs(
         # lo que no tiene sentido es ponerlo arriba de tu lista de postulación.
         # Borrarlo seria peor: un aviso desaparecido no se puede auditar, y despues
         # no hay forma de preguntar cuantos Tier 1 se perdieron por elegibilidad.
-        if not tiered.elegible:
+        # Vencido sale del shortlist por la misma puerta que un veto FAIL: se
+        # persiste con su tier y su puntaje reales, pero no compite por un lugar
+        # en una lista de cosas a las que todavia se puede postular.
+        if vencidos and GemaDatabase.compute_hash(job.url) in vencidos:
+            filtrados_vencidos += 1
+            no_elegibles.append(tiered)
+        elif not tiered.elegible:
             filtrados_no_elegibles += 1
             no_elegibles.append(tiered)
         elif tiered.tier == "Tier 1":
@@ -785,10 +802,13 @@ def bucket_jobs(
         metrics.emit("jobs_ya_puntuados", saltados_ya_puntuados)
 
     logger.info(
-        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | no-elegibles=%d",
+        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | "
+        "no-elegibles=%d | vencidos=%d",
         len(tier1), len(tier2), len(tier3), len(tier4), filtered_off_topic,
-        filtrados_no_elegibles,
+        filtrados_no_elegibles, filtrados_vencidos,
     )
+    if filtrados_vencidos:
+        metrics.emit("jobs_filtered_vencidos", filtrados_vencidos)
     if filtered_off_topic:
         metrics.emit("jobs_filtered_off_topic", filtered_off_topic)
     if filtrados_no_elegibles:

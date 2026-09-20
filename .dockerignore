@@ -11,10 +11,13 @@
 .env.*.local
 credentials/*.json
 credentials/*.p12
-cookies/*.json          # session cookies — mount via docker-compose volume
+cookies/*.json          # manual cookie exports — mount via docker-compose volume
+cookies/session/        # auto cookie jar (SessionJar) — runtime state, mounted rw
 
-# --- LARGE BINARIES: downloaded during `docker build`, not copied ---
+# --- LARGE BINARIES: downloaded/built during `docker build`, not copied ---
 .camoufox/              # camoufox Firefox binary (~530MB) — built by `python -m camoufox fetch`
+frontend/node_modules/  # ~hundreds of MB — Node stage runs `npm ci` fresh
+frontend/dist/          # rebuilt by the Node stage; local copy would only go stale
 
 # --- RUNTIME STATE: mounted as volumes, not baked in ---
 *.db

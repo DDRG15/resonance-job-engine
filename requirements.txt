@@ -5,7 +5,9 @@
 # =============================================================================
 
 # ── UI Layer ──────────────────────────────────────────────────────────────────
-streamlit==1.57.0
+# streamlit se fue el 2026-09-19 con main.py y ui_theme.py: eran 2.357 lineas de una
+# segunda UI sobre la misma base, y el Dockerfile arrancaba ESA y no el producto.
+# El front es React (frontend/), servido por FastAPI desde /.
 starlette==0.47.3      # pinned — B6: resuelto por fastapi 0.116.1 (rango <0.48); conserva el fix de 0.42.0 (DEFAULT_EXCLUDED_CONTENT_TYPES; 0.41.3 rompía el startup)
 
 # ── Data Validation (Contract Layer) ─────────────────────────────────────────

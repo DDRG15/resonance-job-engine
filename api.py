@@ -20,6 +20,7 @@ import json
 import asyncio
 import logging
 import threading
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -843,6 +844,40 @@ def post_setup(body: SetupRequest):
 # =============================================================================
 
 _DIST = Path(__file__).parent / "frontend" / "dist"
+_SRC = Path(__file__).parent / "frontend" / "src"
+_front_log = logging.getLogger("gema.front")
+
+
+def _mtime_max(carpeta: Path) -> float:
+    try:
+        return max((p.stat().st_mtime for p in carpeta.rglob("*") if p.is_file()),
+                   default=0.0)
+    except OSError:
+        return 0.0
+
+
 if _DIST.is_dir():
     from fastapi.staticfiles import StaticFiles
+
+    # Un bundle mas viejo que sus fuentes sirve una version del producto que ya no
+    # existe, y lo hace SIN fallar: el servidor responde 200 y el usuario ve una UI
+    # coherente a la que le faltan features enteras. Paso de verdad — entre el 04-09
+    # y el 19-09 el navegador sirvio un build que no tenia nada de la Fase 7, con los
+    # endpoints de esa fase respondiendo perfecto del otro lado.
+    _build, _fuente = _mtime_max(_DIST), _mtime_max(_SRC)
+    if _fuente > _build:
+        _front_log.warning(
+            "[FRONT] El bundle de frontend/dist es de %s y frontend/src cambio el %s. "
+            "Se esta sirviendo una UI vieja. Corre: cd frontend && npm run build",
+            time.strftime("%Y-%m-%d %H:%M", time.localtime(_build)),
+            time.strftime("%Y-%m-%d %H:%M", time.localtime(_fuente)),
+        )
     app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="frontend")
+else:
+    # El mount es condicional, asi que sin build la API arranca igual y / devuelve 404.
+    # Sin este aviso, un clone limpio se ve como "el servidor anda pero la pagina no
+    # existe", que manda a leer codigo en vez de a correr un comando.
+    _front_log.warning(
+        "[FRONT] No existe frontend/dist: la API responde pero / devuelve 404. "
+        "Corre: cd frontend && npm ci && npm run build"
+    )

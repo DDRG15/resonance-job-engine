@@ -57,11 +57,11 @@ if %ERRORLEVEL% neq 0 (
 REM ── Wait a moment then open browser ──────────────────────────────────────
 echo Waiting for GEMA to start...
 timeout /t 4 /nobreak >nul
-start http://localhost:8501
+start http://localhost:8000
 
 echo.
 echo ============================================================
-echo  GEMA is running at: http://localhost:8501
+echo  GEMA is running at: http://localhost:8000
 echo.
 echo  To stop GEMA:  docker compose down
 echo  To update:     Contact the sender for a new package.
