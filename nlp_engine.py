@@ -8,6 +8,7 @@ SRE: Groq primary + Gemini fallback, exponential backoff, Pydantic validation,
 import json
 import logging
 import re
+import threading
 import time
 import requests
 from dataclasses import replace
@@ -301,11 +302,33 @@ def _get_groq_client() -> Any:
     return _groq_client
 
 
-# Configure Gemini once at import time — genai.configure() mutates global SDK state;
-# calling it on every invocation races on the api_key field in multi-threaded contexts.
-if config.GEMINI_API_KEY:
+# Gemini se configura UNA vez, pero no al importar el modulo.
+#
+# El invariante no cambia: genai.configure() muta estado global del SDK y llamarlo en
+# cada invocacion corre una carrera sobre api_key en contextos multi-thread. Lo que
+# cambia es cuando se paga. `import google.generativeai` cuesta 2,68 s medidos (minimo
+# de tres corridas), y lo paga todo proceso que importe nlp_engine — que es scraper, que
+# es api.py. El motor corre a 0 tokens por diseño: la suite mockea todos los callers y
+# una corrida normal no llama a Gemini ni una vez. Cobrar 2,7 s de arranque por un SDK
+# que casi nunca se usa lo paga el arranque del server y el de cada script del proyecto.
+#
+# El lock es lo que conserva el invariante: dos threads que llegan juntos al primer uso
+# configuran una sola vez, no dos.
+_gemini_lock = threading.Lock()
+_gemini_listo = False
+
+
+def _ensure_gemini():
+    """Importa y configura el SDK de Gemini la primera vez que alguien lo necesita."""
+    global _gemini_listo
     import google.generativeai as genai
-    genai.configure(api_key=config.GEMINI_API_KEY)
+    if not _gemini_listo:
+        with _gemini_lock:
+            if not _gemini_listo:
+                if config.GEMINI_API_KEY:
+                    genai.configure(api_key=config.GEMINI_API_KEY)
+                _gemini_listo = True
+    return genai
 
 
 # =============================================================================
@@ -366,7 +389,7 @@ def _call_groq(messages: list[dict]) -> LLMCallResult:
 def _call_gemini(messages: list[dict]) -> LLMCallResult:
     if _is_cooling("gemini"):
         raise _ProviderRateLimited("Gemini cooling down — skipping")
-    import google.generativeai as genai
+    genai = _ensure_gemini()
     t0 = time.perf_counter()
     try:
         model = genai.GenerativeModel(
@@ -424,7 +447,7 @@ def _call_groq_plain(prompt: str) -> LLMCallResult:
 def _call_gemini_plain(prompt: str) -> LLMCallResult:
     if _is_cooling("gemini"):
         raise _ProviderRateLimited("Gemini cooling down — skipping")
-    import google.generativeai as genai
+    genai = _ensure_gemini()
     t0 = time.perf_counter()
     try:
         model = genai.GenerativeModel(model_name=config.GEMINI_MODEL)
