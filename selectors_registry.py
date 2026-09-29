@@ -598,15 +598,38 @@ SELECTORS: dict[str, DomainSelectors] = {
     # una pasada — un fallback chain paraba en el primer match (/careers/) y
     # perdía todos los ashbyhq externos (Supabase, Infisical, Chroma...). La
     # empresa se deriva de la URL (derive_company_from_url): ashbyhq slug o PostHog.
+    #
+    # Verificado 2026-09-28, 6 cargas en vivo por el camino real de extracción:
+    #
+    # UBICACIÓN: el board no la publica. Cada empresa es una grilla de tres
+    # columnas —Date posted | Job title | Department— y el card es
+    # <a><span>título</span></a>; "location" aparece 0 veces en 1,3 MB de DOM
+    # renderizado. `location` queda vacío a propósito: dentro de la fila solo hay
+    # fecha y departamento. El feed que alimenta la página (Strapi, 165 de 176 con
+    # location) le borra el "Remote" al valor de Ashby en 63 de 63 avisos
+    # comparados ("Remote, Global" -> "Any", "Remote" -> ""): convertiría remotos
+    # en presenciales. La ubicación cruda vive en Ashby (164 de 176 avisos), y ese
+    # camino es ats_registry, no este selector.
+    #
+    # ESPERA: `a[class*='group']` matcheaba 29 links del nav a los 0,8 s y el
+    # listado llega con Strapi entre 3 y 21 s después; el jitter es de 5-15 s. Si
+    # perdía la carrera, el card caía al fallback `a[class*='group']` y guardaba
+    # el nav como aviso ("Get started – free" -> app.posthog.com/signup, registry
+    # 2026-07-18). Ahora se espera a los links de aviso, que no existen antes del
+    # listado (el nav linkea /careers sin barra final). jobs.gem.com entra al
+    # grupo: 6 avisos en el DOM (Converge 2, SigNoz 4) que solo llegaban por esa
+    # carrera. Medido por el camino real: con la config vieja perdiendo la carrera,
+    # 89 cards, 39 sin título y el CTA como aviso; con esta, 49 cards, 49 con título
+    # y link, 43 con empresa (jobs.gem.com no está en derive_company_from_url).
     "posthog.com": DomainSelectors(
         domain               = "posthog.com",
         search_url_template  = "https://posthog.com/cool-tech-jobs?q={title}",
-        wait_for_selector    = "a[class*='group']",
-        last_verified        = "2026-07-16",
+        wait_for_selector    = "a[href*='/careers/'], a[href*='ashbyhq'], a[href*='jobs.gem.com']",
+        last_verified        = "2026-09-28",
         null_threshold       = 8,
         job_card = [
-            "a[href*='/careers/'], a[href*='ashbyhq']",  # combinado — ambos tipos
-            "a[class*='group']",
+            # combinado — los tres tipos de aviso en una pasada
+            "a[href*='/careers/'], a[href*='ashbyhq'], a[href*='jobs.gem.com']",
         ],
         link = [
             # el card ES el <a>; el scraper cae a card.get_attribute('href')
@@ -619,6 +642,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         ],
         company = [],
         salary = [],
+        location = [],   # el board no la publica — ver UBICACIÓN arriba
     ),
 
     # ── Jobspresso ────────────────────────────────────────────────────────────
