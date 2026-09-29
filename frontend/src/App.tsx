@@ -8,6 +8,7 @@ import CommandCenter from './components/CommandCenter'
 import DbViewer from './components/DbViewer'
 import Header from './components/Header'
 import Pipeline from './components/Pipeline'
+import Duplicados from './components/Duplicados'
 import PipelineConsole from './components/PipelineConsole'
 import Results from './components/Results'
 import ReviewPanel from './components/ReviewPanel'
@@ -32,6 +33,12 @@ export default function App() {
     queryFn: () =>
       fetch('/api/review').then((r) => r.json() as Promise<{ stats: { pending: number } }>),
   })
+  // El contador del botón: 119 decisiones esperando no se ven si no se cuentan.
+  const dupQ = useQuery({
+    queryKey: ['correlators'],
+    queryFn: () =>
+      fetch('/api/correlators').then((r) => r.json() as Promise<{ total: number }>),
+  })
 
   // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
@@ -44,6 +51,7 @@ export default function App() {
   const [showStats, setShowStats] = useState(false)
   const [showReview, setShowReview] = useState(false)
   const [showPipeline, setShowPipeline] = useState(false)
+  const [showDup, setShowDup] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -126,8 +134,14 @@ export default function App() {
         }}
         onOpenPipeline={() => {
           setShowPipeline(true); setShowDb(false); setShowStats(false); setShowReview(false)
+          setShowDup(false)
+        }}
+        onOpenDuplicados={() => {
+          setShowDup(true); setShowPipeline(false); setShowDb(false); setShowStats(false)
+          setShowReview(false)
         }}
         reviewPending={reviewQ.data?.stats.pending ?? 0}
+        duplicadosPending={dupQ.data?.total ?? 0}
       />
       <main>
         {backendDown && (
@@ -143,6 +157,10 @@ export default function App() {
           <ReviewPanel onClose={() => setShowReview(false)} onChanged={refresh} />
         )}
         {showPipeline && <Pipeline onClose={() => setShowPipeline(false)} />}
+        {showDup && (
+          <Duplicados onClose={() => setShowDup(false)}
+                      onChanged={() => void dupQ.refetch()} />
+        )}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />
         {config && (

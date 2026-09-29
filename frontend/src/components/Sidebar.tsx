@@ -21,6 +21,8 @@ interface Props {
   onOpenStats: () => void
   onOpenReview: () => void
   onOpenPipeline: () => void
+  onOpenDuplicados: () => void
+  duplicadosPending: number
   reviewPending: number
 }
 
@@ -28,7 +30,7 @@ export default function Sidebar({
   status, stats, vault, scheduler, profile,
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb, onOpenStats,
   onOpenReview,
-  onOpenPipeline, reviewPending,
+  onOpenPipeline, reviewPending, onOpenDuplicados, duplicadosPending,
 }: Props) {
   // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
   // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
@@ -112,6 +114,12 @@ export default function Sidebar({
             <button type="button" className="btn mini" onClick={onOpenPipeline}
                     style={{ flex: 1 }}>
               Postulaciones
+            </button>
+          </div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <button type="button" className="btn mini" onClick={onOpenDuplicados}
+                    style={{ flex: 1 }}>
+              Duplicados{duplicadosPending > 0 ? ` (${duplicadosPending})` : ''}
             </button>
           </div>
         </div>

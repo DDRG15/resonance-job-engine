@@ -726,6 +726,18 @@ def bucket_jobs(
             logger.debug("[BUCKET] no se pudo leer lo vencido (%s) — no se filtra", exc)
     filtrados_vencidos = 0
 
+    # Fase 11, conectada el 2026-09-28: un duplicado ACCEPTED (auto o por un humano)
+    # es el mismo puesto que su canonico. Se persiste igual, pero no aparece dos veces
+    # en la lista de postulacion. `hashes_bloqueados()` existia y no la leia nadie:
+    # 195 duplicados aceptados no cambiaban nada de lo que se veia.
+    bloqueados: set = set()
+    if db is not None:
+        try:
+            bloqueados = db.hashes_bloqueados()
+        except Exception as exc:
+            logger.debug("[BUCKET] no se pudo leer duplicados (%s) — no se filtra", exc)
+    filtrados_duplicados = 0
+
     saltados_ya_puntuados = 0
     pendientes: list[tuple] = []
 
@@ -761,6 +773,9 @@ def bucket_jobs(
         # en una lista de cosas a las que todavia se puede postular.
         if vencidos and GemaDatabase.compute_hash(job.url) in vencidos:
             filtrados_vencidos += 1
+            no_elegibles.append(tiered)
+        elif bloqueados and GemaDatabase.compute_hash(job.url) in bloqueados:
+            filtrados_duplicados += 1
             no_elegibles.append(tiered)
         elif not tiered.elegible:
             filtrados_no_elegibles += 1
@@ -803,12 +818,14 @@ def bucket_jobs(
 
     logger.info(
         "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | "
-        "no-elegibles=%d | vencidos=%d",
+        "no-elegibles=%d | vencidos=%d | duplicados=%d",
         len(tier1), len(tier2), len(tier3), len(tier4), filtered_off_topic,
-        filtrados_no_elegibles, filtrados_vencidos,
+        filtrados_no_elegibles, filtrados_vencidos, filtrados_duplicados,
     )
     if filtrados_vencidos:
         metrics.emit("jobs_filtered_vencidos", filtrados_vencidos)
+    if filtrados_duplicados:
+        metrics.emit("jobs_filtered_duplicados", filtrados_duplicados)
     if filtered_off_topic:
         metrics.emit("jobs_filtered_off_topic", filtered_off_topic)
     if filtrados_no_elegibles:

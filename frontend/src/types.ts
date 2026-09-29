@@ -199,3 +199,30 @@ export interface CvProfile {
   core_skills?: string[]
   location?: string
 }
+
+// Fase 11 — pares de avisos que el correlator no se anima a decidir solo.
+export interface CorrelatorPendiente {
+  job_hash: string
+  hash_duplicado: string
+  correlator: string
+  confianza: number
+  motivo: string | null
+  creado_en: string | null
+  can_title: string | null
+  can_company: string | null
+  can_board: string | null
+  can_fecha: string | null
+  can_url: string | null
+  can_ubicacion: string | null
+  dup_title: string | null
+  dup_company: string | null
+  dup_board: string | null
+  dup_fecha: string | null
+  dup_url: string | null
+  dup_ubicacion: string | null
+}
+
+export interface CorrelatorsResponse {
+  pendientes: CorrelatorPendiente[]
+  total: number
+}

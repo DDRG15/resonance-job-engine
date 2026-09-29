@@ -153,6 +153,24 @@ def bucket(state: RunState, config: RunnableConfig) -> dict:
 
     ctx = _rt(config)
     jobs = state.get("jobs") or []
+
+    # Fase 11 conectada el 2026-09-28. `correlacionar_duplicados()` no la llamaba
+    # nadie: los "141 auto-aceptados" de la calibracion salieron de una corrida
+    # manual. Va ACA —despues de que el scrape escribio el registry, antes de
+    # puntuar— para que los duplicados de ESTA corrida ya salgan del shortlist de
+    # esta corrida. Cuesta ~300 ms sobre 2.669 filas (medido), contra 576 s de
+    # corrida. Aislado: si revienta, la corrida sigue y el humano se entera.
+    if ctx.db is not None:
+        try:
+            r = ctx.db.correlacionar_duplicados()
+            if r.get("nuevos"):
+                ctx.emit(f"[CORRELATOR] {r['nuevos']} pares nuevos: "
+                         f"{r['auto_aceptados']} auto-aceptados, "
+                         f"{r['a_revisar']} a revisar.")
+        except Exception as exc:
+            ctx.emit(f"[CORRELATOR] no corrio ({type(exc).__name__}: {exc}); "
+                     f"el shortlist puede traer duplicados esta vez.")
+
     ctx.emit(f"[MATCHER] Scoring {len(jobs)} new jobs...")
     t1, t2, t3, t4 = bucket_jobs(jobs, state["config"], ctx.db,
                                  profile=state.get("profile"))

@@ -1025,11 +1025,15 @@ class GemaDatabase:
                 "SELECT url, title, company, source_domain, scraped_at "
                 "FROM seen_jobs_registry ORDER BY scraped_at DESC LIMIT ?",
                 (limite,)).fetchall()]
+            # Todo par ya registrado, en CUALQUIER estado. Antes solo se salteaban
+            # ACCEPTED/REJECTED, y los AVAILABLE se re-insertaban en cada corrida con
+            # INSERT OR REPLACE: medido el 2026-09-28 sobre la base real, tres corridas
+            # seguidas reportaron "nuevos: 119" las tres veces, y `creado_en` se
+            # reseteaba — se perdia cuanto hace que una decision espera a un humano.
             ya_decididos = {
                 (r["job_hash"], r["hash_duplicado"])
                 for r in conn.execute(
-                    "SELECT job_hash, hash_duplicado FROM job_links "
-                    "WHERE estado IN (?, ?)", (corr.ACCEPTED, corr.REJECTED)).fetchall()
+                    "SELECT job_hash, hash_duplicado FROM job_links").fetchall()
             }
 
         candidatos = corr.correr(filas)
@@ -1065,9 +1069,78 @@ class GemaDatabase:
             logger.info("[CORRELATOR] %s", resultado)
         return resultado
 
+    def correlators_pendientes(self) -> list[dict]:
+        """
+        Los pares AVAILABLE, con los datos de LOS DOS avisos para decidir sin abrir
+        nada. Los de mayor confianza primero: son los que mas rapido se resuelven.
+
+        Hasta el 2026-09-28 la unica forma de resolverlos era SQL a mano, y habia 119
+        esperando.
+        """
+        import correlators as corr
+        with _get_connection(self.db_path) as conn:
+            filas = conn.execute(
+                """SELECT l.job_hash, l.hash_duplicado, l.correlator, l.confianza,
+                          l.motivo, l.creado_en,
+                          c.title AS can_title, c.company AS can_company,
+                          c.source_domain AS can_board, c.scraped_at AS can_fecha,
+                          c.url AS can_url, c.location_raw AS can_ubicacion,
+                          d.title AS dup_title, d.company AS dup_company,
+                          d.source_domain AS dup_board, d.scraped_at AS dup_fecha,
+                          d.url AS dup_url, d.location_raw AS dup_ubicacion
+                   FROM job_links l
+                   LEFT JOIN seen_jobs_registry c ON c.job_hash = l.job_hash
+                   LEFT JOIN seen_jobs_registry d ON d.job_hash = l.hash_duplicado
+                   WHERE l.estado = ?
+                   ORDER BY l.confianza DESC, l.creado_en""",
+                (corr.AVAILABLE,)).fetchall()
+        return [dict(r) for r in filas]
+
+    def decidir_correlator(self, job_hash: str, hash_duplicado: str,
+                           decision: str) -> dict:
+        """
+        Un humano resuelve un par: AVAILABLE -> ACCEPTED ("es el mismo aviso") o
+        AVAILABLE -> REJECTED ("son distintos").
+
+        Solo desde AVAILABLE. Un par que ya se decidio no se re-decide desde aca: si
+        la UI mandara dos clics seguidos, el segundo tiene que fallar con el estado
+        actual y no convertir un REJECTED en ACCEPTED en silencio. Sin "deshacer" en
+        esta version, a proposito: agregarlo es una decision de producto, no un bug.
+
+        Levanta LookupError si el par no existe y ValueError si la transicion no es
+        legal; api.py los traduce a 404 y 409.
+        """
+        import correlators as corr
+        if decision not in (corr.ACCEPTED, corr.REJECTED):
+            raise ValueError(
+                f"Decision invalida {decision!r}. Se puede decidir: "
+                f"{corr.ACCEPTED} (es el mismo aviso) o {corr.REJECTED} (son distintos).")
+        with _get_connection(self.db_path) as conn:
+            fila = conn.execute(
+                "SELECT estado FROM job_links WHERE job_hash=? AND hash_duplicado=?",
+                (job_hash, hash_duplicado)).fetchone()
+            if fila is None:
+                raise LookupError("No existe ese par de avisos.")
+            if fila["estado"] != corr.AVAILABLE:
+                raise ValueError(
+                    f"Ese par ya esta decidido como {fila['estado']}. Solo se puede "
+                    f"decidir un par {corr.AVAILABLE}.")
+            ahora = _now_iso()
+            # El WHERE repite el estado: si dos requests llegan juntos, el segundo
+            # no encuentra fila que actualizar en vez de pisar al primero.
+            cur = conn.execute(
+                "UPDATE job_links SET estado=?, decidido_en=? "
+                "WHERE job_hash=? AND hash_duplicado=? AND estado=?",
+                (decision, ahora, job_hash, hash_duplicado, corr.AVAILABLE))
+            if cur.rowcount != 1:
+                raise ValueError("Ese par se decidio mientras tanto. Recarga la lista.")
+        return {"job_hash": job_hash, "hash_duplicado": hash_duplicado,
+                "estado": decision, "decidido_en": ahora}
+
     def hashes_bloqueados(self) -> set:
-        """Los `job_hash` que perdieron contra un canónico. El front los excluye del
-        conteo; siguen en la base."""
+        """Los `job_hash` que perdieron contra un canónico. `bucket_jobs` los saca
+        del shortlist (conectado el 2026-09-28: hasta entonces nadie los leia); siguen
+        en la base."""
         with _get_connection(self.db_path) as conn:
             import correlators as corr
             return {r[0] for r in conn.execute(

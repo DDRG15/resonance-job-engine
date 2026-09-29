@@ -509,6 +509,41 @@ def resolve_review(review_hash: str, body: ReviewResolve):
 # el único feedback real que tiene el matcher: hoy el scoring se calibra a ojo.
 # =============================================================================
 
+class DecisionCorrelator(BaseModel):
+    job_hash: str
+    hash_duplicado: str
+    decision: str   # ACCEPTED | REJECTED
+
+
+@app.get("/api/correlators")
+def list_correlators():
+    """
+    Los pares de avisos que la Fase 11 cree que son el mismo puesto y no se anima a
+    decidir sola. Hasta el 2026-09-28 solo se resolvian por SQL: habia 119 esperando.
+    """
+    pendientes = app.state.db.correlators_pendientes()
+    return {"pendientes": pendientes, "total": len(pendientes)}
+
+
+@app.post("/api/correlators/decision")
+def decide_correlator(body: DecisionCorrelator):
+    """
+    409 y no 400 cuando el par ya estaba decidido: el pedido esta bien formado, lo
+    que no se puede es ESE movimiento desde el estado actual — mismo criterio que
+    las postulaciones. 400 queda para una decision que no existe.
+    """
+    import correlators as corr
+    if body.decision not in (corr.ACCEPTED, corr.REJECTED):
+        raise HTTPException(400, f"decision debe ser {corr.ACCEPTED} o {corr.REJECTED}")
+    try:
+        return app.state.db.decidir_correlator(
+            body.job_hash, body.hash_duplicado, body.decision)
+    except LookupError as exc:
+        raise HTTPException(404, str(exc))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
+
 class PostulacionNueva(BaseModel):
     url: str
     status: str = "postulado"
