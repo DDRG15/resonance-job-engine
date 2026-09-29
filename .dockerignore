@@ -5,19 +5,42 @@
 # If it's runtime state mounted as a volume → exclude.
 # =============================================================================
 
+# REGLA DE ESTE ARCHIVO: NADA de comentarios al final de una linea.
+# .dockerignore no los soporta: el '#' y todo lo que sigue forma parte del patron.
+# Asi fue como `cookies/*.json   # manual cookie exports...` no excluyo NADA y la
+# imagen del 2026-09-29 salio con 8 archivos de cookies de sesion (logins de
+# wellfound, welcometothejungle, torre.ai, himalayas, arc.dev, jobspresso,
+# workingnomads) y el user_profile.yaml adentro. Verificado abriendo la imagen, que
+# es la unica verificacion que vale: el archivo "se veia bien".
+
 # --- SECURITY: never bake secrets or credentials into the image ---
 .env
 .env.local
 .env.*.local
 credentials/*.json
 credentials/*.p12
-cookies/*.json          # manual cookie exports — mount via docker-compose volume
-cookies/session/        # auto cookie jar (SessionJar) — runtime state, mounted rw
+# Exports manuales de cookies: se montan por volumen en docker-compose.
+cookies/*.json
+# Cookie jar automatico (SessionJar): estado de runtime, montado rw.
+cookies/session/
+# Perfil derivado del CV: dato personal. docker-compose lo monta read-only.
+user_profile.yaml
 
 # --- LARGE BINARIES: downloaded/built during `docker build`, not copied ---
-.camoufox/              # camoufox Firefox binary (~530MB) — built by `python -m camoufox fetch`
-frontend/node_modules/  # ~hundreds of MB — Node stage runs `npm ci` fresh
-frontend/dist/          # rebuilt by the Node stage; local copy would only go stale
+# Binario de Firefox de camoufox (~530 MB): lo baja `python -m camoufox fetch`.
+.camoufox/
+# Cientos de MB: la etapa Node corre `npm ci` desde cero.
+frontend/node_modules/
+# Lo reconstruye la etapa Node; una copia local solo quedaria vieja.
+frontend/dist/
+
+# --- ESTADO DE RUNTIME que no debe viajar en una imagen ---
+# La config de busqueda persistida de ESTA maquina.
+api_state.json
+# Salud y vectores aprendidos por board en ESTA maquina. La app arranca sin el.
+board_strategy.json
+# Snapshots de drift capturados en ESTA maquina.
+drift_quarantine/
 
 # --- RUNTIME STATE: mounted as volumes, not baked in ---
 *.db

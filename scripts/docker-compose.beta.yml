@@ -8,8 +8,12 @@
 services:
   gema:
     image: gema:beta-v1
+    # Solo loopback. La API no tiene autenticacion —CV, setup, scheduler y reset
+    # quedan abiertos a quien alcance el puerto—, y "8000:8000" publica en TODAS las
+    # interfaces: cualquiera en la misma red WiFi podia leer el perfil o disparar un
+    # reset. Abrirla a otra maquina pide autenticacion primero, no cambiar esta linea.
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
     # Load API keys from .env — filled by the setup wizard on first run
     env_file:
