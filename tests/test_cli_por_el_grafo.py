@@ -287,3 +287,68 @@ class TestVencidosFueraDelShortlist:
         assert tmp_db.hashes_vencidos() == set()
         t1, t2, t3, t4 = bucket_jobs([job], sample_config, tmp_db, repuntuar_todo=True)
         assert len(t1 + t2 + t3 + t4) == 1
+
+
+class TestLaBusquedaYLasTrazasDelCLI:
+    """
+    Dos uniones que la corrida del 2026-09-29 encontro rotas despues de hacer pasar
+    el CLI por el grafo: la busqueda seguia saliendo de otro lado (todos los boards
+    registrados, no los activos), y las trazas por board quedaban con un run_id que
+    no existe en `runs`.
+    """
+
+    def test_el_cli_busca_solo_en_boards_activos(self):
+        import run_scrape_now
+        import selectors_registry
+
+        cfg = run_scrape_now.build_config()
+        assert cfg.target_domains == selectors_registry.active_domains()
+        apagados = set(selectors_registry.SELECTORS) - set(selectors_registry.active_domains())
+        assert apagados, "el test pierde sentido si no hay boards apagados"
+        assert not apagados & set(cfg.target_domains), (
+            f"el CLI scrapea boards apagados a proposito: {sorted(apagados & set(cfg.target_domains))}"
+        )
+
+    def test_el_grafo_le_pasa_su_run_id_al_scraper(self, monkeypatch, tmp_db):
+        from graph.run_graph import run_pipeline
+        from graph.runtime import RuntimeContext
+        from models import ScrapeRunSummary, SearchConfig
+
+        recibido = {}
+
+        def _fake(*a, **k):
+            recibido.update(k)
+            return [], ScrapeRunSummary()
+
+        monkeypatch.setattr("scraper.run_scrape_session", _fake)
+        cfg = SearchConfig(target_titles=["Backend Engineer"], must_include=[],
+                           must_exclude=[], min_salary=None, target_domains=[])
+        estado = run_pipeline(config=cfg,
+                              ctx=RuntimeContext(db=tmp_db, notion=None, sheets=None,
+                                                 discord=None),
+                              trigger="cli", ttl_hours=48)
+        assert recibido.get("run_id") == estado["run_id"], (
+            "el scraper no recibio el run_id del grafo: sus trazas quedan huerfanas"
+        )
+
+    def test_el_summary_del_scraper_usa_ese_run_id(self, tmp_db):
+        import queue
+        from types import SimpleNamespace
+        from models import SearchConfig
+        from scraper import GemaScraper
+
+        s = GemaScraper(SearchConfig(target_titles=["x"], target_domains=["arc.dev"]),
+                        tmp_db, queue.Queue(), webhook=SimpleNamespace(is_enabled=False),
+                        run_id="run-del-grafo")
+        assert s.summary.run_id == "run-del-grafo"
+
+    def test_sin_run_id_sigue_inventando_uno(self, tmp_db):
+        """Los llamadores viejos (tests, scripts) no pasan run_id y no pueden romperse."""
+        import queue
+        from types import SimpleNamespace
+        from models import SearchConfig
+        from scraper import GemaScraper
+
+        s = GemaScraper(SearchConfig(target_titles=["x"], target_domains=["arc.dev"]),
+                        tmp_db, queue.Queue(), webhook=SimpleNamespace(is_enabled=False))
+        assert s.summary.run_id

@@ -82,7 +82,8 @@ def _fake_jobs() -> list[JobResult]:
 @pytest.fixture()
 def fake_scrape(monkeypatch):
     """run_scrape_session falso: emite logs reales al queue y retorna jobs fijos."""
-    def _fake(search_config, db, log_queue, ttl_hours=0, webhook=None, profile=None):
+    def _fake(search_config, db, log_queue, ttl_hours=0, webhook=None, profile=None,
+              run_id=None):
         log_queue.put("[SCRAPER] fake-board.com — 3 cards (CSS, 0 tokens)")
         jobs = _fake_jobs()
         # El scraper real persiste al registry durante la corrida — el fake
@@ -353,7 +354,8 @@ class TestScrape:
     def test_concurrent_scrape_409(self, client, monkeypatch):
         release = threading.Event()
 
-        def _blocking(search_config, db, log_queue, ttl_hours=0, webhook=None, profile=None):
+        def _blocking(search_config, db, log_queue, ttl_hours=0, webhook=None, profile=None,
+                      run_id=None):
             release.wait(timeout=10)
             return [], ScrapeRunSummary()
 

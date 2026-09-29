@@ -883,6 +883,7 @@ class GemaScraper:
         ttl_hours:     int           = 0,
         webhook:       Optional[WebhookClient] = None,
         profile:       Optional[dict] = None,
+        run_id:        Optional[str] = None,
     ) -> None:
         self.config    = search_config
         self.db        = db
@@ -892,7 +893,12 @@ class GemaScraper:
         self.profile   = profile  # ephemeral CV profile; passed to bucket_jobs post-scrape
         self._silenciados: Optional[set] = None  # vencidos + duplicados, 1 lectura por sesion
         self.circuit   = CircuitBreaker()
-        self.summary   = ScrapeRunSummary()
+        # El run_id del GRAFO, si viene. Sin esto el summary se inventaba un uuid propio
+        # y las trazas por board (node_traces, node='scrape_srp') quedaban con un id que
+        # no existe en `runs`: medido el 2026-09-29, las 972 trazas de las dos corridas
+        # del dia no se podian unir con su corrida. Se agruparon a mano por fecha.
+        self.summary   = (ScrapeRunSummary(run_id=run_id) if run_id
+                          else ScrapeRunSummary())
 
         # Phase 30b: aprender reglas de reparación de URL desde las resoluciones
         # manuales (30a). Se computa UNA vez por corrida desde la verdad (las
@@ -2328,6 +2334,7 @@ def run_scrape_session(
     ttl_hours:     int           = 0,
     webhook:       Optional[WebhookClient] = None,
     profile:       Optional[dict] = None,
+    run_id:        Optional[str] = None,
 ) -> tuple[list[JobResult], ScrapeRunSummary]:
     """
     Synchronous entry point called from main.py's daemon thread.
@@ -2351,5 +2358,6 @@ def run_scrape_session(
     if webhook is None:
         webhook = WebhookClient()
 
-    scraper = GemaScraper(search_config, db, log_queue, ttl_hours, webhook, profile)
+    scraper = GemaScraper(search_config, db, log_queue, ttl_hours, webhook, profile,
+                          run_id=run_id)
     return asyncio.run(scraper.run())

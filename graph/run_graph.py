@@ -141,6 +141,7 @@ def scrape(state: RunState, config: RunnableConfig) -> dict:
         log_q,
         state.get("ttl_hours", 0),
         profile=state.get("profile"),
+        run_id=state.get("run_id"),
     )
     return {"jobs": list(jobs), "summary": summary,
             "errors": list(getattr(summary, "errors", []) or [])}

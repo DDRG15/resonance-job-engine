@@ -43,7 +43,7 @@ def fake_scrape(monkeypatch):
     """
     import scraper
 
-    def _fake(config, db, log_q, ttl_hours=0, webhook=None, profile=None):
+    def _fake(config, db, log_q, ttl_hours=0, webhook=None, profile=None, run_id=None):
         if log_q is not None:
             log_q.put("[SCRAPER] fake board — 0 cards")
         s = ScrapeRunSummary()
@@ -129,7 +129,8 @@ class TestRunGraph:
         visto = {}
         import scraper
 
-        def _capta(config, db, log_q, ttl_hours=0, webhook=None, profile=None):
+        def _capta(config, db, log_q, ttl_hours=0, webhook=None, profile=None,
+                   run_id=None):
             visto["ttl"] = ttl_hours
             return [], ScrapeRunSummary()
 

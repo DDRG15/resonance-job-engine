@@ -145,7 +145,14 @@ def build_config():
         must_include=[],
         must_exclude=[],
         min_salary=None,
-        target_domains=list(selectors_registry.SELECTORS.keys()),
+        # Los ACTIVOS, igual que api.py:245. Hasta el 2026-09-29 el CLI usaba
+        # SELECTORS.keys() —todos los registrados, incluidos los 6 apagados a proposito
+        # con diagnostico escrito— y los scrapeaba: la corrida de ese dia gasto 1.955 s
+        # de rama en ellos, 1.618 solo en trueup.io con 51 busquedas vacias, y le mando
+        # un request a welcometothejungle.com, que habia rechazado el scraping. Otra vez
+        # dos caminos que ya no hacian lo mismo: el CLI entraba por el grafo, pero su
+        # busqueda seguia saliendo de otro lado.
+        target_domains=selectors_registry.active_domains(),
     )
 
 
