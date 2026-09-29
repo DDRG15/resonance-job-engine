@@ -226,6 +226,12 @@ def _resolve_vector(current: AccessVector, probed: AccessVector) -> AccessVector
 _CAMOUFOX_DOMAINS = frozenset({"remoteok.com"})
 
 
+def _es_feed_fijo(domain: str) -> bool:
+    """True si el board ignora el parametro de busqueda (ver DomainSelectors.feed_fijo)."""
+    sel = get_selectors(domain)
+    return bool(sel and getattr(sel, "feed_fijo", False))
+
+
 def _camoufox_targets(all_domains: list[str], strategy) -> list[str]:
     """Domains to route to the camoufox scraper: vector == camoufox AND a bespoke
     scraper exists. Uses all_domains (NOT the post-probe scrapeable set) on
@@ -1228,14 +1234,20 @@ class GemaScraper:
                             "status": estado, "error": err,
                         })
 
+                    # Una rama que el breaker saltea no ejecuta nada: exec_ms tiene que
+                    # ser ~0 y la espera va a queue_wait_ms. Hasta el 2026-09-29 se media
+                    # desde `encolado`, y la corrida de ese dia culpo a startup.jobs de
+                    # 3.024 s por rama cuando esas ramas habian esperado el semaforo ~50
+                    # min y se habian salteado al instante. El ranking de boards caros
+                    # salio al reves: el real era posthog.com.
                     self.circuit.attempt_half_open(domain)
                     if self.circuit.is_open(domain):
-                        _traza("skipped_breaker", encolado)
+                        _traza("skipped_breaker", time.perf_counter())
                         return []
                     async with self._sem:
                         self.circuit.attempt_half_open(domain)
                         if self.circuit.is_open(domain):
-                            _traza("skipped_breaker", encolado)
+                            _traza("skipped_breaker", time.perf_counter())
                             return []
                         arranco = time.perf_counter()
                         try:
@@ -1246,10 +1258,14 @@ class GemaScraper:
                         _traza("ok", arranco)
                         return salida
 
+                # Un board de feed fijo ignora la busqueda: pedirlo por cada titulo es
+                # cargar la misma pagina N veces. Se pide con el primer titulo y listo.
                 pairs = [
                     (domain, title)
                     for domain in domains
-                    for title  in self.config.target_titles
+                    for title  in (self.config.target_titles[:1]
+                                   if _es_feed_fijo(domain)
+                                   else self.config.target_titles)
                     if not self.circuit.is_open(domain)
                 ]
 

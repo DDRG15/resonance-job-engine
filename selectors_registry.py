@@ -85,6 +85,17 @@ class DomainSelectors:
     # por un booleano: el registro mapea, el código transforma.
     ubicacion_en_tooltip: bool = False
 
+    # Feed fijo (2026-09-29). Algunos boards IGNORAN el parametro de busqueda y
+    # devuelven siempre el mismo listado: medido en vivo, posthog.com, python.org y
+    # news.ycombinator.com dan exactamente los mismos avisos para q=python y
+    # q=designer. Los otros cinco boards CSS activos si filtran (arc.dev comparte 9
+    # de 10, no se marca). La corrida del
+    # 29-09 los cargo 51 veces cada uno — una por titulo — y posthog solo se llevo
+    # 5.570 s de rama (~30 min con concurrencia 3) para traer 19 avisos. True → el
+    # scraper los pide UNA vez por corrida; el filtro por titulo lo hace bucket_jobs
+    # con title_is_relevant, igual que para cualquier otro aviso.
+    feed_fijo: bool = False
+
     # ── Metadata ─────────────────────────────────────────────────────────────
 
     # ISO date the selectors were last verified against the live site.
@@ -365,6 +376,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Verified 2026-05-30: wait_for_selector must be tr.athing (30 cards). .itemlist = 0.
     "news.ycombinator.com": DomainSelectors(
         domain               = "news.ycombinator.com",
+        feed_fijo            = True,   # ignora ?q= (medido 2026-09-29: 30/30 identicos)
         search_url_template  = "https://news.ycombinator.com/jobs?q={title}",
         wait_for_selector    = "tr.athing",
         last_verified        = "2026-05-30",
@@ -633,6 +645,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # y link, 43 con empresa (jobs.gem.com no está en derive_company_from_url).
     "posthog.com": DomainSelectors(
         domain               = "posthog.com",
+        feed_fijo            = True,   # ignora ?q= (medido 2026-09-29)
         search_url_template  = "https://posthog.com/cool-tech-jobs?q={title}",
         wait_for_selector    = "a[href*='/careers/'], a[href*='ashbyhq'], a[href*='jobs.gem.com']",
         last_verified        = "2026-09-28",
@@ -746,6 +759,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # "San Francisco, CA, United States" → feeds the soft-geo filter (AUDIT #2).
     "python.org": DomainSelectors(
         domain               = "python.org",
+        feed_fijo            = True,   # ignora ?q= (medido 2026-09-29)
         search_url_template  = "https://www.python.org/jobs/?q={title}",
         wait_for_selector    = "ol.list-recent-jobs",
         last_verified        = "2026-06-02",
