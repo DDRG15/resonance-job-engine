@@ -73,6 +73,7 @@ def traer_fuente(
         items_path=plat.items_path,
         titles=titles,
         crawl_delay_s=plat.crawl_delay_s,
+        salario_en_descripcion=plat.salario_en_descripcion,
         defaults={"company": fuente.empresa},
         es_relevante=es_relevante,
         log=lambda _m: None,      # el log util es el agregado, no 40 lineas sueltas

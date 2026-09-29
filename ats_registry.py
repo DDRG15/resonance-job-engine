@@ -30,6 +30,10 @@ class Plataforma:
     items_path: str = ""
     field_map: dict = field(default_factory=dict)
     crawl_delay_s: float = 0.0
+    salario_en_descripcion: str = ""
+    """Campo del payload que trae la descripcion en HTML, cuando la plataforma NO
+    publica compensacion como dato. Vacio = apagado. Es un flag con nombre, no una
+    regla del `field_map`: el mapa mapea, el codigo transforma."""
     concurrencia: int = 6
     """Cuántos tokens de esta plataforma se piden a la vez. No es el semáforo de
     Chromium: ahí el recurso escaso son las pestañas, acá es la cortesía con el host."""
@@ -41,9 +45,22 @@ PLATAFORMAS: dict[str, Plataforma] = {
     # location es un dict con .name ('Remote, Bangalore'), y application_deadline
     # existe como clave — es la fuente del `deadline` de la Fase 6.
     # robots.txt de boards-api.greenhouse.io: solo prohíbe /embed/.
+    # `?content=true` (2026-09-28): Greenhouse NO expone compensacion como campo. Se
+    # verificaron las tres vias contra gitlab, cloudflare y canonical y ninguna trae una
+    # sola clave de pago -- ni el listado pelado, ni `?content=true`, ni `/jobs/{id}`.
+    # Lo que si trae `content` es la descripcion, y ahi esta el rango: las leyes de
+    # transparencia salarial de California, Colorado, Nueva York y Washington obligan a
+    # publicarlo. Medido sobre 905 avisos: gitlab 84/199 (42,2%), cloudflare 157/400
+    # (39,2%), canonical 1/306 -- canonical es britanica y esas leyes no la alcanzan.
+    # El salario estaba en 0% para Greenhouse, que fue 452 de los 1.095 avisos de la
+    # corrida del 17-09.
+    #
+    # El flag cuesta UNA llamada, no una por aviso: `?content=true` trae la descripcion
+    # de todos los avisos en la misma respuesta. `/jobs/{id}` habria sido una llamada
+    # por aviso para el mismo dato.
     "greenhouse": Plataforma(
         nombre="greenhouse",
-        url_template="https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
+        url_template="https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true",
         items_path="jobs",
         field_map={
             "title": "title",
@@ -54,6 +71,7 @@ PLATAFORMAS: dict[str, Plataforma] = {
             # la empresa la cargo -- pero cuando lo tiene es una fecha real.
             "deadline": "application_deadline",
         },
+        salario_en_descripcion="content",
     ),
 
     # Lever no devuelve el nombre de la empresa: el tablero ES de una empresa, así que

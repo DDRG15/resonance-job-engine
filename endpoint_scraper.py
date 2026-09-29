@@ -24,6 +24,7 @@ y pasar a camoufox, no insistir.
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import re
@@ -213,7 +214,57 @@ def _texto(valor: Any) -> str:
     return re.sub(r"\s+", " ", s).strip()
 
 
-def _salario(fila: dict, fm: dict) -> Optional[str]:
+def texto_de_html(bruto: Optional[str]) -> str:
+    """
+    HTML de una descripcion a texto plano.
+
+    **Desescapa hasta que estabiliza, no una vez.** El `content` de Greenhouse viene
+    DOBLE escapado: el crudo trae `&amp;mdash;`, asi que una sola vuelta deja `&mdash;`
+    literal en el medio del texto. Medido el 2026-09-28 sobre gitlab: con una vuelta el
+    extractor lee `$139,200` y con dos lee `$139,200 - $235,200`. Los 84 avisos de
+    gitlab con salario pasan de piso suelto a rango completo por esa diferencia.
+
+    El tope de tres vueltas es para que una entrada adversaria —`&amp;amp;amp;...`
+    anidado mil veces— no se convierta en trabajo cuadratico dentro del parser.
+    """
+    t = bruto or ""
+    for _ in range(3):
+        n = html.unescape(t)
+        if n == t:
+            break
+        t = n
+    return re.sub(r"\s+", " ", _ETIQUETAS.sub(" ", t)).strip()
+
+
+def _salario_de_descripcion(fila: dict, campo: str) -> Optional[str]:
+    """
+    El rango publicado en el TEXTO de la descripcion.
+
+    Greenhouse no expone compensacion como campo: verificado el 2026-09-28 contra
+    gitlab, cloudflare y canonical, ni el listado, ni `?content=true`, ni
+    `/jobs/{id}` traen una sola clave de pago. Pero las leyes de transparencia
+    salarial de California, Colorado, Nueva York y Washington obligan a publicar el
+    rango, y las empresas lo ponen en la descripcion.
+
+    Medido sobre 905 avisos: gitlab 84 de 199 (42,2%), cloudflare 157 de 400 (39,2%),
+    canonical 1 de 306 — canonical es britanica y esas leyes no la alcanzan, que es
+    la explicacion de por que el mismo codigo rinde distinto por empresa.
+
+    Usa el MISMO extractor que el resto del sistema. Una segunda ruta de parseo de
+    salarios daria dos respuestas distintas para el mismo texto, y el dia que una
+    falle nadie sabria cual miro.
+    """
+    bruto = fila.get(campo)
+    if not bruto:
+        return None
+    # Import diferido a proposito: `endpoint_scraper` es el camino SIN navegador y no
+    # puede colgarse `scraper` —con playwright y nlp_engine detras— solo por importarse.
+    # Cuando esta rama corre, el proceso ya tiene scraper cargado.
+    from scraper import extract_salary_from_text
+    return extract_salary_from_text(texto_de_html(bruto))
+
+
+def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional[str]:
     """
     `salary_raw` es un string porque `parse_salary_usd()` lee strings. Un endpoint
     que entrega enteros —remoteok da `salary_min`/`salary_max`— se compone al
@@ -240,6 +291,12 @@ def _salario(fila: dict, fm: dict) -> Optional[str]:
         return f"${lo:,}"
     if hi:
         return f"${hi:,}"
+
+    # Ultimo recurso, y en ese orden a proposito: un campo declarado siempre le gana a
+    # un numero pescado de la prosa. La descripcion se lee solo cuando la plataforma no
+    # tiene donde publicarlo.
+    if salario_en_descripcion:
+        return _salario_de_descripcion(fila, salario_en_descripcion)
     return None
 
 
@@ -271,6 +328,7 @@ def _partir_prefijo_empresa(titulo: str) -> tuple[str, str]:
 def a_job_result(fila: dict, fm: dict, dominio: str,
                  url_base: str = "",
                  titulo_trae_empresa: bool = False,
+                 salario_en_descripcion: str = "",
                  defaults: Optional[dict] = None) -> Optional[JobResult]:
     """
     Una fila cruda a `JobResult`, o `None` si no se puede sostener.
@@ -318,7 +376,7 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
         title=titulo,
         company=empresa or "(empresa no listada)",
         url=url,
-        salary_raw=_salario(fila, fm) or None,
+        salary_raw=_salario(fila, fm, salario_en_descripcion) or None,
         location_raw=ubicacion or None,
         source_domain=dominio,
         scraped_at=datetime.now(timezone.utc),
@@ -351,6 +409,7 @@ def scrape_endpoint(
     titles: Optional[list[str]] = None,
     crawl_delay_s: float = 0.0,
     titulo_trae_empresa: bool = False,
+    salario_en_descripcion: str = "",
     defaults: Optional[dict] = None,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
@@ -402,6 +461,7 @@ def scrape_endpoint(
         for fila in filas:
             job = a_job_result(fila, fm, dominio, url_base=url,
                                titulo_trae_empresa=titulo_trae_empresa,
+                               salario_en_descripcion=salario_en_descripcion,
                                defaults=defaults)
             if job is None:
                 res.descartados_invalidos += 1
