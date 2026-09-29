@@ -49,6 +49,14 @@ def client(tmp_path, monkeypatch):
         api_module.app.state.sheets = None
         api_module.app.state.sched.notion = None
         api_module.app.state.sched.sheets = None
+        # El RunManager se construye en el lifespan con los clientes adentro y
+        # guarda SU PROPIA referencia: apagar app.state.notion despues no lo toca.
+        # Sin estas dos lineas el fix de arriba quedaba a medias — medido el
+        # 2026-09-28: cada test que corre el pipeline intentaba 3 veces por aviso
+        # contra api.notion.com (backoff 1 s + 2 s), el bloqueo de red lo cortaba,
+        # y los 6 tests mas lentos de la suite gastaban ~9 s cada uno en eso.
+        api_module.app.state.runs._notion = None
+        api_module.app.state.runs._sheets = None
         yield c
     # El BackgroundScheduler es un thread daemon por instancia — apagarlo
     # evita acumular jobs activos entre tests.
