@@ -86,18 +86,27 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 # no hay forma de saberlo mirandola, y comparar dos numeros incomparables es peor que
 # no tener ninguno.
 #
-# Se sube cuando cambia COMO se puntua, no cuando cambia el resultado: dos corridas con
-# configs distintas y el mismo algoritmo comparten version.
+# Se sube cuando cambia COMO se evalua un aviso, no cuando cambia el resultado: dos
+# corridas con configs distintas y el mismo algoritmo comparten version. "Como se
+# evalua" es TODO lo que score_job persiste — puntaje, tier y veredictos de
+# elegibilidad —, no solo el numero: un veredicto viejo guardado junto a un puntaje
+# nuevo es la misma mezcla de escalas, en otra columna.
 #
 #   v1  hasta 2026-09-14  presupuesto absoluto, ubicacion sumada al puntaje
 #   v2  desde 2026-09-15  vetos fuera del score, dimensiones renormalizadas, GBP/EUR
 #   v3  desde 2026-09-19  score de titulo continuo (cobertura 0.70 / precision 0.30)
+#   v4  desde 2026-09-29  veredicto de ubicacion sin tildes y con ISO-3 de LATAM
 #
 # El salto a v3 es retroactivo: 9bc8e4b cambio _score_title y dejo la version en v2,
 # asi que 1024 filas quedaron con puntajes escalonados bajo la misma etiqueta que los
 # continuos. Medido sobre titulos reales del registry, 38 de 40 cambian de puntaje
-# entre las dos escalas. Subir la version las devuelve a la cola de re-puntaje.
-SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v3")
+# entre las dos escalas.
+#
+# Y subir la version NO re-puntua nada por si solo (medido el 2026-09-29: los avisos
+# ya vistos no vuelven a pasar por bucket_jobs). Despues de subirla hay que correr
+# tools/repuntuar_registry.py. tests/test_score_version_congelada.py falla si alguien
+# cambia la salida de score_job sin tocar esta linea.
+SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v4")
 
 
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────

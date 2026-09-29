@@ -19,6 +19,7 @@ Tier 4 (Manual Review) BYPASSES mathematical scoring entirely.
 
 import logging
 import re
+import unicodedata
 from typing import Optional
 
 import config
@@ -275,6 +276,34 @@ _LOCATION_ACCESSIBLE = re.compile(
     r")\b",
     re.IGNORECASE,
 )
+# Codigos ISO-3 de LATAM, solo cuando CIERRAN un elemento de la lista: es el formato
+# de builtin.com ("la ciudad del candidato, PER", "Bogota, Distrito Capital, COL; Mexico City, ..., MEX").
+# Anclados a ", CODE" antes de ';' o fin de texto porque sueltos no son seguros:
+# "per" aparece en "$100 per hour" y "pan", "col", "ven" en demasiadas palabras.
+_LATAM_ISO3 = re.compile(
+    r",\s*(per|mex|col|chl|arg|bra|ury|ecu|bol|pry|ven|cri|pan|gtm)\s*(?=;|$)",
+    re.IGNORECASE,
+)
+
+
+def _sin_tildes(texto: str) -> str:
+    """
+    "Perú" -> "Peru", "México" -> "Mexico", "Bogotá" -> "Bogota".
+
+    `_LOCATION_ACCESSIBLE` lista los paises sin tilde y `\bperu\b` no matchea
+    "perú". Medido el 2026-09-29: un Tier 1 abierto a ~40 paises, el pais del candidato entre ellos
+    ("Greece; Norway; Perú; ...; Spain; Cyprus; ..."), salia FLAG porque "spain" y
+    "cyprus" matcheaban restringido y "perú" no matcheaba accesible. builtin.com
+    publica asi, con tilde.
+    """
+    return "".join(c for c in unicodedata.normalize("NFKD", texto)
+                   if not unicodedata.combining(c))
+
+
+def _es_accesible(loc: str) -> bool:
+    return bool(_LOCATION_ACCESSIBLE.search(loc) or _LATAM_ISO3.search(loc))
+
+
 _LOCATION_SOFT_RESTRICTED = re.compile(
     r"\b("
     r"usa|us|united states|uk|united kingdom|england|canada|"
@@ -354,8 +383,11 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     # Soft geo — evaluated on location_raw only (not the blob), so a company name
     # or salary string containing "us"/"eu" can never trigger it. Fires only when
     # the field names a restricted region AND carries no LATAM/open signal.
-    loc = (getattr(job, "location_raw", None) or "").lower().strip()
-    if loc and not _LOCATION_ACCESSIBLE.search(loc) and _LOCATION_SOFT_RESTRICTED.search(loc):
+    # Sin tildes y con los ISO-3 de LATAM (2026-09-29): "Perú; Canada" o
+    # "la ciudad del candidato, PER; Remote, OR, USA" nombran un lugar donde el usuario puede trabajar, y
+    # antes salian FLAG porque solo se reconocia "peru" sin tilde.
+    loc = _sin_tildes((getattr(job, "location_raw", None) or "").lower().strip())
+    if loc and not _es_accesible(loc) and _LOCATION_SOFT_RESTRICTED.search(loc):
         return -10, [], [f"Location soft-restricted for la ciudad del candidato: '{job.location_raw}'"]
 
     return 0, [], []
