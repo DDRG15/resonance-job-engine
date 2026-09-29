@@ -491,6 +491,10 @@ SELECTORS: dict[str, DomainSelectors] = {
             "h2",
         ],
         company = [
+            # 2026-09-28: el primer a[href*='/company/'] del card es ahora el LOGO
+            # (sin texto) → 50 de 50 cards caían al placeholder "(empresa no
+            # listada)". El nombre está en el enlace con data-id="company-title".
+            "a[data-id='company-title']",
             "a[href*='/company/']",          # Phase 31b: company migró acá (verif. 2026-07-11: "Luxury Presence")
             "div[class*='company-name']",
             "span[class*='company']",

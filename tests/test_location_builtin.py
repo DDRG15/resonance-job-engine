@@ -195,6 +195,17 @@ class TestCaminoReal:
         for j in extraidos["con_flag"].values():
             assert j.source_domain == "builtin.com"
 
+    def test_empresa_sale_del_enlace_company_title(self, extraidos):
+        # Al verificar la ubicación apareció esto: el primer a[href*='/company/']
+        # del card es el logo, sin texto, y los 50 cards medidos caían al
+        # placeholder. La empresa es la clave de respaldo si la URL se pudre.
+        empresas = {t: j.company for t, j in extraidos["con_flag"].items()}
+        assert empresas == {
+            T_NETBOX: "NetBox Labs",
+            T_LIMA: "Bluelight Consulting",
+            T_RESEND: "Resend",
+        }
+
 
 # =============================================================================
 # Cards REALES de builtin.com — outerHTML del DOM renderizado con el Playwright
