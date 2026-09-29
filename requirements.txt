@@ -8,7 +8,12 @@
 # streamlit se fue el 2026-09-19 con main.py y ui_theme.py: eran 2.357 lineas de una
 # segunda UI sobre la misma base, y el Dockerfile arrancaba ESA y no el producto.
 # El front es React (frontend/), servido por FastAPI desde /.
-starlette==0.47.3      # pinned — B6: resuelto por fastapi 0.116.1 (rango <0.48); conserva el fix de 0.42.0 (DEFAULT_EXCLUDED_CONTENT_TYPES; 0.41.3 rompía el startup)
+starlette==1.7.0       # 2026-09-28: 0.47.3 -> 1.7.0, cruzando major. Cierra las 8 vulns de pip-audit
+                        # (PYSEC-2026-1942/161/2280/2281/248/249). Se pudo porque fastapi 0.141.1
+                        # pide starlette>=0.46.0 sin techo (Requires-Dist real del wheel). Verificado:
+                        # suite completa, uvicorn en vivo con /, /api/status, SSE text/event-stream
+                        # y api importando con -W error::DeprecationWarning. GZipMiddleware no lo usa
+                        # api.py: la nota vieja sobre DEFAULT_EXCLUDED_CONTENT_TYPES no aplicaba.
 
 # ── Data Validation (Contract Layer) ─────────────────────────────────────────
 pydantic==2.13.5       # v3 (2026-09-01): subido desde 2.7.1 — NO fue una elección.
@@ -78,7 +83,7 @@ camoufox==0.4.11       # Firefox-based Playwright fork — bypasses Cloudflare B
                        # After install: python -m camoufox fetch  (downloads ~530MB Firefox binary)
 
 # ── API Layer (B6 — backend para el front React) ─────────────────────────────
-fastapi==0.116.1       # adapter fino sobre el engine; requiere starlette <0.48 (pin de arriba OK)
+fastapi==0.141.1       # 0.116.1 exigia starlette<0.48 y bloqueaba el fix; 0.141.1 pide >=0.46.0
 uvicorn[standard]==0.35.0  # server ASGI — correr SIEMPRE con --workers 1 (SchedulerService es singleton por proceso)
 python-multipart==0.0.31   # upload de CV (multipart/form-data) — subido desde 0.0.20:
                            # cierra 6 avisos (PYSEC-2026-1852/3036/3037/3038/3039/3040)
