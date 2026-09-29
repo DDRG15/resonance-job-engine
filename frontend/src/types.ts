@@ -19,6 +19,8 @@ export interface RegistryStats {
   total_seen: number
   recent_24h: number
   by_tier: Record<string, number>
+  score_version?: string
+  fuera_de_escala?: number
 }
 
 export interface SearchConfigDto {

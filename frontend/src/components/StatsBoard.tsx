@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 
 interface DashboardStats {
   by_tier: Record<string, number>
+  score_version?: string
+  fuera_de_escala?: number
   by_source: { source: string; count: number }[]
   by_day: { day: string; count: number }[]
 }
@@ -73,7 +75,10 @@ export default function StatsBoard({ onClose }: Props) {
         <div className="stats-grid">
           {/* Distribución por tier — barras horizontales apiladas + leyenda */}
           <div className="stats-card">
-            <div className="stats-title">Distribución por tier</div>
+            <div className="stats-title">
+              Distribución por tier
+              {stats.score_version && <span className="phase"> · escala {stats.score_version}</span>}
+            </div>
             {tierTotal === 0 ? (
               <div className="empty-state"><b>Sin datos aún</b>Corré una extracción.</div>
             ) : (
@@ -102,6 +107,15 @@ export default function StatsBoard({ onClose }: Props) {
                     </span>
                   ))}
                 </div>
+                {/* Los avisos puntuados con otra version del algoritmo no se suman:
+                    sus numeros no son comparables. Se dicen, para que no parezca que
+                    desaparecieron. */}
+                {(stats.fuera_de_escala ?? 0) > 0 && (
+                  <p className="side-note" data-testid="fuera-de-escala">
+                    {stats.fuera_de_escala} avisos más, puntuados con otra versión del
+                    scoring, no se cuentan acá.
+                  </p>
+                )}
               </>
             )}
           </div>

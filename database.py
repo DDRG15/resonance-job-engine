@@ -1381,15 +1381,46 @@ class GemaDatabase:
         salida.sort(key=lambda d: (-d["tasa"], -d["postulaciones"]))
         return salida
 
+    def filas_fuera_de_version(self, version: str) -> list[dict]:
+        """
+        Las filas del registry que NO estan puntuadas con `version`: lo que hay que
+        re-puntuar para que el registry hable una sola escala.
+
+        Existe porque subir SCORE_VERSION no alcanza. El 2026-09-19 se asumio que la
+        proxima corrida re-puntuaba todo el registry, y la corrida del 29-09 lo
+        desmintio: los avisos ya vistos se descartan en el scrape (seen-skip=5868) y
+        nunca llegan a bucket_jobs. Solo se puntuaron con v3 los 657 nuevos.
+
+        Trae exactamente los campos que lee el matcher —titulo, empresa, url, salario,
+        ubicacion, board— asi que re-puntuar desde aca da el mismo resultado que
+        puntuar el aviso en vivo.
+        """
+        with _get_connection(self.db_path) as conn:
+            return [dict(r) for r in conn.execute(
+                "SELECT url, title, company, salary_raw, location_raw, source_domain, "
+                "       deadline, scraped_at, score_version "
+                "FROM seen_jobs_registry "
+                "WHERE score_version IS NULL OR score_version <> ?", (version,)).fetchall()]
+
     def get_registry_stats(self) -> dict:
         with _get_connection(self.db_path) as conn:
             total = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry"
             ).fetchone()[0]
+            # Solo la version vigente. Hasta el 2026-09-29 se sumaban tres escalas
+            # (sin version, v2, v3) como si fueran una: el "Tier 1 = 304" del 19-09 era
+            # 274 de una escala mas 30 de otra. Lo que esta en otra version se cuenta
+            # aparte, en `fuera_de_escala`, en vez de desaparecer.
             by_tier = conn.execute(
                 "SELECT tier, COUNT(*) as cnt FROM seen_jobs_registry "
-                "WHERE tier IS NOT NULL GROUP BY tier"
+                "WHERE tier IS NOT NULL AND score_version = ? GROUP BY tier",
+                (config.SCORE_VERSION,),
             ).fetchall()
+            fuera = conn.execute(
+                "SELECT COUNT(*) FROM seen_jobs_registry WHERE tier IS NOT NULL "
+                "AND (score_version IS NULL OR score_version <> ?)",
+                (config.SCORE_VERSION,),
+            ).fetchone()[0]
             recent_24h = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry WHERE scraped_at >= ?",
                 ((datetime.now(timezone.utc) - timedelta(hours=24)).isoformat(),),
@@ -1399,6 +1430,8 @@ class GemaDatabase:
             "total_seen": total,
             "recent_24h": recent_24h,
             "by_tier": {row["tier"]: row["cnt"] for row in by_tier},
+            "score_version": config.SCORE_VERSION,
+            "fuera_de_escala": fuera,
         }
 
     def get_dashboard_stats(self) -> dict:
@@ -1408,10 +1441,17 @@ class GemaDatabase:
         para que la UI dibuje el board de estadísticas del registry.
         """
         with _get_connection(self.db_path) as conn:
+            # Misma regla que get_registry_stats: una sola escala.
             by_tier = conn.execute(
                 "SELECT tier, COUNT(*) AS cnt FROM seen_jobs_registry "
-                "WHERE tier IS NOT NULL GROUP BY tier"
+                "WHERE tier IS NOT NULL AND score_version = ? GROUP BY tier",
+                (config.SCORE_VERSION,),
             ).fetchall()
+            fuera = conn.execute(
+                "SELECT COUNT(*) FROM seen_jobs_registry WHERE tier IS NOT NULL "
+                "AND (score_version IS NULL OR score_version <> ?)",
+                (config.SCORE_VERSION,),
+            ).fetchone()[0]
             by_source = conn.execute(
                 "SELECT source_domain, COUNT(*) AS cnt FROM seen_jobs_registry "
                 "GROUP BY source_domain ORDER BY cnt DESC LIMIT 20"
@@ -1426,6 +1466,8 @@ class GemaDatabase:
             ).fetchall()
         return {
             "by_tier": {r["tier"]: r["cnt"] for r in by_tier},
+            "score_version": config.SCORE_VERSION,
+            "fuera_de_escala": fuera,
             "by_source": [{"source": r["source_domain"], "count": r["cnt"]} for r in by_source],
             "by_day": [{"day": r["day"], "count": r["cnt"]} for r in by_day],
         }

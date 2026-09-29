@@ -223,7 +223,20 @@ def test_get_registry_stats_counts_correctly(db):
     db.update_tier(jobs[0].url, "Tier 1", 90)
     db.update_tier(jobs[1].url, "Tier 2", 60)
 
+    # 2026-09-29: by_tier cuenta solo la version vigente del scoring. La firma vieja
+    # de update_tier no sella version (produccion ya no la usa: escribe por
+    # update_tiers_batch), asi que esas dos filas quedan fuera de escala.
     stats = db.get_registry_stats()
     assert stats["total_seen"] == 3
+    assert stats["by_tier"] == {}
+    assert stats["fuera_de_escala"] == 2
+
+    import sqlite3, config
+    conn = sqlite3.connect(db.db_path)
+    conn.execute("UPDATE seen_jobs_registry SET score_version=?", (config.SCORE_VERSION,))
+    conn.commit()
+    conn.close()
+    stats = db.get_registry_stats()
     assert stats["by_tier"].get("Tier 1") == 1
     assert stats["by_tier"].get("Tier 2") == 1
+    assert stats["fuera_de_escala"] == 0
