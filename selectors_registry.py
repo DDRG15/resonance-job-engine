@@ -433,7 +433,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         domain               = "arc.dev",
         search_url_template  = "https://arc.dev/remote-jobs?q={title}",
         wait_for_selector    = "div[data-testid='job-card']",
-        last_verified        = "2026-07-18",
+        last_verified        = "2026-09-28",
         null_threshold       = 3,
         # FIX 4 live-test 07-18: títulos multi-palabra ("SRE (Site Reliability
         # Engineer)") → 0 resultados → nulls → breaker abierto (run #1). Mismo
@@ -452,7 +452,11 @@ SELECTORS: dict[str, DomainSelectors] = {
             "h2",
             "h3",
         ],
+        # 2026-09-28, medido en vivo (10 cards): la empresa es texto en
+        # `div.company-name`; el <img> del logo tiene un alt tipo "X's job post
+        # on Arc's remote job board", que no es un nombre. Queda de fallback.
         company = [
+            "div.company-name",
             "div.company-logo img",
             "span[class*='company']",
             "p[class*='company']",
@@ -460,6 +464,12 @@ SELECTORS: dict[str, DomainSelectors] = {
         salary = [
             "span[class*='salary']",
             "p[class*='compensation']",
+        ],
+        # La ubicacion vive en `.bottom-information span` ("Remote anywhere",
+        # "Remote (US only)"...). Estaba en 0%: es la restriccion que decide el
+        # veredicto desde la ciudad del candidato, y el card la mostraba sin que nadie la leyera.
+        location = [
+            "div.bottom-information span",
         ],
     ),
 
@@ -653,7 +663,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         domain               = "jobspresso.co",
         search_url_template  = "https://jobspresso.co/remote-work/?search_keywords={title}",
         wait_for_selector    = "li.job_listing",
-        last_verified        = "2026-05-25",
+        last_verified        = "2026-09-28",
         null_threshold       = 5,
         job_card = [
             "li.job_listing",
@@ -670,13 +680,25 @@ SELECTORS: dict[str, DomainSelectors] = {
             "h3",
             "h2",
         ],
+        # 2026-09-28, medido en vivo (30 cards): la empresa es el <strong> de
+        # `.job_listing-company`. Va PRIMERO porque el fallback
+        # `span[class*='company']` matchea `job_listing-company-tagline`, que es el
+        # eslogan ("The best way to keep you... safe online"), no el nombre.
         company = [
+            ".job_listing-company strong",
             ".company",
             "span[class*='company']",
         ],
         salary = [
             ".salary",
             "span[class*='salary']",
+        ],
+        # La ubicacion estaba en 0% con el dato en el card: `.job_listing-location`
+        # trae "United States, Canada", "United States (EST Time Zone)"... Justo
+        # las restricciones que el veredicto desde la ciudad del candidato necesita ver.
+        location = [
+            ".job_listing-location a.google_map_link",
+            ".job_listing-location",
         ],
         next_page_btn = "a.next",
     ),
