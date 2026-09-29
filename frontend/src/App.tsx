@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getCvProfile, getRegistryStats, getResults, getScheduler, getStatus, getVault,
+  getConfig, getCvProfile, getRegistryStats, getResults, getScheduler, getStatus, getVault,
   loadVaultEntry,
 } from './api'
 import CommandCenter from './components/CommandCenter'
@@ -72,6 +72,26 @@ export default function App() {
   if (status?.has_results && !status.is_running && !hidratado && results === null) {
     setHidratado(true)
     void getResults().then(setResults)
+  }
+
+  // Rehidratar la búsqueda confirmada y una corrida EN CURSO (2026-09-29, hallado por
+  // la auditoría de revision externa). Refrescar a mitad de una corrida perdía el panel de
+  // progreso aunque el SSE reenvía el historial a quien se conecta tarde: solo
+  // faltaba volver a pedir el run_id. Una sola vez por carga — un Reset posterior
+  // deja config en null a propósito y no tiene que volver a aparecer.
+  const [sesionHidratada, setSesionHidratada] = useState(false)
+  if (status && !sesionHidratada) {
+    setSesionHidratada(true)
+    void getConfig().then((r) => {
+      if (r.config) {
+        setConfig(r.config)
+        setAuditReport(r.audit_report)
+        setAuditVerdict(r.audit_verdict)
+      }
+    })
+    if (status.is_running) {
+      void getResults().then((r) => { if (r.run_id) setRunId(r.run_id) })
+    }
   }
 
   const refresh = () => void qc.invalidateQueries()

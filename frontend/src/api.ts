@@ -1,7 +1,7 @@
 // Cliente HTTP fino contra api.py. En dev, Vite proxya /api → localhost:8000.
 
 import type {
-  CvProfile, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
+  AuditVerdict, CvProfile, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
   SchedulerUpdate, SearchConfigDto, Status, VaultEntry,
 } from './types'
 
@@ -49,6 +49,12 @@ export const postScrape = (ttlHours: number) =>
   })
 
 export const getResults = () => request<ResultsResponse>('/api/results')
+
+// La búsqueda confirmada que el servidor ya tiene. Existía GET /api/config y el front
+// nunca lo pedía: un refresh perdía la búsqueda aunque el server la conservara.
+export const getConfig = () =>
+  request<{ config: SearchConfigDto | null; audit_report: string | null;
+            audit_verdict: AuditVerdict | null }>('/api/config')
 
 export const putScheduler = (update: SchedulerUpdate) =>
   request<SchedulerState>('/api/scheduler', {
