@@ -62,6 +62,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from enum import Enum
+from html import unescape as _html_unescape
 from html.parser import HTMLParser
 from typing import Optional
 from urllib.parse import quote_plus, urljoin
@@ -747,6 +748,37 @@ def extract_salary_from_text(text: Optional[str]) -> Optional[str]:
         return None
     m = _SALARY_RX.search(text)
     return m.group(0).strip() if m else None
+
+
+# =============================================================================
+# Ubicación en tooltip — builtin.com (2026-09-28).
+# Un aviso con varias sedes muestra "11 Locations" y la lista vive en el
+# atributo data-bs-title: 35 de 50 cards medidos. Ese conteo como location_raw
+# no nombra ningún país, el matcher lo lee como "sin señal" y da PASS — el mismo
+# PASS engañoso que un aviso sin ubicación. La lista sí nombra "Chile" o "USA".
+# =============================================================================
+
+_ETIQUETA_TOOLTIP = re.compile(r"<[^>]+>")
+
+
+def ubicaciones_de_tooltip(tooltip: Optional[str]) -> Optional[str]:
+    """
+    `<div class='text-truncate'>Chile</div><div class='text-truncate'>Per&#250;</div>`
+    -> `"Chile; Perú"`. None si no hay nada que leer. Pura, nunca lanza.
+
+    Separador `"; "` y no coma: las sedes traen comas propias ("Remote, OR, USA",
+    "Mexico City, Ciudad De México, MEX") y con coma se pierde dónde termina cada
+    una. El atributo llega con las entidades una vez escapadas (`Per&#250;`) porque
+    Bootstrap lo renderiza como HTML; un `unescape` las deja como las ve el usuario.
+    """
+    if not tooltip:
+        return None
+    lugares: list[str] = []
+    for trozo in _ETIQUETA_TOOLTIP.split(tooltip):
+        lugar = " ".join(_html_unescape(trozo).split())
+        if lugar and lugar not in lugares:
+            lugares.append(lugar)
+    return "; ".join(lugares) or None
 
 
 def _resolve_selector(domain: str, sc: SearchConfig) -> Optional[DomainSelectors]:
@@ -2137,6 +2169,14 @@ class GemaScraper:
             company  = await _try_chain(card, sel.company)
             salary   = await _try_chain(card, sel.salary)   if sel.salary   else None
             location = await _try_chain(card, sel.location) if sel.location else None
+            if location and sel.ubicacion_en_tooltip:
+                # builtin: el texto visible puede ser un conteo ("11 Locations")
+                # y la lista está en data-bs-title del mismo span. Un card de
+                # una sola sede no tiene tooltip y conserva su texto ("la ciudad del candidato, PER").
+                lista = ubicaciones_de_tooltip(
+                    await _try_chain_attr(card, sel.location, attr="data-bs-title")
+                )
+                location = lista or location
 
             if not title:
                 logger.debug("[NULL CARD] %s — title vacío", url)

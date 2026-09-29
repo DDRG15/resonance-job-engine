@@ -77,6 +77,14 @@ class DomainSelectors:
     # None → location_raw stays None → location scoring skipped (neutral 0 pts).
     location:   list[str] = field(default_factory=list)
 
+    # Ubicación en tooltip (2026-09-28). En builtin.com un aviso con varias sedes
+    # muestra "11 Locations" y la lista real vive en el atributo data-bs-title del
+    # MISMO elemento: 35 de 50 cards medidos. Guardar el conteo es guardar basura
+    # que el matcher lee como "sin señal" → PASS engañoso. True → el scraper lee
+    # ese atributo con `ubicaciones_de_tooltip`. Transformación con nombre activada
+    # por un booleano: el registro mapea, el código transforma.
+    ubicacion_en_tooltip: bool = False
+
     # ── Metadata ─────────────────────────────────────────────────────────────
 
     # ISO date the selectors were last verified against the live site.
@@ -466,7 +474,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         # developer" da 0; "python" da 25 (verificado en vivo 2026-07-11).
         query_style          = "keyword",
         wait_for_selector    = "div[data-id]",
-        last_verified        = "2026-05-30",
+        last_verified        = "2026-09-28",
         null_threshold       = 5,
         job_card = [
             "div[data-id]",
@@ -492,6 +500,17 @@ SELECTORS: dict[str, DomainSelectors] = {
             "span[class*='salary']",
             "div[class*='salary']",
         ],
+        # Ubicación medida 2026-09-28 sobre 50 cards reales ("python", "backend"):
+        # la corrida del 09-17 trajo 108 avisos con 0% de ubicación porque no había
+        # selector. El span junto al ícono fa-location-dot trae la sede en 15
+        # ("la ciudad del candidato, PER") y un conteo en 35 ("11 Locations", lista en data-bs-title).
+        # El segundo selector es el aria-label semántico del caso multi-sede: si
+        # Font Awesome renombra el ícono, el 70% multi-sede sigue saliendo.
+        location = [
+            "div:has(> div > i.fa-location-dot) span",
+            "span[aria-label='Job locations']",
+        ],
+        ubicacion_en_tooltip = True,
         next_page_btn = "a[aria-label='Next page']",
     ),
 
