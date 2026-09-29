@@ -226,6 +226,12 @@ def texto_de_html(bruto: Optional[str]) -> str:
 
     El tope de tres vueltas es para que una entrada adversaria —`&amp;amp;amp;...`
     anidado mil veces— no se convierta en trabajo cuadratico dentro del parser.
+
+    **Las etiquetas inline se sacan SIN espacio; las de bloque, con espacio.** Asi es
+    como renderiza un navegador. Medido el 2026-09-29: Grafana Labs pega los rangos
+    desde Google Sheets y el numero llega partido — `EUR 97<span ...>,000</span>` —.
+    Reemplazar toda etiqueta por un espacio producia "EUR 97 ,000" y el extractor leia
+    "EUR 97": 3 avisos a revision manual con un salario publicado y legible.
     """
     t = bruto or ""
     for _ in range(3):
@@ -233,7 +239,16 @@ def texto_de_html(bruto: Optional[str]) -> str:
         if n == t:
             break
         t = n
+    t = _ETIQUETAS_INLINE.sub("", t)
     return re.sub(r"\s+", " ", _ETIQUETAS.sub(" ", t)).strip()
+
+
+# Inline segun HTML: no cortan el texto al renderizar. Todo lo demas (p, div, li, br,
+# h1-h6, td...) si lo corta, y por eso sigue reemplazandose por un espacio.
+_ETIQUETAS_INLINE = re.compile(
+    r"</?(?:span|strong|b|em|i|u|a|font|small|sup|sub|mark|code)(?:\s[^>]*)?>",
+    re.IGNORECASE,
+)
 
 
 def _salario_de_descripcion(fila: dict, campo: str) -> Optional[str]:
@@ -260,8 +275,27 @@ def _salario_de_descripcion(fila: dict, campo: str) -> Optional[str]:
     # Import diferido a proposito: `endpoint_scraper` es el camino SIN navegador y no
     # puede colgarse `scraper` —con playwright y nlp_engine detras— solo por importarse.
     # Cuando esta rama corre, el proceso ya tiene scraper cargado.
-    from scraper import extract_salary_from_text
-    return extract_salary_from_text(texto_de_html(bruto))
+    from scraper import _SALARY_RX
+    from models import salario_anual_usd
+
+    # El PRIMER monto plausible como sueldo anual, no el primer monto. Una descripcion
+    # entera trae otras cifras con moneda: medido el 2026-09-29, 239 avisos de Canonical
+    # dicen "Personal learning and development budget of USD 2,000 per year", y tomar el
+    # primer monto guardaba un sueldo de 2.000 USD al ano — peor que no tener salario,
+    # porque el gate y el eje de salario lo creen. Por debajo del piso no es un sueldo
+    # anual: es un presupuesto, un bono, una tarifa por hora o un mensual.
+    texto = texto_de_html(bruto)
+    for m in _SALARY_RX.finditer(texto):
+        candidato = m.group(0).strip()
+        valor = salario_anual_usd(candidato)
+        if valor is not None and valor >= _PISO_SUELDO_ANUAL_USD:
+            return candidato
+    return None
+
+
+# 10.000 USD al ano. Ningun puesto de los boards que GEMA lee paga menos al ano; por
+# debajo, una cifra con moneda en una descripcion es otra cosa (ver arriba).
+_PISO_SUELDO_ANUAL_USD = 10_000
 
 
 def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional[str]:

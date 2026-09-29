@@ -739,6 +739,11 @@ _SALARY_TOKEN = (
     r"|[$€£]\s?\d{2,3}\s?[-–—]\s?\d{2,3}\s?[kK]\b"    # $60-80k
     r"|[$€£]\s?\d{2,3}\s?[kK]\b"                        # $60k
     r"|\b\d{2,3}\s?[kK]\s?(?:USD|EUR|GBP)\b"            # 120k USD
+    # Codigo delante CON miles (2026-09-29). Va ANTES de la forma corta porque la
+    # alternancia gana por orden: sin esta rama, "EUR 109,000" matcheaba "EUR 109" y
+    # cortaba en la coma. Greenhouse publica asi los rangos europeos de Grafana Labs
+    # ("EUR 109,000 - EUR 137,000"): 10 avisos salieron truncados a "EUR 109".
+    r"|\b(?:USD|EUR|GBP)\s?\d{1,3}(?:[.,]\d{3})+(?:\s?[kK])?"  # EUR 109,000
     r"|\b(?:USD|EUR|GBP)\s?\d{2,3}\s?[kK]?\b"           # USD 120k · EUR 90
     r")"
 )

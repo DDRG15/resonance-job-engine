@@ -20,7 +20,7 @@ import config
 import matcher
 from models import JobResult
 
-VERSION_CONGELADA = "v4"
+VERSION_CONGELADA = "v5"
 
 TITULOS = {
     ("Backend Engineer", ("backend engineer",)): 50,
@@ -74,6 +74,29 @@ def test_veredicto_de_ubicacion(ubicacion, esperado):
                     source_domain="builtin.com", location_raw=ubicacion or None)
     real, _ = matcher._location_verdict(job)
     assert real == esperado, _mensaje(f"veredicto de {ubicacion!r}", esperado, real)
+
+
+# (salary_raw, USD anuales). Solo montos en USD: una tasa de cambio que se actualiza no
+# es un cambio de algoritmo y no deberia romper este archivo.
+SALARIOS = [
+    ("$154,445 - $185.334", 154445),       # typo real de Grafana Labs: punto de miles
+    ("$139,200—$235,200", 139200),         # rango de gitlab, spans inline pegados
+    ("$120,000.00", 120000),
+    ("$85.5k", 85500),                     # 1 digito tras el punto: decimal
+    ("USD 120k", 120000),                  # codigo delante
+    ("USD 120,000 - USD 150,000", 120000),
+    ("USD 2,000", None),                   # presupuesto de formacion de Canonical
+    ("EUR 109", None),                     # truncado: no inventar 109 euros al ano
+    ("401k match", None),
+    ("Competitive", None),
+]
+
+
+@pytest.mark.parametrize("crudo,esperado", SALARIOS)
+def test_salario_anual_usd(crudo, esperado):
+    from models import salario_anual_usd
+    real = salario_anual_usd(crudo)
+    assert real == esperado, _mensaje(f"salario de {crudo!r}", esperado, real)
 
 
 def test_el_veto_duro_sigue_siendo_fail():
