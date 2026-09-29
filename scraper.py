@@ -890,6 +890,7 @@ class GemaScraper:
         self.ttl_hours = ttl_hours
         self.webhook   = webhook or WebhookClient()
         self.profile   = profile  # ephemeral CV profile; passed to bucket_jobs post-scrape
+        self._silenciados: Optional[set] = None  # vencidos + duplicados, 1 lectura por sesion
         self.circuit   = CircuitBreaker()
         self.summary   = ScrapeRunSummary()
 
@@ -1041,6 +1042,42 @@ class GemaScraper:
                 metrics.emit("ingest_records_dropped_total", len(jobs_copy),
                              reason="db_write_failed")
                 batch.clear()   # cleared only after the loss is recorded honestly
+
+    async def _alertar_si_tier1(self, job) -> None:
+        """
+        La alerta en vivo de un Tier 1, con la MISMA vara que el ranking final.
+
+        Hasta el 2026-09-29 habia dos copias de esto y las dos puntuaban con
+        `score_job(job, self.config)`: sin el perfil del CV que si usa bucket_jobs
+        —el tier podia diferir— y sin mirar la elegibilidad de la Fase 3. Un aviso
+        que exige ciudadania estadounidense (veto FAIL) llegaba por Discord como Tier
+        1 y despues no aparecia en el shortlist. Hallado por la auditoria de revision externa.
+
+        Tambien calla lo que el ranking ya sabe descartar: vencidos (marca de la Fase
+        6) y duplicados aceptados (Fase 11). Los dos conjuntos se leen una vez por
+        sesion, no por aviso. Un duplicado NUEVO de esta misma corrida no se puede
+        conocer aca —los correlators corren despues del scrape—; ese caso lo cubre el
+        shortlist.
+
+        Nunca levanta: una alerta que falla no puede tumbar el scraping.
+        """
+        if not self.webhook.is_enabled:
+            return
+        try:
+            tiered = score_job(job, self.config, profile=self.profile)
+            if tiered.tier != "Tier 1" or not tiered.elegible:
+                return
+            if self._silenciados is None:
+                try:
+                    self._silenciados = (self.db.hashes_vencidos()
+                                         | self.db.hashes_bloqueados())
+                except Exception:
+                    self._silenciados = set()
+            if self.db.compute_hash(job.url) in self._silenciados:
+                return
+            await self.webhook.notify_tier1(tiered)
+        except Exception as exc:
+            logger.warning("[WEBHOOK SCORE] alerta inline fallo: %s", exc)
 
     # =========================================================================
     # Main Run — asyncio.gather() Fan-Out
@@ -1570,13 +1607,7 @@ class GemaScraper:
             await self._write_q.put(job)
             ingested += 1
             self.summary.total_urls_found += 1
-            if self.webhook.is_enabled:
-                try:
-                    tiered = score_job(job, self.config)
-                    if tiered.tier == "Tier 1":
-                        await self.webhook.notify_tier1(tiered)
-                except Exception as exc:
-                    logger.warning("[WEBHOOK SCORE] camoufox inline scoring error: %s", exc)
+            await self._alertar_si_tier1(job)
         return ingested
 
     # =========================================================================
@@ -2132,13 +2163,7 @@ class GemaScraper:
             jobs.append(job)
 
             # ── Step 6: Inline tier scoring → immediate webhook on Tier 1 ────
-            if self.webhook.is_enabled:
-                try:
-                    tiered = score_job(job, self.config)
-                    if tiered.tier == "Tier 1":
-                        await self.webhook.notify_tier1(tiered)
-                except Exception as exc:
-                    logger.warning("[WEBHOOK SCORE] Inline scoring error: %s", exc)
+            await self._alertar_si_tier1(job)
 
         # FIX A: veredicto SRP-level. Solo es drift real si HABÍA cards pero
         # NINGUNA se extrajo Y hubo fallas (selectores href/title stale sobre un
