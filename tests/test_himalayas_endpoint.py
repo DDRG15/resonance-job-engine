@@ -171,6 +171,10 @@ class TestConsulta:
             sesion=ses, **kw)
         return ses, res
 
+    def test_la_entrada_declara_total_y_alternativa(self):
+        assert CFG["total_path"] == "totalCount"
+        assert FM["url_alternativa"] == "applicationLink"
+
     def test_pais_desde_config(self, monkeypatch):
         import config
         monkeypatch.setattr(config, "PAIS_CANDIDATO", "")
@@ -183,11 +187,130 @@ class TestConsulta:
         ses, _ = self._correr(pais="Costa Rica")
         assert ses.pedidos[0].endswith("country=Costa%20Rica")
 
-    def test_pais_vacio_se_dice_en_el_log(self):
+    def test_pais_vacio_falla_cerrado(self):
+        """revision externa, punto 15: `country=` vacio traeria el catalogo mundial y el filtro de
+        D2 se apagaria en silencio. Sin pais no se pide nada, y el error lo dice."""
         lineas = []
-        ses, _ = self._correr(pais="", log=lineas.append)
-        assert ses.pedidos[0].endswith("country=")
-        assert any("PAIS_CANDIDATO" in l for l in lineas)
+        ses, res = self._correr(pais="", log=lineas.append)
+        assert ses.pedidos == []
+        assert res.error.startswith("PAIS_CANDIDATO")
+        assert any("no se consulta" in l for l in lineas)
+
+    def test_pais_que_el_matcher_no_da_por_accesible_falla_cerrado(self):
+        """El matcher puntua ubicacion para la ciudad del candidato. Filtrar la fuente por Alemania y
+        puntuar para la ciudad del candidato seria responder dos preguntas distintas."""
+        ses, res = self._correr(pais="Germany")
+        assert ses.pedidos == []
+        assert "Germany" in res.error
+
+    def test_total_declarado_marca_cobertura_parcial(self):
+        """La respuesta real dice `totalCount: 171` y trae 20 (6 en la fixture
+        recortada): es la primera pagina, no el catalogo."""
+        _, res = self._correr(total_path="totalCount")
+        assert res.consultas[0]["total"] == json.loads(CRUDO)["totalCount"]
+        assert res.consultas[0]["items"] == len(FILAS)
+        assert res.parcial is True
+
+    def test_sin_total_path_no_hay_parcial(self):
+        _, res = self._correr()
+        assert res.consultas[0]["total"] is None and res.parcial is False
+
+
+class TestTTLPorConsulta:
+    URL = "https://himalayas.app/jobs/api/search?q=python%20developer&country=<PAIS_CANDIDATO>"
+
+    def _correr(self, consultas_ts):
+        import time
+        ses = SesionFalsa(CRUDO)
+        res = es.scrape_endpoint(
+            "himalayas.app", endpoint_template=CFG["endpoint_template"], field_map=FM,
+            ubicacion_es_lista=True, titles=["python developer", "backend"], pais="Colombia",
+            ttl_consulta_s=CFG["ttl_consulta_s"], consultas_ts=consultas_ts, sesion=ses)
+        return ses, res
+
+    def test_consulta_fresca_no_se_repite(self):
+        import time
+        ses, res = self._correr({self.URL: time.time() - 3600})
+        assert self.URL not in ses.pedidos
+        assert len(ses.pedidos) == 1                       # "backend" si se pide
+        assert res.consultas_omitidas == 1
+
+    def test_consulta_vencida_se_repite(self):
+        import time
+        ses, res = self._correr({self.URL: time.time() - 25 * 3600})
+        assert self.URL in ses.pedidos and res.consultas_omitidas == 0
+
+    def test_ttl_de_himalayas_cubre_un_dia_de_corridas_manuales(self):
+        """20 h: el cron diario a la misma hora siempre vuelve a pedir; dos corridas
+        manuales en una tarde, no."""
+        assert 12 * 3600 <= CFG["ttl_consulta_s"] < 24 * 3600
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# La forma DOCUMENTADA de la API (revision externa, punto 15)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class TestFormaDocumentada:
+    """El diccionario de datos y el OpenAPI de Himalayas documentan `guid` como ID,
+    `applicationLink` como URL, fechas en milisegundos y paises como objetos. La
+    respuesta real del 30-09 no es asi, pero si la API pasa a la forma documentada,
+    el adaptador no puede inventar enlaces ni guardar diccionarios como ubicacion.
+    Fixture sintetica, declarada como tal: es la forma del OpenAPI, no una respuesta."""
+
+    FILA = {
+        "title": "Senior Backend Engineer",
+        "companyName": "Stripe",
+        "guid": "stripe-abc123",
+        "applicationLink": "https://himalayas.app/companies/stripe/jobs/senior-backend-engineer",
+        "locationRestrictions": [{"alpha2": "PE", "name": "Peru", "slug": "peru"},
+                                 {"alpha2": "MX", "name": "Mexico", "slug": "mexico"}],
+        "expiryDate": 1792667993000,
+        "minSalary": 120000, "maxSalary": 150000,
+        "currency": "USD", "salaryPeriod": "annual",
+    }
+
+    def test_guid_opaco_no_se_vuelve_url_y_se_usa_application_link(self):
+        job = _job(self.FILA)
+        assert job.url == self.FILA["applicationLink"]
+        assert "stripe-abc123" not in job.url.replace("senior-backend-engineer", "")
+
+    def test_guid_opaco_sin_alternativa_descarta_el_aviso(self):
+        fila = dict(self.FILA, applicationLink=None)
+        res = es.scrape_endpoint(
+            "himalayas.app", endpoint_template="https://himalayas.app/jobs/api/search",
+            field_map=FM, ubicacion_es_lista=True,
+            sesion=SesionFalsa(json.dumps({"jobs": [fila]}).encode()))
+        assert res.jobs == []
+        assert res.descartados_invalidos == 1
+        assert res.error.startswith("esquema_cambiado")
+
+    def test_paises_como_objetos(self):
+        job = _job(self.FILA)
+        assert job.location_raw == "Peru; Mexico"
+
+    def test_fecha_en_milisegundos(self):
+        assert GemaDatabase._a_fecha(_job(self.FILA).deadline) == "2026-10-22"
+
+    def test_misma_conclusion_que_con_strings(self):
+        """Strings u objetos: el mismo veredicto para la ciudad del candidato."""
+        from matcher import score_job
+        con_objetos = _job(self.FILA)
+        con_strings = _job(dict(self.FILA, locationRestrictions=["Peru", "Mexico"]))
+        cfg = SearchConfig(target_titles=["Senior Backend Engineer"])
+        assert (score_job(con_objetos, cfg).location_verdict
+                == score_job(con_strings, cfg).location_verdict == "PASS")
+
+
+class TestUrlDelAviso:
+    @pytest.mark.parametrize("valor,esperado", [
+        ("https://x.com/jobs/1", "https://x.com/jobs/1"),
+        ("/jobs/1", "https://x.com/jobs/1"),
+        ("stripe-abc123", ""),            # un ID no es un camino
+        ("mailto:jobs@x.com", ""),
+        ("", ""),
+    ])
+    def test_casos(self, valor, esperado):
+        assert es._url_del_aviso(valor, "https://x.com/api/search") == esperado
 
 
 # ─────────────────────────────────────────────────────────────────────────────

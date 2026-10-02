@@ -29,7 +29,7 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 from urllib.parse import urljoin, urlparse
@@ -411,9 +411,85 @@ def _ubicacion_de_lista(valor: Any) -> str:
     """
     if not isinstance(valor, (list, tuple)):
         return _texto(valor)
-    partes = [_texto(v) for v in valor]
+    partes = [_texto(_nombre_de_pais(v)) for v in valor]
     partes = [p for p in partes if p]
     return "; ".join(partes) if partes else "Worldwide"
+
+
+def _nombre_de_pais(v: Any) -> Any:
+    """
+    Un pais como string ("Peru") o como objeto (`{"alpha2": "PE", "name": "Peru",
+    "slug": "peru"}`) al nombre que el matcher sabe leer.
+
+    La respuesta real del 2026-09-30 trae strings; el diccionario de datos y el OpenAPI
+    oficiales de Himalayas documentan objetos (auditoria de revision externa, punto 15). Si la API
+    pasa a la forma documentada, `_texto(dict)` guardaria la representacion del dict
+    ("{'alpha2': 'PE', ...}") y el veredicto de ubicacion seria basura. Se aceptan las
+    dos formas para que ese cambio no rompa nada en silencio.
+    """
+    if isinstance(v, dict):
+        return v.get("name") or v.get("alpha2") or v.get("slug") or ""
+    return v
+
+
+def _url_del_aviso(valor: str, url_base: str = "") -> str:
+    """
+    El valor como URL absoluta http(s), o "" si no lo es ni se puede volver una sin
+    inventarla.
+
+    **Solo se resuelve contra la base un camino relativo** (`/jobs/7`, `./x`, `../x`).
+    Hasta el 30-09 se resolvia cualquier cosa que no empezara con http: un `guid` opaco
+    —"stripe-abc123", que es lo que el OpenAPI de Himalayas documenta para ese campo
+    (auditoria de revision externa, punto 15)— se convertia en
+    `https://himalayas.app/jobs/api/stripe-abc123`, un enlace que nadie publico y que
+    `compute_hash` tomaba como identidad del aviso. Un ID no es un camino: sin URL real
+    se prueba `url_alternativa`, y si tampoco hay, el aviso se descarta y cuenta como
+    invalido.
+    """
+    if not valor:
+        return ""
+    if url_base and valor.startswith(("/", "./", "../")):
+        valor = urljoin(url_base, valor)
+    if not valor.lower().startswith(("http://", "https://")):
+        return ""
+    if not urlparse(valor).netloc:
+        return ""
+    return valor
+
+
+def _con_region(ubicacion: str, region: str) -> str:
+    """
+    `"Remote"` + `"Europe"` -> `"Remote; Europe"`.
+
+    Para boards cuyos avisos son todos de una region que el campo de ubicacion no
+    nombra. Arbeitnow, medido el 2026-09-30: de 19 remotos, 10 dicen "Remote" a secas,
+    2 "Remote job", 1 "Homeoffice", 1 "Poste à distance". Es remoto dentro de Europa,
+    por derecho laboral y porque el board es europeo. El matcher leia "Remote" como
+    neutral —ni abierto ni restringido— y eso es PASS desde la ciudad del candidato: un falso positivo.
+
+    Se agrega al final, no se reemplaza. "Remote (Worldwide); Europe" sigue siendo
+    abierto porque el matcher mira primero si la ubicacion es accesible; lo que cambia
+    es el caso sin informacion, que deja de leerse como abierto. Y si la ubicacion ya
+    nombra la region, no se repite.
+    """
+    if not region:
+        return ubicacion
+    if not ubicacion:
+        return region
+    if region.lower() in ubicacion.lower():
+        return ubicacion
+    return f"{ubicacion}; {region}"
+
+
+def _pasa_filtro(fila: dict, campo: str) -> bool:
+    """`solo_si_campo`: la fila entra solo si ese campo es verdadero. Un string
+    "true"/"false" se lee como lo que dice: hay APIs que serializan booleanos asi."""
+    if not campo:
+        return True
+    v = _por_path(fila, campo)
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes", "si", "sí")
+    return bool(v)
 
 
 def a_job_result(fila: dict, fm: dict, dominio: str,
@@ -421,7 +497,8 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
                  titulo_trae_empresa: bool = False,
                  salario_en_descripcion: str = "",
                  defaults: Optional[dict] = None,
-                 ubicacion_es_lista: bool = False) -> Optional[JobResult]:
+                 ubicacion_es_lista: bool = False,
+                 region_del_board: str = "") -> Optional[JobResult]:
     """
     Una fila cruda a `JobResult`, o `None` si no se puede sostener.
 
@@ -442,12 +519,10 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
         if not titulo:
             return None
 
-    url = _texto(_por_path(fila, fm.get("url", "url")))
-    if url and url_base and not url.lower().startswith(("http://", "https://")):
-        url = urljoin(url_base, url)
-    if not url.lower().startswith(("http://", "https://")):
-        return None
-    if not urlparse(url).netloc:
+    url = _url_del_aviso(_texto(_por_path(fila, fm.get("url", "url"))), url_base)
+    if not url and fm.get("url_alternativa"):
+        url = _url_del_aviso(_texto(_por_path(fila, fm["url_alternativa"])), url_base)
+    if not url:
         return None
 
     # `defaults` rellena lo que la fuente no trae en el payload. Lever y Ashby no
@@ -469,6 +544,7 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     else:
         ubicacion = ""
     ubicacion = ubicacion or _texto(dfl.get("location"))
+    ubicacion = _con_region(ubicacion, region_del_board)
 
     fecha_limite = _texto(_por_path(fila, fm["deadline"])) if fm.get("deadline") else ""
 
@@ -488,6 +564,25 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
 # Orquestación por board
 # ─────────────────────────────────────────────────────────────────────────────
 
+def espera_pendiente(intervalo_s: float, ultimo_ts: float, ahora: float) -> float:
+    """
+    Segundos que faltan para poder volver a pedir este endpoint, o 0 si ya se puede.
+
+    Es el `intervalo_minimo_s` de la estrategia contra el `ultimo_pedido_ts` guardado.
+    Los terminos de Jobicy dicen "no mas de una vez por hora" y los de Remotive "como
+    mucho 4 veces por dia": un limite declarado entre corridas, que el `crawl_delay_s`
+    —dentro de una corrida— no cubre. Dos corridas manuales seguidas en una tarde de
+    desarrollo ya lo violaban.
+
+    Un reloj que vuelve atras (`ahora < ultimo_ts`) no bloquea para siempre: se trata
+    como si el ultimo pedido fuera ahora, y se espera el intervalo completo una vez.
+    """
+    if intervalo_s <= 0 or ultimo_ts <= 0:
+        return 0.0
+    transcurrido = max(0.0, ahora - ultimo_ts)
+    return max(0.0, intervalo_s - transcurrido)
+
+
 @dataclass
 class ResultadoEndpoint:
     dominio: str
@@ -495,8 +590,22 @@ class ResultadoEndpoint:
     items_crudos: int = 0
     descartados_irrelevantes: int = 0
     descartados_invalidos: int = 0
+    descartados_por_filtro: int = 0
     error: str = ""
     ms: float = 0.0
+    #  + auditoria de revision externa, punto 16: que se pidio, cuanto declaro la
+    # fuente que habia, y que se dejo de pedir. "20 de 171" no es "la fuente tiene 20".
+    consultas: list = field(default_factory=list)
+    """Una entrada por URL pedida: `{"url", "items", "total"}`; `total` es lo que la
+    fuente declara (`totalCount` en Himalayas) o None si no lo declara."""
+    consultas_omitidas: int = 0
+    """URLs no pedidas porque una consulta identica se hizo dentro de `ttl_consulta_s`."""
+
+    @property
+    def parcial(self) -> bool:
+        """Alguna consulta trajo menos avisos de los que la fuente declara tener."""
+        return any(c.get("total") is not None and c["total"] > c["items"]
+                   for c in self.consultas)
 
 
 def scrape_endpoint(
@@ -513,6 +622,11 @@ def scrape_endpoint(
     defaults: Optional[dict] = None,
     ubicacion_es_lista: bool = False,
     pais: Optional[str] = None,
+    solo_si_campo: str = "",
+    region_del_board: str = "",
+    total_path: str = "",
+    ttl_consulta_s: float = 0.0,
+    consultas_ts: Optional[dict] = None,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
     sesion: Optional[requests.Session] = None,
@@ -530,25 +644,47 @@ def scrape_endpoint(
     `{pais}` se reemplaza por el país del candidato (`config.PAIS_CANDIDATO`, o `pais`
     si se pasa). Es la decisión D2 del : Himalayas responde qué avisos
     se pueden trabajar desde el pais del candidato, y esa respuesta es mejor que cualquier regex nuestro
-    sobre una lista de 70 países.
+    sobre una lista de 70 países. **Falla cerrado** (auditoría de revision externa, punto 15): sin
+    país, o con uno que la política de ubicación del matcher no da por accesible, no se
+    pide nada. Pedir `country=` vacío traería el catálogo mundial, y la fuente y el
+    matcher estarían respondiendo dos preguntas distintas.
+
+    `ttl_consulta_s` con `consultas_ts` ({url: epoch}) no repite una consulta idéntica
+    hecha hace menos de ese tiempo (revision externa, punto 16): Himalayas actualiza sus datos cada
+    24 h, y lo que devolvería ya está en el registry. `total_path` lee cuántos avisos
+    declara la fuente para esa consulta (`totalCount`): 20 de 171 es cobertura parcial,
+    no una fuente con 20 avisos.
     """
     fm = field_map or {}
     t0 = time.perf_counter()
     res = ResultadoEndpoint(dominio=dominio, jobs=[])
 
     if "{pais}" in endpoint_template:
-        p = pais if pais is not None else getattr(config, "PAIS_CANDIDATO", "")
-        if not p:
-            # Sin país, `country=` vacío trae el catálogo mundial: el filtro de D2 se
-            # apagaría sin que nadie lo note. Se dice en el log de la corrida.
-            log(f"[ENDPOINT] {dominio} — PAIS_CANDIDATO vacío: se consulta sin filtro de país")
-        endpoint_template = endpoint_template.replace("{pais}", requests.utils.quote(p or ""))
+        p = (pais if pais is not None else getattr(config, "PAIS_CANDIDATO", "")).strip()
+        motivo = _pais_no_utilizable(p)
+        if motivo:
+            res.error = f"PAIS_CANDIDATO: {motivo}"
+            res.ms = (time.perf_counter() - t0) * 1000
+            log(f"[ENDPOINT] {dominio} — no se consulta: {motivo}")
+            return res
+        endpoint_template = endpoint_template.replace("{pais}", requests.utils.quote(p))
 
     if "{title}" in endpoint_template:
         urls = [endpoint_template.replace("{title}", requests.utils.quote(t))
                 for t in (titles or [])]
     else:
         urls = [endpoint_template]
+
+    if ttl_consulta_s > 0 and consultas_ts:
+        ahora = time.time()
+        frescas = {u for u in urls
+                   if 0 <= ahora - float(consultas_ts.get(u, 0) or 0) < ttl_consulta_s}
+        res.consultas_omitidas = len(frescas)
+        urls = [u for u in urls if u not in frescas]
+        if frescas:
+            log(f"[ENDPOINT] {dominio} — {len(frescas)} consultas omitidas: se hicieron "
+                f"hace menos de {ttl_consulta_s / 3600:.0f} h y sus avisos ya estan "
+                f"en el registry")
 
     vistos: set[str] = set()
     for url in urls:
@@ -572,13 +708,20 @@ def scrape_endpoint(
             continue
 
         res.items_crudos += len(filas)
+        total = _total_declarado(cuerpo, total_path) if total_path else None
+        res.consultas.append({"url": url, "items": len(filas), "total": total})
+        invalidos_antes = res.descartados_invalidos
 
         for fila in filas:
+            if not _pasa_filtro(fila, solo_si_campo):
+                res.descartados_por_filtro += 1
+                continue
             job = a_job_result(fila, fm, dominio, url_base=url,
                                titulo_trae_empresa=titulo_trae_empresa,
                                salario_en_descripcion=salario_en_descripcion,
                                defaults=defaults,
-                               ubicacion_es_lista=ubicacion_es_lista)
+                               ubicacion_es_lista=ubicacion_es_lista,
+                               region_del_board=region_del_board)
             if job is None:
                 res.descartados_invalidos += 1
                 continue
@@ -590,9 +733,55 @@ def scrape_endpoint(
             vistos.add(job.url)
             res.jobs.append(job)
 
+        # Ninguna fila de una respuesta no vacía se pudo leer: no es una búsqueda sin
+        # resultados, es una forma de respuesta que el mapa ya no entiende (revision externa, punto
+        # 15: `source_schema_changed`). Se reporta como error para que el board quede
+        # degradado y se vea, en vez de pasar como "0 avisos".
+        evaluadas = len(filas) - sum(1 for f in filas if not _pasa_filtro(f, solo_si_campo))
+        if evaluadas and res.descartados_invalidos - invalidos_antes == evaluadas:
+            res.error = (f"esquema_cambiado: {evaluadas} de {evaluadas} items sin título "
+                         f"o sin URL http(s) válida en {url}")
+            log(f"[ENDPOINT] {dominio} — {res.error}")
+
     res.ms = (time.perf_counter() - t0) * 1000
+    pedidas = [c for c in res.consultas if c["total"] is not None]
+    cobertura = (f" · primera página de {sum(c['total'] for c in pedidas)} declarados"
+                 if res.parcial else "")
     log(f"[ENDPOINT] {dominio} — {len(res.jobs)} avisos de {res.items_crudos} items "
-        f"en {res.ms:.0f}ms "
+        f"en {res.ms:.0f}ms{cobertura} "
         f"(descartados: {res.descartados_irrelevantes} off-topic, "
-        f"{res.descartados_invalidos} sin título o sin URL absoluta)")
+        f"{res.descartados_invalidos} sin título o sin URL absoluta"
+        + (f", {res.descartados_por_filtro} sin {solo_si_campo}" if solo_si_campo else "")
+        + ")")
     return res
+
+
+def _total_declarado(cuerpo: bytes, total_path: str) -> Optional[int]:
+    """Cuántos avisos dice la fuente que hay para esta consulta, o None si no lo dice."""
+    try:
+        d = json.loads(cuerpo.decode("utf-8", errors="replace"))
+        v = _por_path(d, total_path) if isinstance(d, dict) else None
+        return int(v) if v is not None else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _pais_no_utilizable(pais: str) -> str:
+    """
+    "" si `pais` sirve para filtrar la fuente; si no, por qué.
+
+    La política de ubicación del matcher está escrita para la ciudad del candidato: da por accesibles
+    LATAM y lo mundial. Un país que esa política no reconoce como accesible haría que
+    la fuente filtre por una pregunta y el matcher puntúe con otra.
+    """
+    if not pais:
+        return ("vacío. Sin país la fuente devolvería el catálogo mundial y el filtro de "
+                "D2 se apagaría en silencio")
+    try:
+        from matcher import _es_accesible, _sin_tildes
+    except Exception:
+        return ""
+    if not _es_accesible(_sin_tildes(pais.lower())):
+        return (f"{pais!r} no es un país que la política de ubicación del matcher dé por "
+                f"accesible; la fuente y el matcher responderían preguntas distintas")
+    return ""

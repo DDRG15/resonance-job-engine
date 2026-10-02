@@ -185,14 +185,18 @@ class TestCorrelators:
             {"url": "https://b.com/bb", "title": "Chef", "company": "X",
              "source_domain": "b.com", "scraped_at": "2026-09-17T10:00:00+00:00"}]) == []
 
-    def test_no_agrupa_entre_boards_distintos(self):
-        """Medido: la duplicación cross-board es un solo caso en toda la base. Agrupar
-        entre boards inventaría duplicados donde no los hay."""
-        assert corr.correr([
+    def test_entre_boards_solo_agrupa_el_correlator_de_fuentes(self):
+        """El 17-09 la duplicación cross-board era un solo caso en toda la base y este
+        test fijaba que no se agrupara. El 30-09 se midieron 97 grupos (título, empresa)
+        en más de una fuente —con Greenhouse, Lever y Ashby ya activos—, y la Fase 2 del
+         agregó `titulo_empresa_entre_fuentes`. Lo que se sigue fijando:
+        los correlators de UN board no cruzan boards; solo el de fuentes lo hace."""
+        cands = corr.correr([
             {"url": "https://a.com/1", "title": "Dev", "company": "X",
              "source_domain": "a.com", "scraped_at": "2026-09-17T10:00:00+00:00"},
             {"url": "https://b.com/1", "title": "Dev", "company": "X",
-             "source_domain": "b.com", "scraped_at": "2026-09-17T10:00:00+00:00"}]) == []
+             "source_domain": "b.com", "scraped_at": "2026-09-17T10:00:00+00:00"}])
+        assert [c.correlator for c in cands] == ["titulo_empresa_entre_fuentes"]
 
     def test_ids_lejanos_no_se_agrupan_por_prefijo(self):
         """Ventana de 50: los IDs de un relist son consecutivos o casi. Una ventana

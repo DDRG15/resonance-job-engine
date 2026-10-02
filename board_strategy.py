@@ -139,6 +139,47 @@ class BoardStrategy(BaseModel):
     porque una lista de restricciones vacia es la ausencia de restriccion. Ver
     `endpoint_scraper._ubicacion_de_lista`. , Fase 1."""
 
+    # ── , Fase 2: feeds con limite declarado y boards regionales ──
+    solo_si_campo: str = ""
+    """Path de un campo booleano: solo entran las filas donde es verdadero. Arbeitnow
+    trae `remote`: 19 de 326 avisos (medido 2026-09-30). Lo presencial en Berlin no es
+    un aviso para la ciudad del candidato, es ruido. Filtro con nombre, no una regla en el `field_map`."""
+
+    region_del_board: str = ""
+    """Region a la que pertenecen TODOS los avisos del board, que el campo de ubicacion
+    no dice. Arbeitnow es europeo (.com/.co.uk/.fr/.ch) y publica "Remote" a secas en
+    10 de 19 remotos: remoto dentro de Europa. Sin este contexto el matcher leia
+    "Remote" como neutral y lo daba por accesible desde la ciudad del candidato. Se agrega al final de la
+    ubicacion ("Remote; Europe"), asi que una ubicacion abierta explicita
+    ("Worldwide") sigue ganando."""
+
+    intervalo_minimo_s: float = 0.0
+    """Segundos minimos entre dos pedidos al endpoint, ENTRE corridas. Lo declaran los
+    terminos de la API: Jobicy "no mas de una vez por hora", Remotive "como mucho 4 veces
+    por dia". `crawl_delay_s` separa pedidos dentro de una corrida; esto separa
+    corridas, y por eso necesita `ultimo_pedido_ts` persistido."""
+
+    ultimo_pedido_ts: float = 0.0
+    """Estado de runtime: epoch del ultimo pedido a este endpoint. Lo escribe el scraper
+    y lo lee el chequeo de `intervalo_minimo_s`. Vive en `board_strategy.json` (local),
+    no en el registro commiteado: es estado de una maquina, no conocimiento del board."""
+
+    # ── Auditoria de revision externa del 30-09, puntos 15 y 16 ──────────────────────────
+    total_path: str = ""
+    """Path, en la respuesta, del total de avisos que la fuente declara para la consulta
+    (`totalCount` en Himalayas). Con el, 20 recibidos de 171 se reportan como cobertura
+    parcial y no como una fuente con 20 avisos."""
+
+    ttl_consulta_s: float = 0.0
+    """No repetir una consulta identica (misma URL) antes de este tiempo. Himalayas
+    actualiza sus datos cada 24 h: pedir lo mismo dos veces en una tarde gasta su cuota
+    para recibir avisos que el registry ya tiene. A diferencia de `intervalo_minimo_s`,
+    es por consulta: un titulo nuevo en la busqueda se pide igual."""
+
+    consultas_ts: dict = Field(default_factory=dict)
+    """Estado de runtime: {url de consulta: epoch del ultimo pedido}. Solo se guardan las
+    que siguen dentro del TTL, asi que no crece con el tiempo."""
+
     def is_stale(self, ttl_seconds: float) -> bool:
         """True if the strategy was never probed or its last probe is older
         than ttl. Phase 28/29 use this to decide when to re-probe a board."""

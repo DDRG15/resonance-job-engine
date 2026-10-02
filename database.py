@@ -1031,8 +1031,12 @@ class GemaDatabase:
         import correlators as corr
 
         with _get_connection(self.db_path) as conn:
+            # Ubicacion, salario, fecha de cierre y vencimiento (, Fase 2):
+            # los usa el correlator entre fuentes para elegir que copia queda visible, y
+            # `correr()` para no fundir ubicaciones incompatibles para la ciudad del candidato.
             filas = [dict(r) for r in conn.execute(
-                "SELECT url, title, company, source_domain, scraped_at "
+                "SELECT url, title, company, source_domain, scraped_at, location_raw, "
+                "salary_raw, deadline, expired_at "
                 "FROM seen_jobs_registry ORDER BY scraped_at DESC LIMIT ?",
                 (limite,)).fetchall()]
             # Todo par ya registrado, en CUALQUIER estado. Antes solo se salteaban
@@ -1073,11 +1077,55 @@ class GemaDatabase:
                     " estado, decidido_en, creado_en) VALUES (?,?,?,?,?,?,?,?)",
                     registros)
 
+        reabiertos = self._reabrir_fusiones_incompatibles()
+
         resultado = {"candidatos": len(candidatos), "nuevos": nuevos,
-                     "auto_aceptados": auto, "a_revisar": a_revisar}
-        if nuevos:
+                     "auto_aceptados": auto, "a_revisar": a_revisar,
+                     "reabiertos": reabiertos}
+        if nuevos or reabiertos:
             logger.info("[CORRELATOR] %s", resultado)
         return resultado
+
+    def _reabrir_fusiones_incompatibles(self) -> int:
+        """
+        Devuelve a AVAILABLE los pares que el SISTEMA acepto solo y que funden dos
+        ubicaciones incompatibles para la ciudad del candidato. , Fase 2.
+
+        Medido el 2026-09-30: 5 pares asi en la base real, todos de
+        `titulo_empresa_dia`, aceptados antes de que existiera la regla. Uno escondia
+        la variante "Latin America" de un aviso detras de su gemela "Europe".
+        `correlacionar_duplicados` no vuelve a mirar un par ya registrado, asi que sin
+        esto la regla nueva no los alcanzaba nunca.
+
+        **Solo toca lo que decidio el sistema**: un auto-aceptado se graba con
+        `decidido_en == creado_en` (el mismo `ahora`), y una decision humana
+        (`decidir_correlator`) siempre es posterior a la creacion. Lo que decidio
+        el usuario no se pisa. Idempotente: un par reabierto ya no es ACCEPTED.
+        """
+        import correlators as corr
+        with _get_connection(self.db_path) as conn:
+            pares = conn.execute(
+                "SELECT l.job_hash, l.hash_duplicado, l.motivo, "
+                "       a.location_raw AS loc_a, b.location_raw AS loc_b "
+                "FROM job_links l "
+                "JOIN seen_jobs_registry a ON a.job_hash = l.job_hash "
+                "JOIN seen_jobs_registry b ON b.job_hash = l.hash_duplicado "
+                "WHERE l.estado = ? AND l.decidido_en = l.creado_en",
+                (corr.ACCEPTED,)).fetchall()
+            cambios = [
+                (corr.AVAILABLE, corr.CONFIANZA_UBICACION_INCOMPATIBLE,
+                 f"{p['motivo'] or ''} — reabierto: ubicaciones distintas para la ciudad del candidato "
+                 f"({p['loc_a']!r} vs {p['loc_b']!r})",
+                 p["job_hash"], p["hash_duplicado"], corr.ACCEPTED)
+                for p in pares
+                if not corr.compatibles_para_lima(p["loc_a"], p["loc_b"])
+            ]
+            if cambios:
+                conn.executemany(
+                    "UPDATE job_links SET estado=?, confianza=?, motivo=?, "
+                    "decidido_en=NULL WHERE job_hash=? AND hash_duplicado=? AND estado=?",
+                    cambios)
+        return len(cambios)
 
     def correlators_pendientes(self) -> list[dict]:
         """

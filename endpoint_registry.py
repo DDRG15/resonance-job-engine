@@ -77,21 +77,90 @@ ENDPOINTS: dict[str, dict] = {
     # - descripcion: mediana 3.585 caracteres limpios. Entra con la Fase 7.
     # crawl_delay_s = 1: los terminos no dan cifra, solo "429 al pasarse"; un segundo
     # entre consultas es 51 s por corrida con la busqueda del CLI.
+    # Auditoria de revision externa del 30-09 (puntos 15 y 16): el OpenAPI oficial documenta `guid`
+    # como identificador y `applicationLink` como URL, aunque la respuesta real trae una
+    # URL en los dos. Se usa `guid` si es una URL de verdad y si no `applicationLink`;
+    # un ID opaco nunca se convierte en enlace. `totalCount` marca la cobertura parcial
+    # (20 de 171) y `ttl_consulta_s` = 20 h no repite en el dia una consulta que la API
+    # solo actualiza cada 24 h.
     "himalayas.app": {
         "endpoint_template": "https://himalayas.app/jobs/api/search?q={title}&country={pais}",
         "response_format": "json",
         "crawl_delay_s": 1.0,
         "ubicacion_es_lista": True,
+        "total_path": "totalCount",
+        "ttl_consulta_s": 20 * 3600,
         "field_map": {
             "title": "title",
             "company": "companyName",
             "url": "guid",
+            "url_alternativa": "applicationLink",
             "location": "locationRestrictions",
             "deadline": "expiryDate",
             "salary_min": "minSalary",
             "salary_max": "maxSalary",
             "salary_currency": "currency",
             "salary_period": "salaryPeriod",
+        },
+    },
+
+    # , Fase 2. La API publica trae el catalogo publico entero: 16 avisos,
+    # con o sin `category` (medido 2026-09-30), con 24 h de retraso respecto de la web.
+    # Terminos: "more than 2x per minute will be blocked", y como mucho 4 veces por dia:
+    # feed fijo, un pedido, y `intervalo_minimo_s` de 6 h entre corridas.
+    # `candidate_required_location` es texto libre ("Worldwide", "USA, Canada,
+    # Argentina, Mexico, Peru"); `salary` tambien, en 10 de 16. Sin fecha de cierre.
+    "remotive.com": {
+        "endpoint_template": "https://remotive.com/api/remote-jobs",
+        "response_format": "json",
+        "intervalo_minimo_s": 6 * 3600,
+        "field_map": {
+            "title": "title",
+            "company": "company_name",
+            "url": "url",
+            "location": "candidate_required_location",
+            "salary_raw": "salary",
+        },
+    },
+
+    # , Fase 2. Terminos: "must not exceed once per hour" y conservar la
+    # URL canonica de Jobicy. Un pedido por corrida, y el filtro por titulo del lado de
+    # GEMA. Las claves de salario aparecen solo cuando hay salario y vienen con moneda y
+    # periodo: `BRL 249000-409000 yearly`.
+    # `geo=latam`, medido contra el feed general con el filtro de titulo y el perfil
+    # real: general (2026-09-30) 100 items -> 32 relevantes, ubicacion PASS 8 (el 43%
+    # del feed es "USA"); latam (2026-10-01) 73 items -> 27 relevantes, PASS 27. Trae el
+    # catalogo LATAM entero (73 < count) e incluye los "Anywhere" (8 de 73).
+    "jobicy.com": {
+        "endpoint_template": "https://jobicy.com/api/v2/remote-jobs?count=100&geo=latam",
+        "response_format": "json",
+        "intervalo_minimo_s": 3600,
+        "field_map": {
+            "title": "jobTitle",
+            "company": "companyName",
+            "url": "url",
+            "location": "jobGeo",
+            "salary_min": "salaryMin",
+            "salary_max": "salaryMax",
+            "salary_currency": "salaryCurrency",
+            "salary_period": "salaryPeriod",
+        },
+    },
+
+    # , Fase 2. 326 avisos en la pagina 1, 19 con `remote=true`. Es un
+    # board europeo (.com, .co.uk, .fr, .ch) y casi todo es presencial: entra solo lo
+    # remoto, y con la region del board, porque "Remote" a secas (10 de 19) es remoto
+    # dentro de Europa. `created_at` es epoch; no hay fecha de cierre.
+    "arbeitnow.com": {
+        "endpoint_template": "https://www.arbeitnow.com/api/job-board-api",
+        "response_format": "json",
+        "solo_si_campo": "remote",
+        "region_del_board": "Europe",
+        "field_map": {
+            "title": "title",
+            "company": "company_name",
+            "url": "url",
+            "location": "location",
         },
     },
 }
@@ -137,6 +206,18 @@ POLITICAS: dict[str, dict] = {
     # exactamente la URL que GEMA guarda.
     "himalayas.app": {"access_policy": "open", "policy_reason":
                       "API publica sin key, atribucion por enlace (2026-09-30)"},
+
+    # robots.txt sin reglas. Terminos: enlazar y nombrar a Remotive, 4 pedidos por dia.
+    "remotive.com": {"access_policy": "open", "policy_reason":
+                     "API publica sin key, max 4/dia, atribucion por enlace (2026-09-30)"},
+
+    # robots.txt solo prohibe `/*api_access_key=`. Terminos: 1 pedido por hora.
+    "jobicy.com": {"access_policy": "open", "policy_reason":
+                   "API publica sin key, max 1/hora, URL canonica (2026-09-30)"},
+
+    # robots.txt de 3 lineas, nada sobre la API. Sin limite declarado.
+    "arbeitnow.com": {"access_policy": "open", "policy_reason":
+                      "API publica sin key, sin limite declarado (2026-09-30)"},
 }
 
 

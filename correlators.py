@@ -206,6 +206,167 @@ def _por_relist_en_otro_dia(filas: list[dict]) -> list[Candidato]:
     return salida
 
 
+# ── , Fase 2: el mismo aviso en fuentes distintas ──────────────
+
+#: Sufijos legales que cambian entre fuentes para la misma empresa ("Canonical" en
+#: Greenhouse, "Canonical Ltd" en otro board). Se comparan sobre texto ya sin puntuacion.
+_SUFIJOS_LEGALES = re.compile(
+    r"\b(inc|llc|ltd|limited|gmbh|corp|corporation|co|sa|s a|bv|b v|ag|plc|srl|sl)\b")
+
+
+def _norm_fuerte(texto: Optional[str]) -> str:
+    """Minusculas, sin puntuacion, espacios colapsados. "Senior Software Engineer
+    (Backend)" y "Senior Software Engineer, Backend" son el mismo titulo escrito por dos
+    boards distintos."""
+    t = re.sub(r"[^\w]+", " ", _norm(texto))
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _norm_empresa(texto: Optional[str]) -> str:
+    e = _SUFIJOS_LEGALES.sub(" ", _norm_fuerte(texto))
+    e = re.sub(r"\s+", " ", e).strip()
+    # El placeholder de una fuente sin empresa no identifica a nadie: dos avisos con
+    # "(empresa no listada)" no son de la misma empresa.
+    return "" if e in ("empresa no listada", "") else e
+
+
+def _dominios_ats() -> set[str]:
+    try:
+        import ats_registry
+        return {ats_registry.dominio_de(p) for p in ats_registry.PLATAFORMAS}
+    except Exception:
+        return set()
+
+
+def _orden_canonico(f: dict, ats: set[str]) -> tuple:
+    """
+    Cual de las copias del mismo aviso queda visible. Menor gana.
+
+    1. **Vivo antes que vencido.** Un aviso que el barrido dio por cerrado en una
+       fuente puede seguir abierto en otra.
+    2. **Con descripcion antes que sin.** Es la idea de Bert: se conserva la copia mas
+       completa. La columna entra con la Fase 7; hasta entonces este criterio no
+       discrimina.
+    3. **El ATS de la empresa antes que un agregador.** Es el aviso original: postular
+       ahi va directo, sin intermediario.
+    4. **Mas campos con dato** (salario, ubicacion, fecha de cierre).
+    5. Desempate determinista: el visto primero, luego la URL mas corta.
+    """
+    datos = sum(1 for c in ("salary_raw", "location_raw", "deadline") if f.get(c))
+    return (
+        1 if f.get("expired_at") else 0,
+        0 if f.get("descripcion") else 1,
+        0 if f.get("source_domain") in ats else 1,
+        -datos,
+        f.get("scraped_at") or "",
+        len(f.get("url") or ""),
+        f.get("url") or "",
+    )
+
+
+def _por_titulo_empresa_entre_fuentes(filas: list[dict]) -> list[Candidato]:
+    """
+    Mismo titulo y misma empresa **en fuentes distintas**.
+
+    Los tres correlators de arriba agrupan dentro de un mismo board: `source_domain`
+    esta en todas sus claves. Medido el 2026-09-30 sobre el registry: **97 grupos
+    (titulo, empresa) aparecen en mas de una fuente** —Greenhouse contra remotivated 29,
+    Greenhouse contra workingnomads 28— y ninguno estaba correlacionado. Con Himalayas,
+    Remotive y Jobicy, que listan avisos que tambien estan en el ATS de la empresa,
+    ese numero solo crece.
+
+    Una sola copia por grupo queda como canonica (`_orden_canonico`) y se empareja con
+    cada fila de OTRA fuente. Las filas de la misma fuente que el canonico no se tocan:
+    las resuelven los correlators de un solo board, con sus reglas.
+
+    Confianza 0,92: la fecha de scrapeo no discrimina entre fuentes —es cuando GEMA vio
+    el aviso en cada una, no cuando se publico—. Lo que si puede separar dos avisos
+    distintos con el mismo titulo, la region, lo controla `correr()` para todos los
+    correlators: dos ubicaciones incompatibles para la ciudad del candidato nunca se funden solas.
+    """
+    ats = _dominios_ats()
+    grupos: dict[tuple, list[dict]] = {}
+    for f in filas:
+        titulo, empresa = _norm_fuerte(f.get("title")), _norm_empresa(f.get("company"))
+        if not titulo or not empresa:
+            continue
+        grupos.setdefault((titulo, empresa), []).append(f)
+
+    salida: list[Candidato] = []
+    for g in grupos.values():
+        fuentes = {f.get("source_domain") for f in g}
+        if len(fuentes) < 2:
+            continue
+        canonico = min(g, key=lambda f: _orden_canonico(f, ats))
+        for f in g:
+            if f.get("source_domain") == canonico.get("source_domain"):
+                continue
+            salida.append(Candidato(
+                canonico["url"], f["url"], "titulo_empresa_entre_fuentes", 0.92,
+                f"mismo titulo/empresa en {canonico.get('source_domain')} y "
+                f"{f.get('source_domain')}"))
+    return salida
+
+
+# ── Compatibilidad de ubicacion para la ciudad del candidato ────────────────────────────────────
+
+def _clase_ubicacion(loc: Optional[str]) -> str:
+    """
+    `abierta`, `restringida` o `desconocida`, con las MISMAS reglas que el matcher.
+
+    Import diferido: `correlators` no puede cargar el matcher —y su cadena de imports—
+    solo por importarse. Si el matcher no carga, todo es `desconocida`, que es la clase
+    que nunca bloquea una fusion: el comportamiento de antes de esta fase.
+    """
+    texto = (loc or "").strip()
+    if not texto:
+        return "desconocida"
+    try:
+        from matcher import _LOCATION_SOFT_RESTRICTED, _es_accesible, _sin_tildes
+    except Exception:
+        return "desconocida"
+    t = _sin_tildes(texto.lower())
+    if _es_accesible(t):
+        return "abierta"
+    if _LOCATION_SOFT_RESTRICTED.search(t):
+        return "restringida"
+    return "desconocida"
+
+
+def compatibles_para_lima(loc_a: Optional[str], loc_b: Optional[str]) -> bool:
+    """
+    Dos avisos se pueden fundir solos si, para alguien en la ciudad del candidato, son indistinguibles.
+
+    Medido el 2026-09-30 sobre la base real: **5 pares auto-aceptados por
+    `titulo_empresa_dia` fundian una ubicacion abierta con una restringida**. El peor:
+    "Senior Data Engineer" en workingnomads, canonico en "Europe" y duplicado en "Latin
+    America". El duplicado queda fuera del shortlist, asi que la variante a la que
+    el usuario SI puede postular desaparecia detras de una a la que no. Es la misma empresa
+    publicando el mismo titulo por region, y pasa igual entre fuentes.
+
+    Una ubicacion `desconocida` no bloquea: no tiene informacion que se pierda.
+    """
+    return {_clase_ubicacion(loc_a), _clase_ubicacion(loc_b)} != {"abierta", "restringida"}
+
+
+#: Techo de confianza para un par con ubicaciones incompatibles. Por debajo de cualquier
+#: umbral de auto-aceptacion razonable (el de `correlacionar_duplicados` es 0,90): el par
+#: se registra igual, como AVAILABLE, y lo decide un humano.
+CONFIANZA_UBICACION_INCOMPATIBLE = 0.70
+
+
+def _limitar_por_ubicacion(cand: Candidato, por_url: dict[str, dict]) -> Candidato:
+    a, b = por_url.get(cand.canonico_url, {}), por_url.get(cand.duplicado_url, {})
+    loc_a, loc_b = a.get("location_raw"), b.get("location_raw")
+    if compatibles_para_lima(loc_a, loc_b) or cand.confianza <= CONFIANZA_UBICACION_INCOMPATIBLE:
+        return cand
+    return Candidato(
+        cand.canonico_url, cand.duplicado_url, cand.correlator,
+        CONFIANZA_UBICACION_INCOMPATIBLE,
+        f"{cand.motivo} — ubicaciones distintas para la ciudad del candidato ({loc_a!r} vs {loc_b!r}): "
+        f"no se funde solo")
+
+
 CORRELATORS: list[Correlator] = [
     # La URL canónica es el criterio que ya existe —`compute_hash`— y por eso no
     # aparece acá: no propone nada, ES la clave primaria. Estos dos son los que
@@ -229,6 +390,13 @@ CORRELATORS: list[Correlator] = [
                     "definicion: propone, no decide.",
         prioridad=30, confianza=0.60, fn=_por_relist_en_otro_dia,
     ),
+    Correlator(
+        nombre="titulo_empresa_entre_fuentes",
+        descripcion="Mismo titulo y empresa en fuentes distintas — el agregador y el "
+                    "ATS de la empresa publicando el mismo aviso. Queda visible la "
+                    "copia mas completa.",
+        prioridad=40, confianza=0.92, fn=_por_titulo_empresa_entre_fuentes,
+    ),
 ]
 
 
@@ -238,12 +406,16 @@ def correr(filas: Iterable[dict]) -> list[Candidato]:
 
     Cuando dos correlators proponen el mismo par gana el de prioridad más baja. Sin
     ese desempate, cuál queda registrado dependería del orden de iteración.
+
+    Todo candidato pasa por `_limitar_por_ubicacion`: ningún correlator, viejo o
+    nuevo, funde solo dos avisos que para la ciudad del candidato no son indistinguibles.
     """
     filas = [f for f in filas if f.get("url")]
+    por_url = {f["url"]: f for f in filas}
     vistos: dict[tuple, Candidato] = {}
     for c in sorted(CORRELATORS, key=lambda c: c.prioridad):
         for cand in c.fn(filas):
             par = tuple(sorted((cand.canonico_url, cand.duplicado_url)))
             if par not in vistos:
-                vistos[par] = cand
+                vistos[par] = _limitar_por_ubicacion(cand, por_url)
     return list(vistos.values())

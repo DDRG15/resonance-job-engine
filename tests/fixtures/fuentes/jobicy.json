@@ -1,0 +1,2109 @@
+{
+ "apiVersion": "2.2.16",
+ "documentationUrl": "https://jobi.cy/apidocs",
+ "friendlyNotice": "Thanks for using Jobicy API! Please ensure Jobicy is clearly credited with a direct link to the source, and all application buttons redirect to the original job URL provided in this feed. That’s all! You might be building something amazing, we wish you the best of luck!",
+ "jobCount": 100,
+ "lastUpdate": "2026-09-30T08:18:51+00:00",
+ "appliedFilters": {
+  "count": 100
+ },
+ "jobs": [
+  {
+   "id": 154283,
+   "url": "https://jobicy.com/jobs/154283-enterprise-account-executive-uk-eu",
+   "jobSlug": "154283-enterprise-account-executive-uk-eu",
+   "jobTitle": "Enterprise Account Executive (UK/EU)",
+   "companyName": "Nash",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/276c5895-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe,  UK",
+   "jobLevel": "Director",
+   "jobExcerpt": "ABOUT NASH Nash is last-mile delivery infrastructure. We help the world's largest retailers and commerce companies orchestrate, optimize, and manage their delivery operations. Founded in San Francisco in 2021, backed by Andreessen Horowitz and Y Combinator, Nash works with enterprise customers across North America, Europe, APAC, and the Middle East. Our platform sits at the&hellip;",
+   "jobDescription": "\r\n<h3>ABOUT <a href=\"https://jobicy.com/company/nash\" target=\"_blank\" rel=\"noopener\">NASH</a></h3>\r\n<p>Nash is last-mile delivery infrastructure. We help the world's largest retailers and commerce companies orchestrate, optimize, and manage their delivery operations. Founded in San Francisco in 2021, backed by Andreessen Horowitz and Y Combinator, Nash works with enterprise customers across North America, Europe, APAC, and the Middle East.</p>\r\n<p>Our platform sits at the center of complex delivery operations: connecting carriers, optimizing routes, managing fleets, and giving operators the vi",
+   "pubDate": "2026-09-30T08:18:51+00:00"
+  },
+  {
+   "id": 154286,
+   "url": "https://jobicy.com/jobs/154286-enterprise-account-executive-dach-nordics",
+   "jobSlug": "154286-enterprise-account-executive-dach-nordics",
+   "jobTitle": "Enterprise Account Executive, DACH & Nordics",
+   "companyName": "Ada",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/666ef11e-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Austria,  Germany,  Netherlands,  UK",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Us Ada is an AI customer service company whose mission is to make customer service extraordinary for everyone. We're driven to raise a new standard of quality customer service at scale, enabling enterprise companies to deliver experiences that people love–instant, proactive, personalized, and effortless. Ada is an AI transformation platform and partner—combining strategic expertise&hellip;",
+   "jobDescription": "<h3><strong>About Us</strong></h3>\r\n<p><a href=\"https://jobicy.com/company/ada\" target=\"_blank\" rel=\"noopener\">Ada</a> is an AI customer service company whose mission is to make customer service extraordinary for everyone. We're driven to raise a new standard of quality customer service at scale, enabling enterprise companies to deliver experiences that people love–instant, proactive, personalized, and effortless.</p>\r\n<p>Ada is an AI transformation platform and partner—combining strategic expertise with powerful AI agent management technology to accelerate businesses’ AI maturity to keep them",
+   "pubDate": "2026-09-30T08:18:49+00:00",
+   "salaryMin": 190000,
+   "salaryMax": 230000,
+   "salaryCurrency": "EUR",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154292,
+   "url": "https://jobicy.com/jobs/154292-growth-marketing-specialist-2",
+   "jobSlug": "154292-growth-marketing-specialist-2",
+   "jobTitle": "Growth Marketing Specialist",
+   "companyName": "saas.group",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/f6d362c3-221-1.png",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Any",
+   "jobExcerpt": "This role is part of our ScraperAPI team, one of our growing brands at saas.group. ScraperAPI is an enterprise-scale web scraping solution, trusted by businesses across a wide range of industries to extract crucial data at scale. From e-commerce, travel to real estate and market research, we support companies in turning the web into actionable&hellip;",
+   "jobDescription": "<p>This role is part of our <em>ScraperAPI </em>team, one of our growing brands at <a href=\"https://jobicy.com/company/saas-group\" target=\"_blank\" rel=\"noopener\">saas.group</a>.</p>\n<p>ScraperAPI is an enterprise-scale web scraping solution, trusted by businesses across a wide range of industries to extract crucial data at scale. From e-commerce, travel to real estate and market research, we support companies in turning the web into actionable insights.</p>\n<p>We’re currently on an exciting growth journey, scaling rapidly as demand for reliable, high-performance web scraping and data keeps ris",
+   "pubDate": "2026-09-30T08:18:48+00:00"
+  },
+  {
+   "id": 154289,
+   "url": "https://jobicy.com/jobs/154289-chief-executive-officer-3",
+   "jobSlug": "154289-chief-executive-officer-3",
+   "jobTitle": "Chief Executive Officer",
+   "companyName": "saas.group",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/f6d362c3-221-1.png",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Director",
+   "jobExcerpt": "What is saas.group? The role is for a future CEO position at saas.group, tied to an upcoming acquisition in the HR tech and workforce management space. We are continuously acquiring new businesses and are building a strong talent pool of ambitious leaders who want to step into CEO roles within our portfolio. If you see&hellip;",
+   "jobDescription": "<h3>What is <a href=\"https://jobicy.com/company/saas-group\" target=\"_blank\" rel=\"noopener\">saas.group</a>?</h3>\n<p>The role is for a future CEO position at saas.group, tied to an upcoming acquisition in the HR tech and workforce management space. We are continuously acquiring new businesses and are building a strong talent pool of ambitious leaders who want to step into CEO roles within our portfolio. If you see yourself leading a SaaS business with us in the future, we'd love to connect.</p>\n<p>At saas.group, we partner with ambitious leaders to transform great SaaS products into category lea",
+   "pubDate": "2026-09-30T08:18:47+00:00"
+  },
+  {
+   "id": 154285,
+   "url": "https://jobicy.com/jobs/154285-lead-product-manager-2",
+   "jobSlug": "154285-lead-product-manager-2",
+   "jobTitle": "Lead Product Manager",
+   "companyName": "ChargePoint",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/fa45d149-221.png",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Us With electric vehicles expected to be nearly 30% of new vehicle sales by 2025 and more than 50% by 2040, electric mobility is becoming a reality. ChargePoint (NYSE: CHPT) is at the center of this revolution, powering one of the world’s leading EV charging networks and a comprehensive set of hardware, software and&hellip;",
+   "jobDescription": "<h3>About Us</h3>\n<p>With electric vehicles expected to be nearly 30% of new vehicle sales by 2025 and more than 50% by 2040, electric mobility is becoming a reality. <a href=\"https://jobicy.com/company/chargepoint\" target=\"_blank\" rel=\"noopener\">ChargePoint</a> (NYSE: CHPT) is at the center of this revolution, powering one of the world’s leading EV charging networks and a comprehensive set of hardware, software and mobile solutions for every charging need across North America and Europe. We bring together drivers, businesses, automakers, policymakers, utilities and other stakeholders to make ",
+   "pubDate": "2026-09-30T08:18:47+00:00"
+  },
+  {
+   "id": 154284,
+   "url": "https://jobicy.com/jobs/154284-enterprise-account-executive-emea-2",
+   "jobSlug": "154284-enterprise-account-executive-emea-2",
+   "jobTitle": "Enterprise Account Executive, EMEA",
+   "companyName": "Obsidian Security",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/3c84d813-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "UK",
+   "jobLevel": "Director",
+   "jobExcerpt": "Obsidian Security is a global leader in cyber security protecting the SaaS and non-human identity layer modern enterprises run on — from Salesforce and Snowflake to the AI agents now deployed inside them. The Obsidian Security platform gives unified visibility into every human and machine identity, app, and integration across their SaaS estate, detects identity-based&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/obsidian-security\" target=\"_blank\" rel=\"noopener\">Obsidian Security</a> is a global leader in cyber security protecting the SaaS and non-human identity layer modern enterprises run on — from Salesforce and Snowflake to the AI agents now deployed inside them. The Obsidian Security platform gives unified visibility into every human and machine identity, app, and integration across their SaaS estate, detects identity-based and supply chain attacks in real time, and enforces least-privilege access before it's exploited. Trusted by major Fortune 500 companies ",
+   "pubDate": "2026-09-30T08:18:47+00:00"
+  },
+  {
+   "id": 154291,
+   "url": "https://jobicy.com/jobs/154291-chief-technology-officer-4",
+   "jobSlug": "154291-chief-technology-officer-4",
+   "jobTitle": "Chief Technology Officer",
+   "companyName": "saas.group",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/f6d362c3-221-1.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Director",
+   "jobExcerpt": "This role is part of our Prerender team, one of our largest brands at saas.group. Prerender is a dynamic rendering SaaS platform within the saas.group portfolio. Since 2017, we've revolutionized SEO practices by enabling search engines to crawl JavaScript-heavy sites seamlessly while preserving user experience. Thousands of companies worldwide trust our platform, which serves over&hellip;",
+   "jobDescription": "<p>This role is part of our<a href=\"https://prerender.io/\" rel=\"nofollow ugc noopener\" target=\"_blank\"> Prerender</a> team, one of our largest brands at<a href=\"http://saas.group/\" rel=\"nofollow ugc noopener\" target=\"_blank\"> saas.group</a>.</p>\n<p>Prerender is a dynamic rendering SaaS platform within the<a href=\"http://saas.group/\" rel=\"nofollow ugc noopener\" target=\"_blank\"> saas.group</a> portfolio. Since 2017, we've revolutionized SEO practices by enabling search engines to crawl JavaScript-heavy sites seamlessly while preserving user experience. Thousands of companies worldwide trust our ",
+   "pubDate": "2026-09-30T08:18:46+00:00"
+  },
+  {
+   "id": 154287,
+   "url": "https://jobicy.com/jobs/154287-ap-specialist",
+   "jobSlug": "154287-ap-specialist",
+   "jobTitle": "AP Specialist",
+   "companyName": "saas.group",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/f6d362c3-221-1.png",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Any",
+   "jobExcerpt": "This role is part of our Central Finance Team at saas.group. What is saas.group? Think of us as the driving catalyst behind your favorite software success stories. saas.group, established in 2017, is on a mission to turbocharge promising B2B SaaS ventures, unlocking their full potential. As a Software-as-a-Service portfolio powerhouse, we specialize in acquiring small&hellip;",
+   "jobDescription": "<p>This role is part of our Central Finance Team at <a href=\"https://jobicy.com/company/saas-group\" target=\"_blank\" rel=\"noopener\">saas.group</a>.</p>\n<h3>What is saas.group?</h3>\n<p>Think of us as the driving catalyst behind your favorite software success stories. saas.group, established in 2017, is on a mission to turbocharge promising B2B SaaS ventures, unlocking their full potential. As a Software-as-a-Service portfolio powerhouse, we specialize in acquiring small software treasures and polishing them into industry stars. With a dynamic, fully remote team of nearly 380+ colleagues spanning",
+   "pubDate": "2026-09-30T08:18:45+00:00"
+  },
+  {
+   "id": 154280,
+   "url": "https://jobicy.com/jobs/154280-digital-campaign-performance-marketing-specialist",
+   "jobSlug": "154280-digital-campaign-performance-marketing-specialist",
+   "jobTitle": "Digital Campaign/Performance Marketing Specialist",
+   "companyName": "ShopFully",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e500a668-221.png",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Italy",
+   "jobLevel": "Senior",
+   "jobExcerpt": "We are the platform turning browsing into shopping. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands. We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.&hellip;",
+   "jobDescription": "<p><strong>We are the platform turning browsing into shopping</strong>. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands.</p>\n<p>We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.</p>\n<p>In 2024, <a href=\"https://jobicy.com/company/shopfully\" target=\"_blank\" rel=\"noopener\">Shopfully</a> joined forces with the North American company <a href=\"https://corp.flipp.com/\" rel=\"nofollow ugc noopener\" targ",
+   "pubDate": "2026-09-30T08:08:31+00:00",
+   "salaryMin": 30000,
+   "salaryMax": 32000,
+   "salaryCurrency": "EUR",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154282,
+   "url": "https://jobicy.com/jobs/154282-enterprise-sales-engineer-uk-2",
+   "jobSlug": "154282-enterprise-sales-engineer-uk-2",
+   "jobTitle": "Enterprise Sales Engineer - UK",
+   "companyName": "Chainguard",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e4b6aacf-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "UK",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Chainguard is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/chainguard\" target=\"_blank\" rel=\"noopener\">Chainguard</a> is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. </p>\n<p>Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI, Snap Inc., and Snowflake. </p>\n<p>Chainguard is venture-backed by leading investors, including Amplify,",
+   "pubDate": "2026-09-30T08:08:28+00:00"
+  },
+  {
+   "id": 154279,
+   "url": "https://jobicy.com/jobs/154279-enterprise-sales-engineer-france",
+   "jobSlug": "154279-enterprise-sales-engineer-france",
+   "jobTitle": "Enterprise Sales Engineer - France",
+   "companyName": "Chainguard",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e4b6aacf-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "France,  UK",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Chainguard is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/chainguard\" target=\"_blank\" rel=\"noopener\">Chainguard</a> is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. </p>\n<p>Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI, Snap Inc., and Snowflake. </p>\n<p>Chainguard is venture-backed by leading investors, including Amplify,",
+   "pubDate": "2026-09-30T08:08:28+00:00"
+  },
+  {
+   "id": 154278,
+   "url": "https://jobicy.com/jobs/154278-ai-architect-finance",
+   "jobSlug": "154278-ai-architect-finance",
+   "jobTitle": "AI Architect, Finance",
+   "companyName": "ShopFully",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e500a668-221.png",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Italy,  Spain",
+   "jobLevel": "Director",
+   "jobExcerpt": "We are the platform turning browsing into shopping. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands. We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.&hellip;",
+   "jobDescription": "<p><strong>We are the platform turning browsing into shopping</strong>. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands.</p>\n<p>We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.</p>\n<p>In 2024, <a href=\"https://jobicy.com/company/shopfully\" target=\"_blank\" rel=\"noopener\">Shopfully</a> joined forces with the North American company <a href=\"https://corp.flipp.com/\" rel=\"nofollow ugc noopener\" targ",
+   "pubDate": "2026-09-30T08:08:28+00:00",
+   "salaryMin": 73000,
+   "salaryMax": 91000,
+   "salaryCurrency": "EUR",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154281,
+   "url": "https://jobicy.com/jobs/154281-enterprise-sales-engineer-nordics",
+   "jobSlug": "154281-enterprise-sales-engineer-nordics",
+   "jobTitle": "Enterprise Sales Engineer - Nordics",
+   "companyName": "Chainguard",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e4b6aacf-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Denmark,  Sweden",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Chainguard is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/chainguard\" target=\"_blank\" rel=\"noopener\">Chainguard</a> is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. </p>\n<p>Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI, Snap Inc., and Snowflake. </p>\n<p>Chainguard is venture-backed by leading investors, including Amplify,",
+   "pubDate": "2026-09-30T08:08:27+00:00"
+  },
+  {
+   "id": 154276,
+   "url": "https://jobicy.com/jobs/154276-enterprise-account-executive-uk-4",
+   "jobSlug": "154276-enterprise-account-executive-uk-4",
+   "jobTitle": "Enterprise Account Executive - UK",
+   "companyName": "Chainguard",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e4b6aacf-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "UK",
+   "jobLevel": "Director",
+   "jobExcerpt": "Chainguard is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/chainguard\" target=\"_blank\" rel=\"noopener\">Chainguard</a> is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. </p>\n<p>Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI, Snap Inc., and Snowflake. </p>\n<p>Chainguard is venture-backed by leading investors, including Amplify,",
+   "pubDate": "2026-09-30T08:08:27+00:00"
+  },
+  {
+   "id": 154275,
+   "url": "https://jobicy.com/jobs/154275-accounting-specialist-accounts-receivable-german-speaking",
+   "jobSlug": "154275-accounting-specialist-accounts-receivable-german-speaking",
+   "jobTitle": "Accounting Specialist, Accounts Receivable (German-speaking)",
+   "companyName": "ShopFully",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e500a668-221.png",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Italy",
+   "jobLevel": "Any",
+   "jobExcerpt": "We are the platform turning browsing into shopping. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands. We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.&hellip;",
+   "jobDescription": "<p><strong>We are the platform turning browsing into shopping</strong>. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands.</p>\n<p>We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.</p>\n<p>In 2024, <a href=\"https://jobicy.com/company/shopfully\" target=\"_blank\" rel=\"noopener\">Shopfully</a> joined forces with the North American company <a href=\"https://corp.flipp.com/\" rel=\"nofollow ugc noopener\" targ",
+   "pubDate": "2026-09-30T08:08:27+00:00",
+   "salaryMin": 25000,
+   "salaryMax": 27000,
+   "salaryCurrency": "EUR",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154273,
+   "url": "https://jobicy.com/jobs/154273-data-scientist-ii",
+   "jobSlug": "154273-data-scientist-ii",
+   "jobTitle": "Data Scientist II",
+   "companyName": "Signifyd",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/9be4f098-221.jpg",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "UK",
+   "jobLevel": "Senior",
+   "jobExcerpt": "At Signifyd, we help merchants confidently grow their businesses by building trusted relationships with their customers. Our advanced technology, combined with a team genuinely invested in our clients’ success, creates frictionless shopping experiences, approving more good orders, protecting revenue, and keeping customers happy. Trusted by thousands of leading merchants across more than 100 countries, we&hellip;",
+   "jobDescription": "<p>At <a href=\"https://jobicy.com/company/signifyd\" target=\"_blank\" rel=\"noopener\">Signifyd</a>, we help merchants confidently grow their businesses by building trusted relationships with their customers. Our advanced technology, combined with a team genuinely invested in our clients’ success, creates frictionless shopping experiences, approving more good orders, protecting revenue, and keeping customers happy.</p>\n<p>Trusted by thousands of leading merchants across more than 100 countries, we securely process billions of transactions each year. Our people are the heart of everything we do, dr",
+   "pubDate": "2026-09-30T08:08:27+00:00"
+  },
+  {
+   "id": 154271,
+   "url": "https://jobicy.com/jobs/154271-senior-account-executive-federal-us-army",
+   "jobSlug": "154271-senior-account-executive-federal-us-army",
+   "jobTitle": "Senior Account Executive - Federal (US ARMY)",
+   "companyName": "Mattermost",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/ecb6ff3992a12e3be49b73ca8a11f5c5.webp",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Mattermost is the leading collaborative workflow platform for defense, intelligence, security, and critical infrastructure. Trusted by the U.S. Department of War and Fortune 500s, our platform runs on-premises and in private clouds, delivering secure messaging, file sharing, workflow automation, audio/screenshare, and project management—all with full data and operational control. Mattermost powers high-stakes workflows across mission&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/mattermost\" target=\"_blank\" rel=\"noopener\">Mattermost</a> is the leading collaborative workflow platform for defense, intelligence, security, and critical infrastructure. Trusted by the U.S. Department of War and Fortune 500s, our platform runs on-premises and in private clouds, delivering secure messaging, file sharing, workflow automation, audio/screenshare, and project management—all with full data and operational control. Mattermost powers high-stakes workflows across mission planning, real-time, real-world operations, DevSecOps, incident response, an",
+   "pubDate": "2026-09-30T08:05:53+00:00",
+   "salaryMin": 125000,
+   "salaryMax": 150000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154270,
+   "url": "https://jobicy.com/jobs/154270-account-executive-product-fraud-risk",
+   "jobSlug": "154270-account-executive-product-fraud-risk",
+   "jobTitle": "Account Executive Product - Fraud & Risk",
+   "companyName": "Stripe",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/10/WRILS-201011073943-272457.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Who we are About Stripe Stripe is a financial infrastructure platform for businesses. Millions of companies - from the world’s largest enterprises to the most ambitious startups - use Stripe to accept payments, grow their revenue, and accelerate new business opportunities. Our mission is to increase the GDP of the internet, and we have a&hellip;",
+   "jobDescription": "<h3><strong>Who we are</strong></h3>\r\n<h3><strong>About <a href=\"https://jobicy.com/company/stripe\" target=\"_blank\" rel=\"noopener\">Stripe</a></strong></h3>\r\n<p>Stripe is a financial infrastructure platform for businesses. Millions of companies - from the world’s largest enterprises to the most ambitious startups - use Stripe to accept payments, grow their revenue, and accelerate new business opportunities. Our mission is to increase the GDP of the internet, and we have a staggering amount of work ahead. That means you have an unprecedented opportunity to put the global economy within everyone'",
+   "pubDate": "2026-09-30T08:05:53+00:00"
+  },
+  {
+   "id": 154269,
+   "url": "https://jobicy.com/jobs/154269-product-manager-dashboard",
+   "jobSlug": "154269-product-manager-dashboard",
+   "jobTitle": "Product Manager, Dashboard",
+   "companyName": "Vercel",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/a6aded72-221.png",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About Vercel: Vercel is the agentic infrastructure company, freeing people and agents to ship what's next. For more than a decade we've helped builders move from idea to production with speed, security, and exceptional developer experience. Now we're scaling our products for both agents and people to ship and run software, built in the open&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/vercel\" target=\"_blank\" rel=\"noopener\">Vercel</a>:</h3>\n<p>Vercel is the agentic infrastructure company, freeing people and agents to ship what's next. For more than a decade we've helped builders move from idea to production with speed, security, and exceptional developer experience.</p>\n<p>Now we're scaling our products for both agents and people to ship and run software, built in the open and trusted by OpenAI, PayPal, Ramp, Supreme, and millions of developers worldwide.</p>\n<h3>About the Role:</h3>\n<p>We are looking for a Product Manager to own",
+   "pubDate": "2026-09-30T08:05:52+00:00",
+   "salaryMin": 172000,
+   "salaryMax": 258000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154272,
+   "url": "https://jobicy.com/jobs/154272-performance-media-specialist",
+   "jobSlug": "154272-performance-media-specialist",
+   "jobTitle": "Performance Media Specialist",
+   "companyName": "Monks",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/d832a699-221.jpeg",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Brazil",
+   "jobLevel": "Any",
+   "jobExcerpt": "Please note that we will never request payment or bank account information at any stage of the recruitment process. As we continue to grow our teams, we urge you to be cautious of fraudulent job postings or recruitment activities that misuse our company name and information. Please protect your personal information during any recruitment process.&hellip;",
+   "jobDescription": "<p>Please note that we will never request payment or bank account information at any stage of the recruitment process. As we continue to grow our teams, we urge you to be cautious of fraudulent job postings or recruitment activities that misuse our company name and information. Please protect your personal information during any recruitment process. While <a href=\"https://jobicy.com/company/monks\" target=\"_blank\" rel=\"noopener\">Monks</a> may contact potential candidates via LinkedIn, all applications must be submitted through our official website (<a href=\"http://monks.com/careers\" rel=\"nofoll",
+   "pubDate": "2026-09-30T08:05:51+00:00"
+  },
+  {
+   "id": 154266,
+   "url": "https://jobicy.com/jobs/154266-senior-account-executive-federal-intelligence-community-focus",
+   "jobSlug": "154266-senior-account-executive-federal-intelligence-community-focus",
+   "jobTitle": "Senior Account Executive - Federal (Intelligence Community Focus)",
+   "companyName": "Mattermost",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/ecb6ff3992a12e3be49b73ca8a11f5c5.webp",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Mattermost is the leading collaborative workflow platform for defense, intelligence, security, and critical infrastructure. Trusted by the U.S. Department of War and Fortune 500s, our platform runs on-premises and in private clouds, delivering secure messaging, file sharing, workflow automation, audio/screenshare, and project management—all with full data and operational control. Mattermost powers high-stakes workflows across mission&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/mattermost\" target=\"_blank\" rel=\"noopener\">Mattermost</a> is the leading collaborative workflow platform for defense, intelligence, security, and critical infrastructure. Trusted by the U.S. Department of War and Fortune 500s, our platform runs on-premises and in private clouds, delivering secure messaging, file sharing, workflow automation, audio/screenshare, and project management—all with full data and operational control. Mattermost powers high-stakes workflows across mission planning, real-time, real-world operations, DevSecOps, incident response, an",
+   "pubDate": "2026-09-30T08:05:51+00:00",
+   "salaryMin": 125000,
+   "salaryMax": 150000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154263,
+   "url": "https://jobicy.com/jobs/154263-campus-monks-banco-de-talentos-estagio-em-midias-de-perfomance",
+   "jobSlug": "154263-campus-monks-banco-de-talentos-estagio-em-midias-de-perfomance",
+   "jobTitle": "[Campus Monks] Banco de Talentos - Estágio em Mídias de Perfomance",
+   "companyName": "Monks",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/d832a699-221.jpeg",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Internship"
+   ],
+   "jobGeo": "Brazil",
+   "jobLevel": "Any",
+   "jobExcerpt": "Please note that we will never request payment or bank account information at any stage of the recruitment process. As we continue to grow our teams, we urge you to be cautious of fraudulent job postings or recruitment activities that misuse our company name and information. Please protect your personal information during any recruitment process.&hellip;",
+   "jobDescription": "<p>Please note that we will never request payment or bank account information at any stage of the recruitment process. As we continue to grow our teams, we urge you to be cautious of fraudulent job postings or recruitment activities that misuse our company name and information. Please protect your personal information during any recruitment process. While <a href=\"https://jobicy.com/company/monks\" target=\"_blank\" rel=\"noopener\">Monks</a> may contact potential candidates via LinkedIn, all applications must be submitted through our official website (<a href=\"http://monks.com/careers\" rel=\"nofoll",
+   "pubDate": "2026-09-30T08:05:51+00:00"
+  },
+  {
+   "id": 154264,
+   "url": "https://jobicy.com/jobs/154264-grc-analyst-2",
+   "jobSlug": "154264-grc-analyst-2",
+   "jobTitle": "GRC Analyst",
+   "companyName": "Vercel",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/a6aded72-221.png",
+   "jobIndustry": [
+    "Legal & Compliance"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "About Vercel: Vercel is the agentic infrastructure company, freeing people and agents to ship what's next. For more than a decade we've helped builders move from idea to production with speed, security, and exceptional developer experience. Now we're scaling our products for both agents and people to ship and run software, built in the open&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/vercel\" target=\"_blank\" rel=\"noopener\">Vercel</a>:</h3>\n<p>Vercel is the agentic infrastructure company, freeing people and agents to ship what's next. For more than a decade we've helped builders move from idea to production with speed, security, and exceptional developer experience.</p>\n<p>Now we're scaling our products for both agents and people to ship and run software, built in the open and trusted by OpenAI, PayPal, Ramp, Supreme, and millions of developers worldwide.</p>\n<h3>About the role:</h3>\n<p>We are looking for a GRC Analyst to join ou",
+   "pubDate": "2026-09-30T08:05:50+00:00",
+   "salaryMin": 134000,
+   "salaryMax": 202000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154261,
+   "url": "https://jobicy.com/jobs/154261-senior-data-engineer-ii-ai-native",
+   "jobSlug": "154261-senior-data-engineer-ii-ai-native",
+   "jobTitle": "Senior Data Engineer II, AI Native",
+   "companyName": "Life360",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/f269bad3-221.jpeg",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About Life360 Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch.&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/tile\" target=\"_blank\" rel=\"noopener\">Life360</a></h3>\n<p>Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch. Life360 serves approximately 102.4 million monthly active users (MAU), as of June 30, 2026, across more than 180 countries. </p>\n<p>Life360 delivers peace of m",
+   "pubDate": "2026-09-30T08:03:59+00:00",
+   "salaryMin": 148000,
+   "salaryMax": 216500,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154259,
+   "url": "https://jobicy.com/jobs/154259-senior-backend-engineer-ii-ai-native-vertical-experiences",
+   "jobSlug": "154259-senior-backend-engineer-ii-ai-native-vertical-experiences",
+   "jobTitle": "Senior Backend Engineer II, AI Native, Vertical Experiences",
+   "companyName": "Life360",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/f269bad3-221.jpeg",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About Life360 Life360's mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch.&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/tile\" target=\"_blank\" rel=\"noopener\">Life360</a></h3>\n<p>Life360's mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch. Life360 serves approximately 102.4 million monthly active users (MAU), as of June 30, 2026, across more than 180 countries.</p>\n<p>Life360 delivers peace of mi",
+   "pubDate": "2026-09-30T08:03:57+00:00",
+   "salaryMin": 148000,
+   "salaryMax": 216000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154256,
+   "url": "https://jobicy.com/jobs/154256-director-of-product-subscriber-value",
+   "jobSlug": "154256-director-of-product-subscriber-value",
+   "jobTitle": "Director of Product, Subscriber Value",
+   "companyName": "Life360",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/f269bad3-221.jpeg",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Life360 Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch.&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/tile\" target=\"_blank\" rel=\"noopener\">Life360</a></h3>\n<p>Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch. Life360 serves approximately 102.4 million monthly active users (MAU), as of June 30, 2026, across more than 180 countries.</p>\n<p>Life360 delivers peace of mi",
+   "pubDate": "2026-09-30T08:03:57+00:00",
+   "salaryMin": 201000,
+   "salaryMax": 294000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154262,
+   "url": "https://jobicy.com/jobs/154262-software-engineer-partner-engineering",
+   "jobSlug": "154262-software-engineer-partner-engineering",
+   "jobTitle": "Software Engineer, Partner Engineering",
+   "companyName": "Liftoff",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/c47aea9f-221.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada",
+   "jobLevel": "Any",
+   "jobExcerpt": "Liftoff is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand. Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/liftoff\" target=\"_blank\" rel=\"noopener\">Liftoff</a> is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand.</p>\n<p>Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in sectors such as gaming, social, finance, ecommerce, and entertainment. Founded in 2012 an",
+   "pubDate": "2026-09-30T08:03:56+00:00",
+   "salaryMin": 135000,
+   "salaryMax": 160000,
+   "salaryCurrency": "CAD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154257,
+   "url": "https://jobicy.com/jobs/154257-legal-counsel-ip-technology",
+   "jobSlug": "154257-legal-counsel-ip-technology",
+   "jobTitle": "Legal Counsel, IP & Technology",
+   "companyName": "Life360",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/02/f269bad3-221.jpeg",
+   "jobIndustry": [
+    "Legal & Compliance"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About Life360 Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch.&hellip;",
+   "jobDescription": "<h3>About <a href=\"https://jobicy.com/company/tile\" target=\"_blank\" rel=\"noopener\">Life360</a></h3>\n<p>Life360’s mission is to keep people close to the ones they love. Our category-leading mobile app, Tile tracking devices, and Pet GPS tracker empower members to protect the people, pets, and things they care about most with a range of services, including location sharing, safe driver reports, and crash detection with emergency dispatch. Life360 serves approximately 102.4 million monthly active users (MAU), as of June 30, 2026, across more than 180 countries.</p>\n<p>Life360 delivers peace of mi",
+   "pubDate": "2026-09-30T08:03:56+00:00",
+   "salaryMin": 130000,
+   "salaryMax": 200000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154260,
+   "url": "https://jobicy.com/jobs/154260-senior-staff-software-engineer-serving",
+   "jobSlug": "154260-senior-staff-software-engineer-serving",
+   "jobTitle": "Senior Staff Software Engineer, Serving",
+   "companyName": "Liftoff",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/c47aea9f-221.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Liftoff is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand. Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/liftoff\" target=\"_blank\" rel=\"noopener\">Liftoff</a> is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand.</p>\n<p>Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in sectors such as gaming, social, finance, ecommerce, and entertainment. Founded in 2012 an",
+   "pubDate": "2026-09-30T08:03:55+00:00",
+   "salaryMin": 219000,
+   "salaryMax": 310000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154255,
+   "url": "https://jobicy.com/jobs/154255-senior-renewals-manager-enterprise",
+   "jobSlug": "154255-senior-renewals-manager-enterprise",
+   "jobTitle": "Senior Renewals Manager, Enterprise",
+   "companyName": "Culture Amp",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/2ea333e8-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "We’re big believers in the power of IRL, so for most roles we ask Campers to work from their local Culture Amp office an average of 2 days a week to unlock connection, pace and culture together. Join us on our mission to make a better world of work. Culture Amp is the world’s leading&hellip;",
+   "jobDescription": "<p><strong><em>We’re big believers in the power of IRL, so for most roles we ask Campers to work from their local <a href=\"https://jobicy.com/company/culture-amp\" target=\"_blank\" rel=\"noopener\">Culture Amp</a> office an average of 2 days a week to unlock connection, pace and culture together.</em></strong></p>\n<p><strong>Join us on our mission to make a better world of work. </strong></p>\n<p>Culture Amp is the world’s leading employee experience platform, revolutionizing how 25 million employees across more than 6,000 companies create a better world of work. Culture Amp empowers companies of a",
+   "pubDate": "2026-09-30T08:03:55+00:00",
+   "salaryMin": 105000,
+   "salaryMax": 122500,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154254,
+   "url": "https://jobicy.com/jobs/154254-account-manager-11",
+   "jobSlug": "154254-account-manager-11",
+   "jobTitle": "Account Manager",
+   "companyName": "TeamSnap",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/01/WRILS-210112010303-582315.png",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "About Us At TeamSnap, we believe when the world connects through sports; the world becomes better. TeamSnap is a sports and communication platform dedicated to taking the work out of play in youth sports. We also believe our jobs should excite us, our teammates should support us and our bosses should inspire us. We&hellip;",
+   "jobDescription": "<p><strong> About Us</strong></p>\n<p>At <a href=\"https://jobicy.com/company/teamsnap\" target=\"_blank\" rel=\"noopener\">TeamSnap</a>, we believe when the world connects through sports; the world becomes better. TeamSnap is a sports and communication platform dedicated to taking the work out of play in youth sports. We also believe our jobs should excite us, our teammates should support us and our bosses should inspire us. We empower our people to bring big ideas and tiny egos, landing us on Outside Magazine’s list of “<strong>Best Places to Work\" </strong>and Built In’s “<strong>100 Best Remote-F",
+   "pubDate": "2026-09-30T08:03:55+00:00",
+   "salaryMin": 73000,
+   "salaryMax": 73000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154258,
+   "url": "https://jobicy.com/jobs/154258-senior-staff-product-manager-ecommerce",
+   "jobSlug": "154258-senior-staff-product-manager-ecommerce",
+   "jobTitle": "Senior Staff Product Manager, eCommerce",
+   "companyName": "Liftoff",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/c47aea9f-221.png",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Liftoff is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand. Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/liftoff\" target=\"_blank\" rel=\"noopener\">Liftoff</a> is a leading AI-powered performance marketing platform for the mobile app economy. Our end-to-end technology stack helps app marketers acquire and retain high-value users, while enabling publishers to maximize revenue across programmatic and direct demand.</p>\n<p>Liftoff’s solutions, including Accelerate, Direct, Monetize, Intelligence, and Vungle Exchange, support over 6,600 mobile businesses across 74 countries in sectors such as gaming, social, finance, ecommerce, and entertainment. Founded in 2012 an",
+   "pubDate": "2026-09-30T08:03:54+00:00",
+   "salaryMin": 198000,
+   "salaryMax": 280000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154253,
+   "url": "https://jobicy.com/jobs/154253-seasonal-customer-experience-associate",
+   "jobSlug": "154253-seasonal-customer-experience-associate",
+   "jobTitle": "Seasonal Customer Experience Associate",
+   "companyName": "Tecovas",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/88b519bc-221.png",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Contract"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "We're passionate about customer experience here at Tecovas, and we're looking for Seasonal Customer Experience Associates to ensure our current and future customers have the best possible interaction with our brand and product. You will be on the forefront of our customer experience function and will have a role in shaping the strategy of a&hellip;",
+   "jobDescription": "<p>We're passionate about customer experience here at <a href=\"https://jobicy.com/company/tecovas\" target=\"_blank\" rel=\"noopener\">Tecovas</a>, and we're looking for Seasonal Customer Experience Associates to ensure our current and future customers have the best possible interaction with our brand and product. You will be on the forefront of our customer experience function and will have a role in shaping the strategy of a rapidly-growing brand. </p>\n<p>In order to provide our customers with the best holiday shopping experience, you will be <strong>required to be flexible with scheduling and av",
+   "pubDate": "2026-09-30T08:03:52+00:00",
+   "salaryMin": 18,
+   "salaryMax": 18,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "hourly"
+  },
+  {
+   "id": 154244,
+   "url": "https://jobicy.com/jobs/154244-software-engineer-new-grad-machine-learning-platform-quora",
+   "jobSlug": "154244-software-engineer-new-grad-machine-learning-platform-quora",
+   "jobTitle": "Software Engineer New Grad, Machine Learning Platform - Quora",
+   "companyName": "Quora",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/09/WRILS-200916172339-629302.jpg",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  UK,  USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "[Quora is a privately held, \"remote-first\" company. This position can be performed remotely from anywhere in Canada or the United States. Please visit careers.quora.com/eligible-countries for details regarding employment eligibility by country.] About Quora: Quora’s mission is to grow the world's collective intelligence. To do so, we have two platforms: Quora: a global knowledge sharing platform&hellip;",
+   "jobDescription": "<p><em>[</em><a href=\"https://www.quora.com/q/quora/Remote-First-at-Quora\" rel=\"nofollow ugc noopener\" target=\"_blank\"><em><strong>Quora is a privately held, \"remote-first\" company</strong></em></a><em><strong>. </strong>This position can be performed remotely from anywhere in Canada or the United States. Please visit </em><a href=\"http://careers.quora.com/eligible-countries\" rel=\"nofollow ugc noopener\" target=\"_blank\"><em>careers.quora.com/eligible-countries</em></a><em> for details regarding employment eligibility by country.]</em></p>\r\n\r\n<h3><strong>About <a href=\"https://jobicy.com/company",
+   "pubDate": "2026-09-30T08:00:11+00:00",
+   "salaryMin": 97600,
+   "salaryMax": 139000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154242,
+   "url": "https://jobicy.com/jobs/154242-senior-network-engineer",
+   "jobSlug": "154242-senior-network-engineer",
+   "jobTitle": "Senior Network Engineer",
+   "companyName": "TITAN",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/81b82aeb-221.png",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Philippines",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Available shifts: Sat–Wed, 3 PM – 12 AM PHT Sat–Wed, 11 PM – 8 AM PHT Senior Network Engineer The Senior Network Engineer will interact directly with our high-profile, elite client base ensuring they receive our first-rate service. This position will be responsible for all network and security designs, implementations, and day-to-day support for various&hellip;",
+   "jobDescription": "<p><strong>Available shifts:</strong></p>\n<p>Sat–Wed, 3 PM – 12 AM PHT</p>\n<p>Sat–Wed, 11 PM – 8 AM PHT</p>\n</p>\n<p><strong>Senior Network Engineer</strong></p>\n<p>The Senior Network Engineer will interact directly with our high-profile, elite client base ensuring they receive our first-rate service. This position will be responsible for all network and security designs, implementations, and day-to-day support for various client network infrastructures. The Senior Network Engineer will also be an integral part in handling various networking functions including Datacenter, security and firewall",
+   "pubDate": "2026-09-30T08:00:11+00:00"
+  },
+  {
+   "id": 154248,
+   "url": "https://jobicy.com/jobs/154248-principal-software-engineer-devops",
+   "jobSlug": "154248-principal-software-engineer-devops",
+   "jobTitle": "Principal Software Engineer, DevOps",
+   "companyName": "Legion",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/99d2bb45-221-1.jpg",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Principal Software Engineer, DevOps Remote, United States ABOUT POSITION: Are you passionate about automation, DevOps, public cloud services, Kubernetes, and observability? As a site reliability engineer at Legion, you will be responsible for building the tools, infrastructure, and services to create a secure, highly scalable, and cost-effective AWS/Kubernetes-based cloud platform. You will be working with&hellip;",
+   "jobDescription": "<h3><strong>Principal Software Engineer, DevOps</strong></h3>\n<h3><strong>Remote, United States</strong></h3>\n<p><strong>ABOUT POSITION:</strong></p>\n<p>Are you passionate about automation, DevOps, public cloud services, Kubernetes, and observability? As a site reliability engineer at <a href=\"https://jobicy.com/company/legion\" target=\"_blank\" rel=\"noopener\">Legion</a>, you will be responsible for building the tools, infrastructure, and services to create a secure, highly scalable, and cost-effective AWS/Kubernetes-based cloud platform. You will be working with everything from infrastructure t",
+   "pubDate": "2026-09-30T08:00:09+00:00",
+   "salaryMin": 220000,
+   "salaryMax": 255000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154250,
+   "url": "https://jobicy.com/jobs/154250-senior-manager-sales-development",
+   "jobSlug": "154250-senior-manager-sales-development",
+   "jobTitle": "Senior Manager, Sales Development",
+   "companyName": "Legion",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/99d2bb45-221-1.jpg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Senior Manager, Sales Development Remote, United States ROLE AND RESPONSIBILITIES The mission of the Senior Manager of Sales Development is to build and lead a predictable, high-performing enterprise pipeline engine for Legion. This leader will own the strategy, operating model, and day-to-day performance of the Sales Development organization, ensuring SDRs create qualified conversations and opportunities&hellip;",
+   "jobDescription": "<h3>Senior Manager, Sales Development</h3>\n<h3>Remote, United States</h3>\n<p><strong>ROLE AND RESPONSIBILITIES</strong></p>\n<p>The mission of the Senior Manager of Sales Development is to build and lead a predictable, high-performing enterprise pipeline engine for <a href=\"https://jobicy.com/company/legion\" target=\"_blank\" rel=\"noopener\">Legion</a>. This leader will own the strategy, operating model, and day-to-day performance of the Sales Development organization, ensuring SDRs create qualified conversations and opportunities within large, complex target accounts. This is a hands-on builder-a",
+   "pubDate": "2026-09-30T08:00:08+00:00",
+   "salaryMin": 130000,
+   "salaryMax": 145000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154247,
+   "url": "https://jobicy.com/jobs/154247-advertising-paid-search-strategist-ecommerce",
+   "jobSlug": "154247-advertising-paid-search-strategist-ecommerce",
+   "jobTitle": "Advertising Paid Search Strategist - Ecommerce",
+   "companyName": "Rithum",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/fe3986d8-221-1.jpeg",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Rithum™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins. Today, more than 40,000 companies trust Rithum to grow their&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/rithum\" target=\"_blank\" rel=\"noopener\">Rithum</a>™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins.</p>\n<p>Today, more than 40,000 companies trust Rithum to grow their business across hundreds of channels, representing over $50 billion in annual GMV. Using our commerce, marketin",
+   "pubDate": "2026-09-30T08:00:08+00:00",
+   "salaryMin": 80000,
+   "salaryMax": 120000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154243,
+   "url": "https://jobicy.com/jobs/154243-recruiter-growth-and-marketing",
+   "jobSlug": "154243-recruiter-growth-and-marketing",
+   "jobTitle": "Recruiter - Growth and Marketing",
+   "companyName": "Kalshi",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/00635b6c-221.png",
+   "jobIndustry": [
+    "HR & Recruiting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "What is Kalshi? Kalshi has defined a new category: prediction markets. Kalshi allows people to trade on the outcome of any events and turn any question about the future into a financial asset. Kalshi fought for years and legalized prediction markets in the US for the first time in history, is currently the fastest growing&hellip;",
+   "jobDescription": "<h3>What is <a href=\"https://jobicy.com/company/kalshi\" target=\"_blank\" rel=\"noopener\">Kalshi</a>?</h3>\n<p>Kalshi has defined a new category: prediction markets. Kalshi allows people to trade on the outcome of any events and turn any question about the future into a financial asset. Kalshi fought for years and legalized prediction markets in the US for the first time in history, is currently the fastest growing financial market in America, and has thousands of markets across politics, economics, financials, weather, tech, AI, culture and more.</p>\n<p>We believe prediction markets have the pote",
+   "pubDate": "2026-09-30T08:00:08+00:00",
+   "salaryMin": 175000,
+   "salaryMax": 250000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154251,
+   "url": "https://jobicy.com/jobs/154251-manager-client-success-strategic",
+   "jobSlug": "154251-manager-client-success-strategic",
+   "jobTitle": "Manager, Client Success - Strategic",
+   "companyName": "Rithum",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/fe3986d8-221-1.jpeg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Rithum™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins. Today, more than 40,000 companies trust Rithum to grow their&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/rithum\" target=\"_blank\" rel=\"noopener\">Rithum</a>™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins.</p>\n<p>Today, more than 40,000 companies trust Rithum to grow their business across hundreds of channels, representing over $50 billion in annual GMV. Using our commerce, marketin",
+   "pubDate": "2026-09-30T08:00:07+00:00",
+   "salaryMin": 100000,
+   "salaryMax": 168000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154246,
+   "url": "https://jobicy.com/jobs/154246-software-engineer-agentic-ai",
+   "jobSlug": "154246-software-engineer-agentic-ai",
+   "jobTitle": "Software Engineer, Agentic AI",
+   "companyName": "Invisible Technologies",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/5d284c35-221.jpeg",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Brazil",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About Invisible Invisible Technologies makes AI work. Our end-to-end AI platform structures messy data, automates digital workflows, deploys agentic solutions, measures outcomes, and integrates human expertise where it matters most. Our platform cleans, labels, and structures company data so it is ready for AI. It adapts models to each business and adds human expertise when&hellip;",
+   "jobDescription": "<h3><strong>About Invisible</strong></h3>\n<p><a href=\"https://jobicy.com/company/invisible-technologies\" target=\"_blank\" rel=\"noopener\">Invisible Technologies</a> makes AI work. Our end-to-end AI platform structures messy data, automates digital workflows, deploys agentic solutions, measures outcomes, and integrates human expertise where it matters most.</p>\n<p>Our platform cleans, labels, and structures company data so it is ready for AI. It adapts models to each business and adds human expertise when needed, the same approach we have used to improve models for more than 80% of the world’s to",
+   "pubDate": "2026-09-30T08:00:07+00:00",
+   "salaryMin": 249000,
+   "salaryMax": 409000,
+   "salaryCurrency": "BRL",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154249,
+   "url": "https://jobicy.com/jobs/154249-client-success-manager-3",
+   "jobSlug": "154249-client-success-manager-3",
+   "jobTitle": "Client Success Manager",
+   "companyName": "Rithum",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/fe3986d8-221-1.jpeg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Rithum™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins. Today, more than 40,000 companies trust Rithum to grow their&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/rithum\" target=\"_blank\" rel=\"noopener\">Rithum</a>™ is the world’s most trusted commerce network, accelerating how brands, suppliers, and retailers work together to deliver seamless e-commerce experiences. We provide an unmatched platform for brands and retailers, enabling them to accelerate growth, optimize operations across channels, scale product offerings and enhance margins.</p>\n<p>Today, more than 40,000 companies trust Rithum to grow their business across hundreds of channels, representing over $50 billion in annual GMV. Using our commerce, marketin",
+   "pubDate": "2026-09-30T08:00:06+00:00",
+   "salaryMin": 60000,
+   "salaryMax": 93000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154245,
+   "url": "https://jobicy.com/jobs/154245-associate-payments-adoption-manager",
+   "jobSlug": "154245-associate-payments-adoption-manager",
+   "jobTitle": "Associate Payments Adoption Manager",
+   "companyName": "Shopmonkey",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/03/baf27bf7e7c0ff8017f9d4271ae886a6.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "Associate Payments Adoption Managers are part of a purpose-driven team that provides an extraordinary product and has an extraordinary impact in customers’ lives. Based in or near Morgan Hill, California, this role will be responsible for identifying and collaborating with new or existing customers that are underutilizing the power of Shopmonkey payments for their business.&hellip;",
+   "jobDescription": "<p>Associate Payments Adoption Managers are part of a purpose-driven team that provides an extraordinary product and has an extraordinary impact in customers’ lives. Based in or near Morgan Hill, California, this role will be responsible for identifying and collaborating with new or existing customers that are underutilizing the power of <a href=\"https://jobicy.com/company/shopmonkey\" target=\"_blank\" rel=\"noopener\">Shopmonkey</a> payments for their business. A successful candidate will be well versed in embedded payments processing, and find creative solutions based on each shop’s needs and wo",
+   "pubDate": "2026-09-30T08:00:06+00:00",
+   "salaryMin": 80000,
+   "salaryMax": 80000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 151931,
+   "url": "https://jobicy.com/jobs/151931-customer-success-manager-emea-2",
+   "jobSlug": "151931-customer-success-manager-emea-2",
+   "jobTitle": "Customer Success Manager - EMEA",
+   "companyName": "Chainguard",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e4b6aacf-221.jpeg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Germany",
+   "jobLevel": "Director",
+   "jobExcerpt": "Chainguard is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/chainguard\" target=\"_blank\" rel=\"noopener\">Chainguard</a> is the trusted source for open source. By delivering hardened, secure, and production-ready builds of all the open source software engineers and AI agents rely on, Chainguard helps organizations build faster, stay compliant, and eliminate risk. </p>\n<p>Our customers include Fortune 500 enterprises and global industry leaders, including Anduril, Canva, Fortinet, Hewlett Packard Enterprise, OpenAI, Snap Inc., and Snowflake. </p>\n<p>Chainguard is venture-backed by leading investors, including Amplify,",
+   "pubDate": "2026-09-30T04:35:07+00:00"
+  },
+  {
+   "id": 154009,
+   "url": "https://jobicy.com/jobs/154009-enterprise-implementation-consultant-german-fluency",
+   "jobSlug": "154009-enterprise-implementation-consultant-german-fluency",
+   "jobTitle": "Enterprise Implementation Consultant - German Fluency",
+   "companyName": "Samsara",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/dd26f5ca-221.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Germany",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Who we are Samsara (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical&hellip;",
+   "jobDescription": "<p><strong>Who we are</strong></p>\n<p><a href=\"https://jobicy.com/company/samsara\" target=\"_blank\" rel=\"noopener\">Samsara</a> (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical operations that power our global economy. Representing more than 40% of global GDP, these industries are the infrastructure of our pla",
+   "pubDate": "2026-09-30T04:25:08+00:00"
+  },
+  {
+   "id": 153476,
+   "url": "https://jobicy.com/jobs/153476-mexico-major-ae",
+   "jobSlug": "153476-mexico-major-ae",
+   "jobTitle": "Mexico Major AE",
+   "companyName": "Samsara",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/dd26f5ca-221.jpg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Mexico",
+   "jobLevel": "Director",
+   "jobExcerpt": "Who we are Samsara (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical&hellip;",
+   "jobDescription": "<p><strong>Who we are</strong></p>\n<p><a href=\"https://jobicy.com/company/samsara\" target=\"_blank\" rel=\"noopener\">Samsara</a> (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical operations that power our global economy. Representing more than 40% of global GDP, these industries are the infrastructure of our pla",
+   "pubDate": "2026-09-30T04:25:07+00:00"
+  },
+  {
+   "id": 152116,
+   "url": "https://jobicy.com/jobs/152116-ascend-resident-in-house-immigration-leader",
+   "jobSlug": "152116-ascend-resident-in-house-immigration-leader",
+   "jobTitle": "Ascend Resident – In-House Immigration Leader",
+   "companyName": "Alma",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/bcae38e1-221.jpeg",
+   "jobIndustry": [
+    "Legal & Compliance"
+   ],
+   "jobType": [
+    "Contract"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "About the Role The Ascend Residency is a highly competitive paid leadership role within Alma's peer community for in-house immigration professionals. Each month, one Resident is selected to shape the community conversation, surface what matters most to the field, and make Ascend materially more valuable for immigration leaders across companies. Residents are selected based on&hellip;",
+   "jobDescription": "<p><strong>About the Role</strong></p>\n<p>The Ascend Residency is a highly competitive paid leadership role within <a href=\"https://jobicy.com/company/alma\" target=\"_blank\" rel=\"noopener\">Alma</a>'s peer community for in-house immigration professionals. Each month, one Resident is selected to shape the community conversation, surface what matters most to the field, and make Ascend materially more valuable for immigration leaders across companies.</p>\n<p>Residents are selected based on the strength of their professional experience, credibility in the immigration field, demonstrated judgment, an",
+   "pubDate": "2026-09-30T04:10:16+00:00",
+   "salaryMin": 8000,
+   "salaryMax": 8000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "monthly"
+  },
+  {
+   "id": 152080,
+   "url": "https://jobicy.com/jobs/152080-enterprise-account-executive-17",
+   "jobSlug": "152080-enterprise-account-executive-17",
+   "jobTitle": "Enterprise Account Executive",
+   "companyName": "Quantum Metric",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/52363ead-221.jpg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Our Culture Quantum Metric's number one objective is happy people, diverse and inclusive culture. We’re passionate about empowering our people to become the best version of themselves, offering coaching and training programs designed to accelerate their career in whatever direction they choose. As a remote-first company, we understand the importance of building an engaged,&hellip;",
+   "jobDescription": "<p><b> Our Culture</b></p>\n<p><a href=\"https://jobicy.com/company/quantum-metric\" target=\"_blank\" rel=\"noopener\">Quantum Metric</a>'s number one objective is happy people, diverse and inclusive culture. We’re passionate about empowering our people to become the best version of themselves, offering coaching and training programs designed to accelerate their career in whatever direction they choose. </p>\n\n<p>As a remote-first company, we understand the importance of building an engaged, diverse, and fun place to work. We hold regular company-wide events, seasonal challenges, and Quantum Metric s",
+   "pubDate": "2026-09-30T04:10:15+00:00",
+   "salaryMin": 130000,
+   "salaryMax": 155000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152074,
+   "url": "https://jobicy.com/jobs/152074-blockchain-engineer-%e5%8c%ba%e5%9d%97%e9%93%be%e5%bc%80%e5%8f%91%e5%b7%a5%e7%a8%8b%e5%b8%88",
+   "jobSlug": "152074-blockchain-engineer-%e5%8c%ba%e5%9d%97%e9%93%be%e5%bc%80%e5%8f%91%e5%b7%a5%e7%a8%8b%e5%b8%88",
+   "jobTitle": "Blockchain Engineer 区块链开发工程师",
+   "companyName": "Windranger Labs",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/6d827f41-221.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "APAC",
+   "jobLevel": "Any",
+   "jobExcerpt": "Who we are Mantle is the entry point for institutions and traditional finance to access real-world assets on-chain. Backed by the world’s largest community-owned treasury of over $4B, Mantle combines institutional-grade infrastructure with the scale and credibility to bring RWAs into Web3 with confidence. Mantle positions itself as the gateway for institutions and TradFi to&hellip;",
+   "jobDescription": "<h3>Who we are</h3>\n<p>Mantle is the entry point for institutions and traditional finance to access real-world assets on-chain. Backed by the world’s largest community-owned treasury of over $4B, Mantle combines institutional-grade infrastructure with the scale and credibility to bring RWAs into Web3 with confidence.</p>\n<p>Mantle positions itself as the gateway for institutions and TradFi to move into RWAs on-chain. With $4B+ in community-owned assets, Mantle combines credibility, liquidity and scale with institutional infrastructure to support large-scale adoption. The ecosystem is anchored ",
+   "pubDate": "2026-09-30T04:10:13+00:00"
+  },
+  {
+   "id": 152071,
+   "url": "https://jobicy.com/jobs/152071-jr-accounting-associate",
+   "jobSlug": "152071-jr-accounting-associate",
+   "jobTitle": "Jr. Accounting Associate",
+   "companyName": "Manay CPA Inc.",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/531ee759-221.png",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Türkiye",
+   "jobLevel": "Entry-Level, Junior",
+   "jobExcerpt": "Are you ready to expand your expertise in U.S. accounting and tax practices while working with a diverse client base across multiple industries? We’re looking for motivated professionals who enjoy variety in their work and are eager to build hands-on experience with U.S. GAAP, tax codes, and business operations. Who We Are Manay CPA is&hellip;",
+   "jobDescription": "<p>Are you ready to expand your expertise in U.S. accounting and tax practices while working with a diverse client base across multiple industries? We’re looking for motivated professionals who enjoy variety in their work and are eager to build hands-on experience with U.S. GAAP, tax codes, and business operations.</p>\n<p><strong>Who We Are</strong></p>\n<p>Manay CPA is a global, full-service accounting and advisory firm headquartered in Atlanta, GA. With over 20 years of experience and a diverse team across 4 continents, we proudly support individuals, entrepreneurs, and businesses of all size",
+   "pubDate": "2026-09-30T04:10:12+00:00"
+  },
+  {
+   "id": 152118,
+   "url": "https://jobicy.com/jobs/152118-community-content-growth-specialist-reddit-2",
+   "jobSlug": "152118-community-content-growth-specialist-reddit-2",
+   "jobTitle": "Community Content & Growth Specialist (Reddit)",
+   "companyName": "Think Academy US",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/c1c574cd-221-1.png",
+   "jobIndustry": [
+    "Marketing & Sales"
+   ],
+   "jobType": [
+    "Part-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "Job type: Part-Time (30 hours per week) Location: Remote Duration: 6 months, with the possibility of extension Compensation: $20-$28/hr, based on experience Who we are: Think Academy US (www.TheThinkAcademy.com), a 100% owned subsidiary of TAL Education Group(NYSE: TAL), is recently established education technology (Ed-Tech) company to provide K-12 extra-curricular learning services through science and technology.&hellip;",
+   "jobDescription": "<p><strong>Job type: </strong>Part-Time (30 hours per week)</p>\r\n<p><strong>Location: </strong>Remote</p>\r\n<p><strong>Duration</strong>: 6 months, with the possibility of extension</p>\r\n<p><strong>Compensation</strong>: $20-$28/hr, based on experience</p>\r\n<p><strong><u>Who we are:</u></strong></p>\r\n<p><a href=\"https://jobicy.com/company/think-academy-us\" target=\"_blank\" rel=\"noopener\">Think Academy US</a> (<a href=\"http://www.thethinkacademy.com/\" rel=\"nofollow ugc noopener\" target=\"_blank\">www.TheThinkAcademy.com</a>), a 100% owned subsidiary of TAL Education Group(NYSE: TAL), is recently es",
+   "pubDate": "2026-09-30T04:10:09+00:00",
+   "salaryMin": 20,
+   "salaryMax": 28,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "hourly"
+  },
+  {
+   "id": 152081,
+   "url": "https://jobicy.com/jobs/152081-qa-engineer-%e5%8c%ba%e5%9d%97%e9%93%be%e6%b5%8b%e8%af%95%e5%b7%a5%e7%a8%8b%e5%b8%88",
+   "jobSlug": "152081-qa-engineer-%e5%8c%ba%e5%9d%97%e9%93%be%e6%b5%8b%e8%af%95%e5%b7%a5%e7%a8%8b%e5%b8%88",
+   "jobTitle": "QA Engineer 区块链测试工程师",
+   "companyName": "Windranger Labs",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/6d827f41-221.png",
+   "jobIndustry": [
+    "QA & Testing"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "APAC",
+   "jobLevel": "Any",
+   "jobExcerpt": "Who we are Mantle is the entry point for institutions and traditional finance to access real-world assets on-chain. Backed by the world’s largest community-owned treasury of over $4B, Mantle combines institutional-grade infrastructure with the scale and credibility to bring RWAs into Web3 with confidence. Mantle positions itself as the gateway for institutions and TradFi to&hellip;",
+   "jobDescription": "<h3><strong>Who we are</strong></h3>\n<p>Mantle is the entry point for institutions and traditional finance to access real-world assets on-chain. Backed by the world’s largest community-owned treasury of over $4B, Mantle combines institutional-grade infrastructure with the scale and credibility to bring RWAs into Web3 with confidence.</p>\n<p>Mantle positions itself as the gateway for institutions and TradFi to move into RWAs on-chain. With $4B+ in community-owned assets, Mantle combines credibility, liquidity and scale with institutional infrastructure to support large-scale adoption. The ecosy",
+   "pubDate": "2026-09-30T04:10:08+00:00"
+  },
+  {
+   "id": 152075,
+   "url": "https://jobicy.com/jobs/152075-senior-customer-support-engineer-3",
+   "jobSlug": "152075-senior-customer-support-engineer-3",
+   "jobTitle": "Senior Customer Support Engineer",
+   "companyName": "NetBox Labs",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/df239a55-221.png",
+   "jobIndustry": [
+    "Technical Support"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Australia",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About the Role As a Customer Support Engineer (CSE) at NetBox Labs, you are the technical partner your customers rely on. You immerse yourself in their world, learn how they run their networks, and help them get real value from NetBox and our broader product suite. When something breaks, you own it. When customers are&hellip;",
+   "jobDescription": "<h3><strong><u>About the Role</u></strong></h3>\n<p>As a Customer Support Engineer (CSE) at <a href=\"https://jobicy.com/company/netbox-labs\" target=\"_blank\" rel=\"noopener\">NetBox Labs</a>, you are the technical partner your customers rely on. You immerse yourself in their world, learn how they run their networks, and help them get real value from NetBox and our broader product suite. When something breaks, you own it. When customers are planning something complex, you are in the room. When they are not sure what is possible, you show them.</p>\n\n<p>This is a relationship role with deep technical",
+   "pubDate": "2026-09-30T04:10:07+00:00",
+   "salaryMin": 115000,
+   "salaryMax": 130000,
+   "salaryCurrency": "AUD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152073,
+   "url": "https://jobicy.com/jobs/152073-business-travel-consultant-german",
+   "jobSlug": "152073-business-travel-consultant-german",
+   "jobTitle": "Business Travel Consultant - German",
+   "companyName": "TripActions",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/950bf607-221.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Portugal",
+   "jobLevel": "Any",
+   "jobExcerpt": "Join Navan in Powering In-Person Connections with Relentless Innovation At Navan, our mission is to make travel seamless and empowering, so travelers can focus on being there, not getting there. Our Travel Experience team is at the heart of this mission! As a key member of our fast-growing Travel Experience team, you'll support our users’&hellip;",
+   "jobDescription": "<p><strong>Join Navan in Powering In-Person Connections with Relentless Innovation</strong></p>\n<p>At Navan, our mission is to make travel seamless and empowering, so travelers can focus on being there, not getting there. Our Travel Experience team is at the heart of this mission!</p>\n<p>As a key member of our fast-growing Travel Experience team, you'll support our users’ travel needs directly. You’ll take ownership of customer satisfaction by resolving issues, communicating effectively, and collaborating with internal teams to clear any obstacles for travelers — all while delivering an except",
+   "pubDate": "2026-09-30T04:10:04+00:00"
+  },
+  {
+   "id": 152109,
+   "url": "https://jobicy.com/jobs/152109-telephonic-interpreters",
+   "jobSlug": "152109-telephonic-interpreters",
+   "jobTitle": "Telephonic Interpreters",
+   "companyName": "Language Services Associates",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/2a0ea3d8-221.png",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Contract"
+   ],
+   "jobGeo": "Anywhere",
+   "jobLevel": "Any",
+   "jobExcerpt": "Overview: As a member of LSA’s network of Independently Contracted interpreters, you are responsible for handling telephone calls on demand and facilitating language communication for the Limited English Proficient (LEP) community in a variety of settings, including medical, legal, and customer service. Language Services Associates is continuously accepting qualified interpreters and all languages are welcome!&hellip;",
+   "jobDescription": "<p><strong>Overview</strong>:</p>\r\n<p>As a member of LSA’s network of Independently Contracted interpreters, you are responsible for handling telephone calls on demand and facilitating language communication for the Limited English Proficient (LEP) community in a variety of settings, including medical, legal, and customer service. <a href=\"https://jobicy.com/company/language-services-associates\" target=\"_blank\" rel=\"noopener\">Language Services Associates</a> is continuously accepting qualified interpreters and all languages are welcome!</p>\r\n<p><strong>Responsibilities</strong>:</p>\r\n<p>· Prov",
+   "pubDate": "2026-09-30T04:02:39+00:00"
+  },
+  {
+   "id": 152105,
+   "url": "https://jobicy.com/jobs/152105-federal-customer-success-manager-devops",
+   "jobSlug": "152105-federal-customer-success-manager-devops",
+   "jobTitle": "Federal Customer Success Manager - DevOps",
+   "companyName": "Sonatype",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/12/WRILS-201223232219-694679.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Sonatype is privileged to work with customers who rely on us to improve the quality, security, and speed of their software development lifecycle. The Federal Customer Success Manager (CSM) is the strategic post-sales advisor responsible for helping federal customers realize measurable value from their investment in Sonatype by driving adoption, retention, growth, and long-term customer&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/sonatype\" target=\"_blank\" rel=\"noopener\">Sonatype</a> is privileged to work with customers who rely on us to improve the quality, security, and speed of their software development lifecycle. The Federal Customer Success Manager (CSM) is the strategic post-sales advisor responsible for helping federal customers realize measurable value from their investment in Sonatype by driving adoption, retention, growth, and long-term customer advocacy.</p>\n<p>Federal agencies rely on Sonatype to secure and accelerate software delivery for mission-critical applications",
+   "pubDate": "2026-09-30T04:02:38+00:00"
+  },
+  {
+   "id": 152112,
+   "url": "https://jobicy.com/jobs/152112-seminar-staff-candidate-program",
+   "jobSlug": "152112-seminar-staff-candidate-program",
+   "jobTitle": "Seminar Staff Candidate Program",
+   "companyName": "CrossFit",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/12/6966c9ea04a0e651f69f113113a45e27.png",
+   "jobIndustry": [
+    "Education & E-learning"
+   ],
+   "jobType": [
+    "Contract"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "There are currently no open positions, but we are accepting applications for future openings. Seminar Staff trainers are hired via a Candidate Program which involves an assessment process. To be considered for the Candidate Program, you must meet the following minimum requirements regardless of location : ● Hold a current CF-L3 credential (see here and&hellip;",
+   "jobDescription": "<p><b>There are currently no open positions, but we are accepting applications for future openings. </b></p>\n\n<p>Seminar Staff trainers are hired via a Candidate Program which involves an assessment process.</p>\n<p>To be considered for the Candidate Program, you must meet the following minimum requirements regardless of location : </p>\n\n<p>● Hold a current CF-L3 credential (see<a href=\"http://www.crossfit.com/cf-seminars/crossfit_credentials_faq.pdf\" rel=\"nofollow ugc noopener\" target=\"_blank\"> here</a> and<a href=\"https://certifications.crossfit.com/\" rel=\"nofollow ugc noopener\" target=\"_blan",
+   "pubDate": "2026-09-30T04:02:37+00:00"
+  },
+  {
+   "id": 152107,
+   "url": "https://jobicy.com/jobs/152107-chief-financial-officer-cfo",
+   "jobSlug": "152107-chief-financial-officer-cfo",
+   "jobTitle": "Chief Financial Officer (CFO)",
+   "companyName": "CrossFit",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/12/6966c9ea04a0e651f69f113113a45e27.png",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "CrossFit is seeking an experienced Chief Financial Officer (CFO) to help shape the next chapter of one of the world's most recognizable brands in health and fitness. Reporting directly to the Chief Executive Officer and serving as a key member of the executive leadership team, the CFO will lead the company's global finance organization while&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/crossfit\" target=\"_blank\" rel=\"noopener\">CrossFit</a> is seeking an experienced <strong>Chief Financial Officer (CFO)</strong> to help shape the next chapter of one of the world's most recognizable brands in health and fitness.</p>\n<p>Reporting directly to the Chief Executive Officer and serving as a key member of the executive leadership team, the CFO will lead the company's global finance organization while partnering closely with leaders across the business to drive growth, operational excellence, and long-term value creation.</p>\n<p>This is an opportu",
+   "pubDate": "2026-09-30T04:02:36+00:00"
+  },
+  {
+   "id": 152104,
+   "url": "https://jobicy.com/jobs/152104-international-video-remote-interpreters",
+   "jobSlug": "152104-international-video-remote-interpreters",
+   "jobTitle": "International Video Remote Interpreters",
+   "companyName": "Language Services Associates",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/2a0ea3d8-221.png",
+   "jobIndustry": [
+    "Creative & Design"
+   ],
+   "jobType": [
+    "Contract"
+   ],
+   "jobGeo": "Anywhere",
+   "jobLevel": "Any",
+   "jobExcerpt": "Overview: As a Video Remote Interpreter with LSA Video, Inc., you will be a key member of our team in facilitating language communication on a variety of assignments while having the chance to utilize the most advanced technology in the language services industry. Responsibilities: · Interpret through web-based VRI system · Answering inbound calls in&hellip;",
+   "jobDescription": "<p><strong>Overview</strong>:</p>\r\n<p>As a Video Remote Interpreter with LSA Video, Inc., you will be a key member of our team in facilitating language communication on a variety of assignments while having the chance to utilize the most advanced technology in the language services industry.</p>\r\n<p><strong>Responsibilities</strong>:</p>\r\n<p>· Interpret through web-based VRI system</p>\r\n<p>· Answering inbound calls in a timely manner</p>\r\n<p>· Assist clients with basic troubleshooting (refer to manager or IT department if necessary)</p>\r\n<p>· Provide superior customer service</p>\r\n<p> <strong>",
+   "pubDate": "2026-09-30T04:02:34+00:00"
+  },
+  {
+   "id": 143046,
+   "url": "https://jobicy.com/jobs/143046-director-product-design",
+   "jobSlug": "143046-director-product-design",
+   "jobTitle": "Director, Product Design",
+   "companyName": "Samsara",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/dd26f5ca-221.jpg",
+   "jobIndustry": [
+    "Creative & Design"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Who we areSamsara (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical operations&hellip;",
+   "jobDescription": "<p><strong>Who we are</strong></p><p><a href=\"https://jobicy.com/company/samsara\" target=\"_blank\" rel=\"noopener\">Samsara</a> (NYSE: IOT) is the pioneer of the Connected Operations™ Cloud, which is a platform that enables organizations that depend on physical operations to harness Internet of Things (IoT) data to develop actionable insights and improve their operations. At Samsara, we are helping improve the safety, efficiency and sustainability of the physical operations that power our global economy. Representing more than 40% of global GDP, these industries are the infrastructure of our plan",
+   "pubDate": "2026-09-30T04:02:33+00:00",
+   "salaryMin": 235600,
+   "salaryMax": 294500,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152103,
+   "url": "https://jobicy.com/jobs/152103-director-of-ad-sales-west",
+   "jobSlug": "152103-director-of-ad-sales-west",
+   "jobTitle": "Director of Ad Sales - West",
+   "companyName": "Duolingo",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/09/WRILS-200913204505-604905.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Our mission at Duolingo is to develop the best education in the world and make it universally available. It’s a big mission, and that’s where you come in! At Duolingo, you’ll join a team that cares about educating our users, experimenting with big ideas, making fact-based decisions, and finding innovative solutions to complex problems. You’ll&hellip;",
+   "jobDescription": "<p>Our mission at <a href=\"https://jobicy.com/company/duolingo\" target=\"_blank\" rel=\"noopener\">Duolingo</a> is to develop the best education in the world and make it universally available. It’s a big mission, and that’s where you come in!</p>\n<p>At Duolingo, you’ll join a team that cares about educating our users, experimenting with big ideas, making fact-based decisions, and finding innovative solutions to complex problems. You’ll have limitless learning opportunities and daily collaborations with world-class minds — while doing work that’s both meaningful and fun.</p>\n<p>Join our life-changi",
+   "pubDate": "2026-09-30T04:02:32+00:00",
+   "salaryMin": 140000,
+   "salaryMax": 210000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152102,
+   "url": "https://jobicy.com/jobs/152102-software-engineer-infrastructure-security",
+   "jobSlug": "152102-software-engineer-infrastructure-security",
+   "jobTitle": "Software Engineer, Infrastructure Security",
+   "companyName": "OpenAI",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2023/03/0523b13262b12c215d8009938f5c14f1.jpeg",
+   "jobIndustry": [
+    "Cybersecurity"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About the Team Security is at the foundation of OpenAI’s mission to ensure that artificial general intelligence benefits all of humanity. The Security team protects OpenAI’s technology, people, and products. We are technical in what we build but operational in how we execute, and we support every product and research effort at OpenAI. Our tenets&hellip;",
+   "jobDescription": "<p><strong>About the Team</strong></p>\n<p>Security is at the foundation of <a href=\"https://jobicy.com/company/openai\" target=\"_blank\" rel=\"noopener\">OpenAI</a>’s mission to ensure that artificial general intelligence benefits all of humanity.</p>\n<p>The Security team protects OpenAI’s technology, people, and products. We are technical in what we build but operational in how we execute, and we support every product and research effort at OpenAI. Our tenets include prioritizing for impact, enabling researchers and developers, preparing for future transformative technologies, and fostering a str",
+   "pubDate": "2026-09-30T04:02:31+00:00",
+   "salaryMin": 230000,
+   "salaryMax": 385000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152100,
+   "url": "https://jobicy.com/jobs/152100-ad-sales-lead-west",
+   "jobSlug": "152100-ad-sales-lead-west",
+   "jobTitle": "Ad Sales Lead - West",
+   "companyName": "Duolingo",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/09/WRILS-200913204505-604905.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Our mission at Duolingo is to develop the best education in the world and make it universally available. It’s a big mission, and that’s where you come in! At Duolingo, you’ll join a team that cares about educating our users, experimenting with big ideas, making fact-based decisions, and finding innovative solutions to complex problems. You’ll&hellip;",
+   "jobDescription": "<p>Our mission at <a href=\"https://jobicy.com/company/duolingo\" target=\"_blank\" rel=\"noopener\">Duolingo</a> is to develop the best education in the world and make it universally available. It’s a big mission, and that’s where you come in!</p>\n<p>At Duolingo, you’ll join a team that cares about educating our users, experimenting with big ideas, making fact-based decisions, and finding innovative solutions to complex problems. You’ll have limitless learning opportunities and daily collaborations with world-class minds — while doing work that’s both meaningful and fun.</p>\n<p>Join our life-changi",
+   "pubDate": "2026-09-30T04:02:29+00:00",
+   "salaryMin": 140000,
+   "salaryMax": 210000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152098,
+   "url": "https://jobicy.com/jobs/152098-sales-engineer-4",
+   "jobSlug": "152098-sales-engineer-4",
+   "jobTitle": "Sales Engineer",
+   "companyName": "Forma.ai",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/c8c9cc2e-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Forma.ai: Forma.ai is a Series B startup that's revolutionizing how sales compensation is designed, managed and optimized. We handle billions in annual managed commissions for market leaders like Edmentum, Stryker, and Autodesk. Our growth has been fuelled by our passion for fundamentally changing and shaping how companies use sales intelligence to drive business strategy.&hellip;",
+   "jobDescription": "<h3><strong>About <a href=\"https://jobicy.com/company/forma-ai\" target=\"_blank\" rel=\"noopener\">Forma.ai</a>:</strong> </h3>\n<p><a href=\"https://www.forma.ai/\" rel=\"nofollow ugc noopener\" target=\"_blank\">Forma.ai</a> is a Series B startup that's revolutionizing how sales compensation is designed, managed and optimized. We handle billions in annual managed commissions for market leaders like Edmentum, Stryker, and Autodesk. </p>\n<p>Our growth has been fuelled by our passion for fundamentally changing and shaping how companies use sales intelligence to drive business strategy. </p>\n<p>We’re welco",
+   "pubDate": "2026-09-30T04:02:28+00:00",
+   "salaryMin": 80000,
+   "salaryMax": 100000,
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152092,
+   "url": "https://jobicy.com/jobs/152092-senior-full-stack-engineer-ii",
+   "jobSlug": "152092-senior-full-stack-engineer-ii",
+   "jobTitle": "Senior Full Stack Engineer II",
+   "companyName": "Teachable",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/04/Teachable.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Brazil",
+   "jobLevel": "Senior",
+   "jobExcerpt": "What is Teachable? Teachable is the platform for experts and businesses who take education seriously. In a world where anyone can ask AI for information, we're the home for those who educate with purpose, modernity, and humanity. We help experts and businesses scale their impact and operations through courses, coaching, and digital downloads that students&hellip;",
+   "jobDescription": "<h3>What is <a href=\"https://jobicy.com/company/teachable\" target=\"_blank\" rel=\"noopener\">Teachable</a>?</h3>\n<p>Teachable is the platform for experts and businesses who take education seriously. In a world where anyone can ask AI for information, we're the home for those who educate with purpose, modernity, and humanity. We help experts and businesses scale their impact and operations through courses, coaching, and digital downloads that students actually love. From a finance expert teaching Python for investment analysis to a multilingual coach offering business Spanish for executives, Teach",
+   "pubDate": "2026-09-30T04:02:24+00:00"
+  },
+  {
+   "id": 152091,
+   "url": "https://jobicy.com/jobs/152091-mid-market-account-executive-2",
+   "jobSlug": "152091-mid-market-account-executive-2",
+   "jobTitle": "Mid-Market Account Executive",
+   "companyName": "Nash",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/276c5895-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Nash Nash is transforming last-mile logistics. Our platform helps merchants orchestrate deliveries across multiple carriers—from Doordash and Uber to regional DSPs—through a single, unified API and dashboard. We power same-day, next-day, and scheduled deliveries for some of the most innovative merchants in North America and beyond. Our mission is simple: to drive global prosperity&hellip;",
+   "jobDescription": "\n<h3><strong>About <a href=\"https://jobicy.com/company/nash\" target=\"_blank\" rel=\"noopener\">Nash</a></strong></h3>\n<p>Nash is transforming last-mile logistics. Our platform helps merchants orchestrate deliveries across multiple carriers—from Doordash and Uber to regional DSPs—through a single, unified API and dashboard. We power same-day, next-day, and scheduled deliveries for some of the most innovative merchants in North America and beyond.</p>\n<p>Our mission is simple: <strong>to drive global prosperity through more efficient delivery.</strong></p>\n\n<h3><strong>The Role</strong></h3>\n<p>We’",
+   "pubDate": "2026-09-30T04:02:22+00:00"
+  },
+  {
+   "id": 152089,
+   "url": "https://jobicy.com/jobs/152089-senior-enterprise-account-executive",
+   "jobSlug": "152089-senior-enterprise-account-executive",
+   "jobTitle": "Senior Enterprise Account Executive",
+   "companyName": "Nash",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/276c5895-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "About This Role As a Senior Enterprise Account Executive at Nash, you will help large enterprises reimagine how they manage last-mile delivery. This is a strategic, high-impact role focused on closing complex, high-value deals and shaping how our most important customers adopt Nash’s AI-powered logistics infrastructure. You will play a crucial role on our Go-To-Market&hellip;",
+   "jobDescription": "\n<h3><strong>About This Role</strong></h3>\n<p>As a Senior Enterprise Account Executive at <a href=\"https://jobicy.com/company/nash\" target=\"_blank\" rel=\"noopener\">Nash</a>, you will help large enterprises reimagine how they manage last-mile delivery. This is a strategic, high-impact role focused on closing complex, high-value deals and shaping how our most important customers adopt Nash’s AI-powered logistics infrastructure.</p>\n<p>You will play a crucial role on our Go-To-Market (GTM) team in scaling Nash’s enterprise sales motion, building predictable revenue streams with aggressive quotas. ",
+   "pubDate": "2026-09-30T04:02:21+00:00"
+  },
+  {
+   "id": 152088,
+   "url": "https://jobicy.com/jobs/152088-activation-sales-development-representative-i",
+   "jobSlug": "152088-activation-sales-development-representative-i",
+   "jobTitle": "Activation Sales Development Representative I",
+   "companyName": "Instacart",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2023/03/fe39c2bc9bb5ebb0b5e24318b1f3b60d.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "We're transforming the grocery industry At Instacart, we invite the world to share love through food because we believe everyone should have access to the food they love and more time to enjoy it together. Where others see a simple need for grocery delivery, we see exciting complexity and endless opportunity to serve the varied&hellip;",
+   "jobDescription": "<p><strong>We're transforming the grocery industry</strong></p>\n<p>At <a href=\"https://jobicy.com/company/instacart\" target=\"_blank\" rel=\"noopener\">Instacart</a>, we invite the world to share love through food because we believe everyone should have access to the food they love and more time to enjoy it together. Where others see a simple need for grocery delivery, we see exciting complexity and endless opportunity to serve the varied needs of our community. We work to deliver an essential service that customers rely on to get their groceries and household goods, while also offering safe and f",
+   "pubDate": "2026-09-30T04:02:20+00:00",
+   "salaryMin": 40000,
+   "salaryMax": 50000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152085,
+   "url": "https://jobicy.com/jobs/152085-engineering-manager-6",
+   "jobSlug": "152085-engineering-manager-6",
+   "jobTitle": "Engineering Manager",
+   "companyName": "Teachable",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/04/Teachable.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Brazil",
+   "jobLevel": "Senior",
+   "jobExcerpt": "What is Teachable? Teachable is the platform for experts and businesses who take education seriously. In a world where anyone can ask AI for information, we're the home for those who educate with purpose, modernity, and humanity. We help experts and businesses scale their impact and operations through courses, coaching, and digital downloads that students&hellip;",
+   "jobDescription": "<h3>What is <a href=\"https://jobicy.com/company/teachable\" target=\"_blank\" rel=\"noopener\">Teachable</a>?</h3>\n<p>Teachable is the platform for experts and businesses who take education seriously. In a world where anyone can ask AI for information, we're the home for those who educate with purpose, modernity, and humanity. We help experts and businesses scale their impact and operations through courses, coaching, and digital downloads that students actually love. From a finance expert teaching Python for investment analysis to a multilingual coach offering business Spanish for executives, Teach",
+   "pubDate": "2026-09-30T04:02:19+00:00"
+  },
+  {
+   "id": 148333,
+   "url": "https://jobicy.com/jobs/148333-director-i-data-science-enterprise-data-data-science",
+   "jobSlug": "148333-director-i-data-science-enterprise-data-data-science",
+   "jobTitle": "Director I, Data Science, Enterprise Data & Data Science",
+   "companyName": "Liberty Mutual",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/08/a0f68d769896c0f098621799a6396382.jpeg",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Description We're seeking an exceptional, hands-on Data Scientist with deep expertise in data science, MLOps, and building GenAI solutions to join our Enterprise Data &amp; Data Science team. In this role, you'll identify, evaluate, and develop solutions at the intersection of data science, generative AI, and enterprise data strategy—including GenAI evaluation frameworks and semantic data&hellip;",
+   "jobDescription": "<br><b>Description </b><div><p>We're seeking an exceptional, hands-on Data Scientist with deep expertise in data science, MLOps, and building GenAI solutions to join our Enterprise Data &amp; Data Science team. In this role, you'll identify, evaluate, and develop solutions at the intersection of data science, generative AI, and enterprise data strategy—including GenAI evaluation frameworks and semantic data layers. You'll also serve as a community champion, driving the adoption of best practices across a large, collaborative data science organization.</p><p><strong>Responsibilities</strong>:</",
+   "pubDate": "2026-09-30T04:02:17+00:00"
+  },
+  {
+   "id": 152108,
+   "url": "https://jobicy.com/jobs/152108-manager-global-accounting",
+   "jobSlug": "152108-manager-global-accounting",
+   "jobTitle": "Manager, Global Accounting",
+   "companyName": "ShopFully",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e500a668-221.png",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Italy,  Spain",
+   "jobLevel": "Senior",
+   "jobExcerpt": "We are the platform turning browsing into shopping. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands. We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.&hellip;",
+   "jobDescription": "<p><strong>We are the platform turning browsing into shopping</strong>. We connect 200 million shoppers with deals they love while boosting local sales for hundreds of top retailers and brands.</p>\n<p>We help consumers save time and money while making smart shopping decisions, and we support retailers and brands in engaging customers from online research to in-store purchases.</p>\n<p>In 2024, <a href=\"https://jobicy.com/company/shopfully\" target=\"_blank\" rel=\"noopener\">Shopfully</a> joined forces with the North American company <a href=\"https://corp.flipp.com/\" rel=\"nofollow ugc noopener\" targ",
+   "pubDate": "2026-09-30T04:02:14+00:00"
+  },
+  {
+   "id": 152068,
+   "url": "https://jobicy.com/jobs/152068-manager-site-reliability-engineering-auth0",
+   "jobSlug": "152068-manager-site-reliability-engineering-auth0",
+   "jobTitle": "Manager, Site Reliability Engineering (Auth0)",
+   "companyName": "Okta",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/d54f5eb5-221.png",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Secure Every Identity, from AI to Human Identity is the key to unlocking the potential of AI. Okta secures AI by building the trusted, neutral infrastructure that enables organizations to safely embrace this new era. This work requires a relentless drive to solve complex challenges with real-world stakes. We are looking for builders and owners&hellip;",
+   "jobDescription": "<p><strong>Secure Every Identity, from AI to Human</strong></p>\n<p>Identity is the key to unlocking the potential of AI. <a href=\"https://jobicy.com/company/okta\" target=\"_blank\" rel=\"noopener\">Okta</a> secures AI by building the trusted, neutral infrastructure that enables organizations to safely embrace this new era. This work requires a relentless drive to solve complex challenges with real-world stakes. We are looking for builders and owners who operate with speed and urgency and execute with excellence.</p>\n<p>This is an opportunity to do career-defining work. We're all in on this mission",
+   "pubDate": "2026-09-30T04:00:38+00:00",
+   "salaryMin": 182000,
+   "salaryMax": 250800,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152067,
+   "url": "https://jobicy.com/jobs/152067-commercial-account-executive",
+   "jobSlug": "152067-commercial-account-executive",
+   "jobTitle": "Commercial Account Executive",
+   "companyName": "infisical",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/44e19225-221.png",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Infisical is the open source security infrastructure platform that engineers use for secrets management, certificates, and privileged access management. We help developers and organizations securely manage billions of secrets every month including application configuration, database credentials, certificates, and more. We’ve raised $19M from Y Combinator, Google, and Elad Gil, and our customers include Hugging Face,&hellip;",
+   "jobDescription": "<p><a href=\"https://jobicy.com/company/infisical\" target=\"_blank\" rel=\"noopener\">Infisical</a> is the open source security infrastructure platform that engineers use for secrets management, certificates, and privileged access management. We help developers and organizations securely manage billions of secrets every month including application configuration, database credentials, certificates, and more.</p>\n\n<p>We’ve raised $19M from Y Combinator, Google, and Elad Gil, and our customers include Hugging Face, Lucid, and LG.</p>\n\n<p>Join us on a mission to make security easier for all developers ",
+   "pubDate": "2026-09-30T04:00:36+00:00"
+  },
+  {
+   "id": 152048,
+   "url": "https://jobicy.com/jobs/152048-revenue-strategy-operations-emea",
+   "jobSlug": "152048-revenue-strategy-operations-emea",
+   "jobTitle": "Revenue Strategy & Operations - EMEA",
+   "companyName": "Elevenlabs",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e01b4c5d-221.png",
+   "jobIndustry": [
+    "Product & Operations"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe,  Ireland,  Poland,  Spain,  UK",
+   "jobLevel": "Any",
+   "jobExcerpt": "About ElevenLabsElevenLabs is an AI research and product company transforming how we interact with technology.We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like Deutsche Telekom and Meta. Our investors are some of the world's&hellip;",
+   "jobDescription": "<h2>About <a href=\"https://jobicy.com/company/elevenlabs\" target=\"_blank\" rel=\"noopener\">ElevenLabs</a></h2><p>ElevenLabs is an AI research and product company transforming how we interact with technology.</p><p>We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like Deutsche Telekom and Meta. Our investors are some of the world's most prominent, including Andreessen Horowitz, ICONIQ Growth and Sequoia. We've raised $781M in funding and our last valuation was $11B ",
+   "pubDate": "2026-09-30T04:00:34+00:00"
+  },
+  {
+   "id": 152046,
+   "url": "https://jobicy.com/jobs/152046-senior-game-developer",
+   "jobSlug": "152046-senior-game-developer",
+   "jobTitle": "Senior Game Developer",
+   "companyName": "Playson",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/6f266d9c-221-1.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe,  Ukraine",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About the RoleWe’re looking for a Senior Game Developer to bring fresh ideas, strong technical expertise, and a passion for building high-quality games. This role is ideal for someone who enjoys working close to the engine, developing new features, and continuously improving performance and scalability.You’ll be part of a team that values ownership, creativity, and&hellip;",
+   "jobDescription": "<p><strong>About the Role</strong></p><p>We’re looking for a <strong>Senior Game Developer</strong> to bring fresh ideas, strong technical expertise, and a passion for building high-quality games. This role is ideal for someone who enjoys working close to the engine, developing new features, and continuously improving performance and scalability.</p><p>You’ll be part of a team that values ownership, creativity, and speed, where your work directly shapes the player experience. If you’re driven by building engaging products, enjoy solving technical challenges, and want to push the boundaries of ",
+   "pubDate": "2026-09-30T04:00:33+00:00"
+  },
+  {
+   "id": 152044,
+   "url": "https://jobicy.com/jobs/152044-engineering-manager-5",
+   "jobSlug": "152044-engineering-manager-5",
+   "jobTitle": "Engineering Manager",
+   "companyName": "Enode",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2026/06/70d7b7e3-221.webp",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Midweight",
+   "jobExcerpt": "About EnodeThe grid was built for predictable, centralised power. Today it's absorbing intermittent supply from grid scale solar and wind, alongside dynamic demand from EVs, heat pumps, and home batteries. The missing piece is software that can connect and orchestrate these devices at scale.Enode provides the infrastructure layer that makes this possible. Our Connect API&hellip;",
+   "jobDescription": "<h2>About <a href=\"https://jobicy.com/company/enode\" target=\"_blank\" rel=\"noopener\">Enode</a></h2><p>The grid was built for predictable, centralised power. Today it's absorbing intermittent supply from grid scale solar and wind, alongside dynamic demand from EVs, heat pumps, and home batteries. The missing piece is software that can connect and orchestrate these devices at scale.</p><p><a href=\"https://enode.com\" rel=\"nofollow ugc noopener\" target=\"_blank\">Enode</a> provides the infrastructure layer that makes this possible. Our <a href=\"https://enode.com/connect\" rel=\"nofollow ugc noopener\" t",
+   "pubDate": "2026-09-30T04:00:31+00:00"
+  },
+  {
+   "id": 152041,
+   "url": "https://jobicy.com/jobs/152041-senior-database-administrator-core-infrastructure",
+   "jobSlug": "152041-senior-database-administrator-core-infrastructure",
+   "jobTitle": "Senior Database Administrator - Core Infrastructure",
+   "companyName": "Kraken",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/03/Jobicy-210307081105-509016.png",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Bulgaria,  Cyprus,  Czechia,  Europe,  Hungary,  Ireland,  Lithuania,  Poland,  Portugal,  Romania,  Spain,  Switzerland,  UAE,  UK",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Building the Future of Open FinancePayward - the parent company behind Kraken, NinjaTrader, Breakout, xStocks, Payward Services and CF Benchmarks - has spent the last 15 years building one of the most modern and globally accessible financial infrastructure platforms in the industry, built to advance an open, global financial system.Before you apply, we encourage you&hellip;",
+   "jobDescription": "<h2><strong>Building the Future of Open Finance</strong><br></h2><p>Payward - the parent company behind <a href=\"https://jobicy.com/company/kraken\" target=\"_blank\" rel=\"noopener\">Kraken</a>, NinjaTrader, Breakout, xStocks, Payward Services and CF Benchmarks - has spent the last 15 years building one of the most modern and globally accessible financial infrastructure platforms in the industry, built to advance an open, global financial system.</p><p><br>Before you apply, we encourage you to explore our <a href=\"https://www.kraken.com/culture\" rel=\"nofollow ugc noopener\" target=\"_blank\"><u>cultu",
+   "pubDate": "2026-09-30T04:00:29+00:00"
+  },
+  {
+   "id": 152024,
+   "url": "https://jobicy.com/jobs/152024-senior-full-stack-engineer-net-angular-net-angular-govtech-hr-software-latam",
+   "jobSlug": "152024-senior-full-stack-engineer-net-angular-net-angular-govtech-hr-software-latam",
+   "jobTitle": "Senior Full-Stack Engineer (.NET/Angular) (.NET/Angular) - GovTech / HR Software - LATAM",
+   "companyName": "Truelogic",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e7ae6cb6-221-1.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "LATAM",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About TruelogicAt Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.Our team of 600+ highly skilled tech professionals, based in Latin&hellip;",
+   "jobDescription": "<h2><strong>About <a href=\"https://jobicy.com/company/truelogic\" target=\"_blank\" rel=\"noopener\">Truelogic</a></strong></h2><p>At Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.</p><p>Our team of 600+ highly skilled tech professionals, based in Latin America, drives digital disruption by partnering with U.S. companies on their most impactf",
+   "pubDate": "2026-09-30T04:00:28+00:00"
+  },
+  {
+   "id": 152023,
+   "url": "https://jobicy.com/jobs/152023-senior-full-stack-engineer-react-node-backend-focused-real-estate-latam",
+   "jobSlug": "152023-senior-full-stack-engineer-react-node-backend-focused-real-estate-latam",
+   "jobTitle": "Senior Full-stack Engineer (React/Node) (Backend-Focused) - Real Estate - LATAM",
+   "companyName": "Truelogic",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e7ae6cb6-221-1.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "LATAM",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About TruelogicAt Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.Our team of 600+ highly skilled tech professionals, based in Latin&hellip;",
+   "jobDescription": "<h2><strong>About <a href=\"https://jobicy.com/company/truelogic\" target=\"_blank\" rel=\"noopener\">Truelogic</a></strong></h2><p>At Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.</p><p>Our team of 600+ highly skilled tech professionals, based in Latin America, drives digital disruption by partnering with U.S. companies on their most impactf",
+   "pubDate": "2026-09-30T04:00:26+00:00"
+  },
+  {
+   "id": 152020,
+   "url": "https://jobicy.com/jobs/152020-enterprise-creative-technologist-marketing",
+   "jobSlug": "152020-enterprise-creative-technologist-marketing",
+   "jobTitle": "Enterprise Creative Technologist - Marketing",
+   "companyName": "Truelogic",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e7ae6cb6-221-1.png",
+   "jobIndustry": [
+    "Creative & Design"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "LATAM",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About TruelogicAt Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.Our team of 600+ highly skilled tech professionals, based in Latin&hellip;",
+   "jobDescription": "<h2><strong>About <a href=\"https://jobicy.com/company/truelogic\" target=\"_blank\" rel=\"noopener\">Truelogic</a></strong></h2><p>At Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.</p><p>Our team of 600+ highly skilled tech professionals, based in Latin America, drives digital disruption by partnering with U.S. companies on their most impactf",
+   "pubDate": "2026-09-30T04:00:25+00:00"
+  },
+  {
+   "id": 152013,
+   "url": "https://jobicy.com/jobs/152013-adobe-workfront-implementation-system-architect-advertising",
+   "jobSlug": "152013-adobe-workfront-implementation-system-architect-advertising",
+   "jobTitle": "Adobe Workfront Implementation System Architect - Advertising",
+   "companyName": "Truelogic",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e7ae6cb6-221-1.png",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "LATAM",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About TruelogicAt Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.Our team of 600+ highly skilled tech professionals, based in Latin&hellip;",
+   "jobDescription": "<h2><strong>About <a href=\"https://jobicy.com/company/truelogic\" target=\"_blank\" rel=\"noopener\">Truelogic</a></strong></h2><p>At Truelogic we are a leading provider of nearshore staff augmentation services headquartered in New York. For over two decades, we’ve been delivering top-tier technology solutions to companies of all sizes, from innovative startups to industry leaders, helping them achieve their digital transformation goals.</p><p>Our team of 600+ highly skilled tech professionals, based in Latin America, drives digital disruption by partnering with U.S. companies on their most impactf",
+   "pubDate": "2026-09-30T04:00:23+00:00"
+  },
+  {
+   "id": 142101,
+   "url": "https://jobicy.com/jobs/142101-lifecycle-specialist-time-and-attendance-emea",
+   "jobSlug": "142101-lifecycle-specialist-time-and-attendance-emea",
+   "jobTitle": "Lifecycle Specialist, Time and Attendance - EMEA",
+   "companyName": "Remote",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/63a88d3a-221-1.png",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "EMEA",
+   "jobLevel": "Any",
+   "jobExcerpt": "About RemoteRemote is solving modern organizations’ biggest challenge – navigating global employment compliantly with ease. We make it possible for businesses of all sizes to recruit, pay, and manage international teams. With our core values at heart and future focused work culture, our team works tirelessly on ambitious problems, asynchronously, around the world. You can&hellip;",
+   "jobDescription": "<h2><strong>About <a href=\"https://jobicy.com/company/remote\" target=\"_blank\" rel=\"noopener\">Remote</a></strong></h2>Remote is solving modern organizations’ biggest challenge – navigating global employment compliantly with ease. We make it possible for businesses of all sizes to recruit, pay, and manage international teams. With our core values at heart and future focused work culture, our team works tirelessly on ambitious problems, asynchronously, around the world. You can find Remoters working from 6 different continents (Antarctica left to go!) and all of our positions are fully remote.<br",
+   "pubDate": "2026-09-30T04:00:22+00:00",
+   "salaryMin": 29750,
+   "salaryMax": 67000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 141971,
+   "url": "https://jobicy.com/jobs/141971-data-scientist-analytics-technical-leadership",
+   "jobSlug": "141971-data-scientist-analytics-technical-leadership",
+   "jobTitle": "Data Scientist, Analytics (Technical Leadership)",
+   "companyName": "Meta",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/750f86a9-221.jpeg",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "We are seeking experienced Data Scientists to join our team and drive impact across various product areas. As a Data Scientist, you will collaborate with cross-functional partners to identify and solve complex problems using data and analysis. Your role will involve shaping product development, quantifying new opportunities, and ensuring products bring value to users and&hellip;",
+   "jobDescription": "<p>We are seeking experienced Data Scientists to join our team and drive impact across various product areas. As a Data Scientist, you will collaborate with cross-functional partners to identify and solve complex problems using data and analysis. Your role will involve shaping product development, quantifying new opportunities, and ensuring products bring value to users and the company. You will guide teams using data-driven insights, develop hypotheses, and employ rigorous analytical approaches to test them. You will tell data-driven stories, present clear insights, and build credibility with",
+   "pubDate": "2026-09-30T04:00:20+00:00"
+  },
+  {
+   "id": 152069,
+   "url": "https://jobicy.com/jobs/152069-business-travel-consultant-french",
+   "jobSlug": "152069-business-travel-consultant-french",
+   "jobTitle": "Business Travel Consultant - French",
+   "companyName": "TripActions",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/950bf607-221.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Portugal",
+   "jobLevel": "Any",
+   "jobExcerpt": "Join Navan in Powering In-Person Connections with Relentless Innovation At Navan, our mission is to make travel seamless and empowering, so travelers can focus on being there, not getting there. Our Travel Experience team is at the heart of this mission! As a key member of our fast-growing Travel Experience team, you'll support our users’&hellip;",
+   "jobDescription": "<p><strong>Join Navan in Powering In-Person Connections with Relentless Innovation</strong></p>\n<p>At Navan, our mission is to make travel seamless and empowering, so travelers can focus on being there, not getting there. Our Travel Experience team is at the heart of this mission!</p>\n<p>As a key member of our fast-growing Travel Experience team, you'll support our users’ travel needs directly. You’ll take ownership of customer satisfaction by resolving issues, communicating effectively, and collaborating with internal teams to clear any obstacles for travelers — all while delivering an except",
+   "pubDate": "2026-09-30T04:00:19+00:00"
+  },
+  {
+   "id": 152066,
+   "url": "https://jobicy.com/jobs/152066-executive-assistant",
+   "jobSlug": "152066-executive-assistant",
+   "jobTitle": "Executive Assistant",
+   "companyName": "Manay CPA Inc.",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/531ee759-221.png",
+   "jobIndustry": [
+    "Admin & Virtual Assistance"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Türkiye",
+   "jobLevel": "Director",
+   "jobExcerpt": "Who We Are Manay CPA is a global, full-service accounting and advisory firm headquartered in Atlanta, GA. With over 20 years of experience and a diverse team across four continents, we proudly support individuals, entrepreneurs, and businesses of all sizes. Our services include business formation, accounting, tax, payroll, audit, and HR solutions—delivered with a personalized,&hellip;",
+   "jobDescription": "<p><strong>Who We Are</strong></p>\n<p>Manay CPA is a global, full-service accounting and advisory firm headquartered in Atlanta, GA. With over 20 years of experience and a diverse team across four continents, we proudly support individuals, entrepreneurs, and businesses of all sizes.</p>\n<p>Our services include business formation, accounting, tax, payroll, audit, and HR solutions—delivered with a personalized, relationship-first approach. We partner with clients at every stage of their journey, helping them navigate the complexities of business and finance with confidence.</p>\n<p>Recognized as",
+   "pubDate": "2026-09-30T04:00:17+00:00"
+  },
+  {
+   "id": 152064,
+   "url": "https://jobicy.com/jobs/152064-business-travel-consultant-berlin-or-remote-geschaftsreiseexperte",
+   "jobSlug": "152064-business-travel-consultant-berlin-or-remote-geschaftsreiseexperte",
+   "jobTitle": "Business Travel Consultant (Berlin or Remote) (Geschäftsreiseexperte)",
+   "companyName": "TripActions",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/950bf607-221.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Germany",
+   "jobLevel": "Any",
+   "jobExcerpt": "Werde Teil von Navan und bringe persönliche Begegnungen durch unermüdliche Innovation voran Bei Navan ist es unsere Mission, Reisen unkompliziert und effizient zu gestalten, damit sich Reisende darauf konzentrieren können, dort zu sein, anstatt dorthin zu gelangen. Unser Travel Experience Team steht im Mittelpunkt dieser Mission! Als zentrales Mitglied unseres schnell wachsenden Travel Experience-Teams unterstützt&hellip;",
+   "jobDescription": "<p><strong>Werde Teil von Navan und bringe persönliche Begegnungen durch unermüdliche Innovation voran</strong></p>\n<p>Bei Navan ist es unsere Mission, Reisen unkompliziert und effizient zu gestalten, damit sich Reisende darauf konzentrieren können, dort zu sein, anstatt dorthin zu gelangen. Unser Travel Experience Team steht im Mittelpunkt dieser Mission!</p>\n<p>Als zentrales Mitglied unseres schnell wachsenden Travel Experience-Teams unterstützt du die Reisebedürfnisse unserer Nutzer:innen direkt. Du bist verantwortlich für die Zufriedenheit unserer Kund:innen, indem du Probleme löst, effekt",
+   "pubDate": "2026-09-30T04:00:16+00:00"
+  },
+  {
+   "id": 152038,
+   "url": "https://jobicy.com/jobs/152038-ai-augmented-software-engineer-gn-data-intelligence-platform",
+   "jobSlug": "152038-ai-augmented-software-engineer-gn-data-intelligence-platform",
+   "jobTitle": "AI Augmented Software Engineer [gn] Data Intelligence Platform",
+   "companyName": "Actian",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2026/06/0fee3ec4-221.webp",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Europe",
+   "jobLevel": "Any",
+   "jobExcerpt": "Actian is the company behind the Data Intelligence Platform — an enterprise solution that helps organisations discover, govern, and trust their data at scale. Our platform connects metadata, data lineage, data quality, and business context into a single knowledge graph, enabling enterprises to turn raw data into reliable decisions. We operate globally, move fast, and&hellip;",
+   "jobDescription": "<div>\n<p><a href=\"https://jobicy.com/company/actian\" target=\"_blank\" rel=\"noopener\">Actian</a> is the company behind the Data Intelligence Platform — an enterprise solution that helps organisations discover, govern, and trust their data at scale. Our platform connects metadata, data lineage, data quality, and business context into a single knowledge graph, enabling enterprises to turn raw data into reliable decisions. We operate globally, move fast, and build for the long term.</p>\n<p>Software engineering is being redefined. The engineers who will shape the next decade of product development a",
+   "pubDate": "2026-09-30T04:00:14+00:00"
+  },
+  {
+   "id": 152019,
+   "url": "https://jobicy.com/jobs/152019-informatica-admin",
+   "jobSlug": "152019-informatica-admin",
+   "jobTitle": "Informatica Admin",
+   "companyName": "NTT DATA",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/09/e2252da5-221.png",
+   "jobIndustry": [
+    "DevOps & Infrastructure"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "LATAM",
+   "jobLevel": "Midweight",
+   "jobExcerpt": "Job Title: Informatica Admin (IDMC)Location Preference: 100% remote in LATAM working EST Time Zone Duration/Rate: 1-Year Assignment with possibility of extension and paying up to $22/hr USDNTT DATA is a team of more than 139,000 diverse professionals operating in more than 50 countries worldwide. Our sectors of activity include telecommunications, finance, industry, utilities, energy, public administration,&hellip;",
+   "jobDescription": "<p><strong>Job Title:</strong> <strong>Informatica Admin (IDMC)</strong><br><strong>Location Preference:</strong> 100% remote in LATAM working EST Time Zone <br><strong>Duration/Rate:</strong> 1-Year Assignment with possibility of extension and paying up to $22/hr USD</p><p><a href=\"https://jobicy.com/company/ntt-data\" target=\"_blank\" rel=\"noopener\">NTT DATA</a> is a team of more than 139,000 diverse professionals operating in more than 50 countries worldwide. Our sectors of activity include telecommunications, finance, industry, utilities, energy, public administration, and health.</p><p>Our ",
+   "pubDate": "2026-09-30T04:00:12+00:00",
+   "salaryMin": 44000,
+   "salaryMax": 44000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 152007,
+   "url": "https://jobicy.com/jobs/152007-senior-customer-success-operations-manager-2",
+   "jobSlug": "152007-senior-customer-success-operations-manager-2",
+   "jobTitle": "Senior Customer Success Operations Manager",
+   "companyName": "GitLab",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2020/12/WRILS-201207055737-109952.jpg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "GitLab is the intelligent orchestration platform for DevSecOps. GitLab enables organizations to increase developer productivity, improve operational efficiency, reduce security and compliance risk, and accelerate digital transformation. More than 50 million registered users and more than 50% of the Fortune 100* trust GitLab to ship better, more secure software faster. The same principles built into&hellip;",
+   "jobDescription": "<div><p><a href=\"https://jobicy.com/company/gitlab\" target=\"_blank\" rel=\"noopener\">GitLab</a> is the intelligent orchestration platform for DevSecOps. GitLab enables organizations to increase developer productivity, improve operational efficiency, reduce security and compliance risk, and accelerate digital transformation. More than 50 million registered users and more than 50% of the Fortune 100* trust GitLab to ship better, more secure software faster.</p>\n<p>The same principles built into our products are reflected in how our team works: we embrace AI as a core productivity multiplier, with ",
+   "pubDate": "2026-09-30T04:00:10+00:00",
+   "salaryMin": 104800,
+   "salaryMax": 176400,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 142139,
+   "url": "https://jobicy.com/jobs/142139-solidity-compiler-frontend-engineer",
+   "jobSlug": "142139-solidity-compiler-frontend-engineer",
+   "jobTitle": "Solidity Compiler Frontend Engineer",
+   "companyName": "CertiK",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2021/03/Jobicy-210308091023-955845.jpg",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Midweight",
+   "jobExcerpt": "About the CompanyOne of the fastest-growing and most trusted companies in blockchain security, CertiK is a true market leader. To date, CertiK has worked with over 4,798 clients, secured over $597 billion worth of digital assets, and has monitored over 17,000 projects. Our clients include leading projects such as Aave, Polygon, Yearn, and Chiliz.Investors =&hellip;",
+   "jobDescription": "<b>About the Company</b><p>One of the fastest-growing and most trusted companies in blockchain security, <a href=\"https://jobicy.com/company/certik\" target=\"_blank\" rel=\"noopener\">CertiK</a> is a true market leader. To date, CertiK has worked with over 4,798 clients, secured over $597 billion worth of digital assets, and has monitored over 17,000 projects. Our clients include leading projects such as Aave, Polygon, Yearn, and Chiliz.<br>Investors = Insight Partners, Sequoia, Tiger Global, Coatue Management, Lightspeed, Advent International, SoftBank, Hillhouse Capital, Goldman Sachs, Shunwei C",
+   "pubDate": "2026-09-30T03:55:12+00:00",
+   "salaryMin": 140000,
+   "salaryMax": 220000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 147852,
+   "url": "https://jobicy.com/jobs/147852-principal-analyst-data-integration",
+   "jobSlug": "147852-principal-analyst-data-integration",
+   "jobTitle": "Principal Analyst, Data Integration",
+   "companyName": "H1",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/8f84b1ed-221.jpg",
+   "jobIndustry": [
+    "Data Science & Analytics"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "At H1, we believe access to the best healthcare information is a basic human right. Our mission is to provide a platform that can optimally inform every doctor interaction globally. This promotes health equity and builds needed trust in healthcare systems. To accomplish this our teams harness the power of data and AI-technology to unlock&hellip;",
+   "jobDescription": "<div>At <a href=\"https://jobicy.com/company/h1\" target=\"_blank\" rel=\"noopener\">H1</a>, we believe access to the best healthcare information is a basic human right. Our mission is to provide a platform that can optimally inform every doctor interaction globally. This promotes health equity and builds needed trust in healthcare systems. To accomplish this our teams harness the power of data and AI-technology to unlock groundbreaking medical insights and convert those insights into action that result in optimal patient outcomes and accelerates an equitable and inclusive drug development lifecycle",
+   "pubDate": "2026-09-30T03:55:11+00:00",
+   "salaryMin": 145000,
+   "salaryMax": 170000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 143124,
+   "url": "https://jobicy.com/jobs/143124-enterprise-solutions-architect-americas",
+   "jobSlug": "143124-enterprise-solutions-architect-americas",
+   "jobTitle": "Enterprise Solutions Architect - Americas",
+   "companyName": "Ashby",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/08/63864ee6-221.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Canada,  USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Enterprise Solutions Architect - AmericasHi, I’m John and I’m the Head of Professional Services at Ashby. One of my favorite aspects of Ashby is our operating principle of Continuous Improvement. Coupled with our principle of caring deeply about our customers, we often find ourselves wondering ‘what is a better way to accomplish this’. That’s why&hellip;",
+   "jobDescription": "<h2><strong>Enterprise Solutions Architect - Americas</strong></h2><p><em>Hi, I’m John and I’m the Head of Professional Services at <a href=\"https://jobicy.com/company/ashby\" target=\"_blank\" rel=\"noopener\">Ashby</a>. One of my favorite aspects of Ashby is our operating principle of </em><a href=\"https://www.ashbyhq.com/blog/culture/ashbys-operating-principles#8---implement-continuous-improvement\" rel=\"nofollow ugc noopener\" target=\"_blank\"><em><u>Continuous Improvement</u></em></a><em>. Coupled with our principle of caring deeply about our customers, we often find ourselves wondering ‘what is ",
+   "pubDate": "2026-09-30T03:55:10+00:00",
+   "salaryMin": 155000,
+   "salaryMax": 175000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 142310,
+   "url": "https://jobicy.com/jobs/142310-junior-sap-integration-developer",
+   "jobSlug": "142310-junior-sap-integration-developer",
+   "jobTitle": "Junior SAP Integration Developer",
+   "companyName": "ManTech",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/265c7fe8-221-1.png",
+   "jobIndustry": [
+    "Software Engineering"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Entry-Level, Junior",
+   "jobExcerpt": "General information Requisition # R67240 Locations USA-Remote Work Posting Date 04/20/2026 Security Clearance Required Public Trust/Suitability Remote Type Fully Remote Time Type Full time Description &amp; Requirements Shape the future of defense with MANTECH! Join a team dedicated to safeguarding our nation through advanced tech and innovative solutions. Since 1968, we’ve been a trusted partner&hellip;",
+   "jobDescription": "<h2>General information</h2>\r\nRequisition # R67240 Locations USA-Remote Work Posting Date 04/20/2026 Security Clearance Required Public Trust/Suitability Remote Type Fully Remote Time Type Full time\r\n<h2>Description &amp; Requirements</h2>\r\nShape the future of defense with <a href=\"https://jobicy.com/company/mantech\" target=\"_blank\" rel=\"noopener\">MANTECH</a>! Join a team dedicated to safeguarding our nation through advanced tech and innovative solutions. Since 1968, we’ve been a trusted partner to the Department of Defense, delivering cutting-edge projects that make a real impact. Dive into e",
+   "pubDate": "2026-09-30T03:55:08+00:00",
+   "salaryMin": 63500,
+   "salaryMax": 105900,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 143224,
+   "url": "https://jobicy.com/jobs/143224-senior-manager-finance-strategy",
+   "jobSlug": "143224-senior-manager-finance-strategy",
+   "jobTitle": "Senior Manager, Finance & Strategy",
+   "companyName": "DoorDash",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/82fc4967-221-1.jpeg",
+   "jobIndustry": [
+    "Finance & Accounting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About the TeamThe Finance &amp; Strategy team accelerates the growth of our business by identifying and implementing new opportunities and solutions. We partner with teams across the company to improve the profitability, scalability and defensibility of our business model. We're looking for people who can use strategy to identify areas of opportunity, and collaborate to&hellip;",
+   "jobDescription": "<h2>About the Team</h2><p>The Finance &amp; Strategy team accelerates the growth of our business by identifying and implementing new opportunities and solutions. We partner with teams across the company to improve the profitability, scalability and defensibility of our business model. We're looking for people who can use strategy to identify areas of opportunity, and collaborate to help carry projects from conception through execution.</p><h2>About the Role</h2><p>We are looking for someone who will help guide our global strategy. You will be a strategic advisor to important partners across <a",
+   "pubDate": "2026-09-30T03:55:07+00:00",
+   "salaryMin": 163200,
+   "salaryMax": 240000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 142152,
+   "url": "https://jobicy.com/jobs/142152-transcription-subtitling-specialist-freelance",
+   "jobSlug": "142152-transcription-subtitling-specialist-freelance",
+   "jobTitle": "Transcription / Subtitling Specialist (Freelance)",
+   "companyName": "Elevenlabs",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/e01b4c5d-221.png",
+   "jobIndustry": [
+    "Admin & Virtual Assistance"
+   ],
+   "jobType": [
+    "Part-Time"
+   ],
+   "jobGeo": "Brazil,  Bulgaria,  Denmark,  France,  Germany,  Japan,  Mexico,  Netherlands,  Poland,  Portugal,  South Korea,  Spain,  Sweden,  UK,  USA",
+   "jobLevel": "Any",
+   "jobExcerpt": "About ElevenLabsElevenLabs is an AI research and product company transforming how we interact with technology.We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like Deutsche Telekom and Meta. Our investors are some of the world's&hellip;",
+   "jobDescription": "<h2>About <a href=\"https://jobicy.com/company/elevenlabs\" target=\"_blank\" rel=\"noopener\">ElevenLabs</a></h2><p>ElevenLabs is an AI research and product company transforming how we interact with technology.</p><p>We launched in January 2023 with the first human-like AI voice model. Today, we serve millions of users and thousands of businesses - from fast-growing startups to large enterprises like Deutsche Telekom and Meta. Our investors are some of the world's most prominent, including Andreessen Horowitz, ICONIQ Growth and Sequoia. We've raised $781M in funding and our last valuation was $11B ",
+   "pubDate": "2026-09-30T03:55:06+00:00"
+  },
+  {
+   "id": 142136,
+   "url": "https://jobicy.com/jobs/142136-senior-account-executive-4",
+   "jobSlug": "142136-senior-account-executive-4",
+   "jobTitle": "Senior Account Executive",
+   "companyName": "Simon Data",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/03/112a03eea58b795f9e0cc7f32e50bc8f.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Senior",
+   "jobExcerpt": "About UsAt Simon, we firmly believe business success starts and ends with people. We’re scrappy problem solvers who care deeply about tackling big challenges with disruptive thinking, giving our customers the support they need, and investing in each other’s growth. We all do our best work when we’re surrounded by other friendly top performers who&hellip;",
+   "jobDescription": "<h2><strong>About Us</strong></h2><p>At Simon, we firmly believe business success starts and ends with people. We’re scrappy problem solvers who care deeply about tackling big challenges with disruptive thinking, giving our customers the support they need, and investing in each other’s growth. We all do our best work when we’re surrounded by other friendly top performers who want to succeed together. When you trust your team, give them ownership, and build with heart, great things happen.</p><p><a href=\"https://jobicy.com/company/simon-data\" target=\"_blank\" rel=\"noopener\">Simon Data</a> was fo",
+   "pubDate": "2026-09-30T03:55:05+00:00",
+   "salaryMin": 120000,
+   "salaryMax": 150000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 144774,
+   "url": "https://jobicy.com/jobs/144774-senior-business-analyst-health-insurance-fully-remote",
+   "jobSlug": "144774-senior-business-analyst-health-insurance-fully-remote",
+   "jobTitle": "Senior Business Analyst - Health Insurance (Fully Remote)",
+   "companyName": "CoverGo",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/d3d7ed78-221-1.png",
+   "jobIndustry": [
+    "Business Development"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "Czechia,  Greece,  Poland,  Portugal,  Romania",
+   "jobLevel": "Senior",
+   "jobExcerpt": "Top 3 Reasons To Join UsCompetitive Salary100% RemoteWorking on the latest tech for the Insurtech Market LeaderAbout UsAt CoverGo, our mission is to empower all insurance companies to make insurance 100% digital and accessible to everyone.We are a leading global no-code insurance platform for health, life, and P&amp;CWe’re the winner of the Insurtech of the&hellip;",
+   "jobDescription": "<h2><strong>Top 3 Reasons To Join Us</strong></h2><ul><li>Competitive Salary</li><li>100% Remote</li><li>Working on the latest tech for the Insurtech Market Leader</li></ul><h2><strong>About Us</strong></h2><p>At <a href=\"https://jobicy.com/company/covergo\" target=\"_blank\" rel=\"noopener\">CoverGo</a>, our mission is to empower all insurance companies to make insurance 100% digital and accessible to everyone.</p><ul><li>We are a leading global no-code insurance platform for health, life, and P&amp;C</li><li>We’re the winner of the Insurtech of the Year in all of Asia and other awards globally</l",
+   "pubDate": "2026-09-30T03:55:03+00:00"
+  },
+  {
+   "id": 154239,
+   "url": "https://jobicy.com/jobs/154239-director-of-people-operations",
+   "jobSlug": "154239-director-of-people-operations",
+   "jobTitle": "Director of People Operations",
+   "companyName": "Tekmetric",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2025/06/f9f6e168-221.png",
+   "jobIndustry": [
+    "HR & Recruiting"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "About Tekmetric Tekmetric is the all-in-one, cloud-based software helping auto repair shops run smarter, grow faster, and serve customers better. Built by a shop owner and shaped by the needs of the industry, Tekmetric brings together innovation, real-world experience, and a thriving community to help shops thrive - not just survive. From running a shop,&hellip;",
+   "jobDescription": "<p><strong><u>About <a href=\"https://jobicy.com/company/tekmetric\" target=\"_blank\" rel=\"noopener\">Tekmetric</a></u></strong></p>\r\n<p>Tekmetric is the all-in-one, cloud-based software helping auto repair shops run smarter, grow faster, and serve customers better. </p>\r\n<p>Built by a shop owner and shaped by the needs of the industry, Tekmetric brings together innovation, real-world experience, and a thriving community to help shops thrive - not just survive. From running a shop, to securing payments to engaging customers, our platform simplifies operations so shop owners can focus on what reall",
+   "pubDate": "2026-09-29T17:55:02+00:00"
+  },
+  {
+   "id": 154231,
+   "url": "https://jobicy.com/jobs/154231-enterprise-account-manager-creditors-rights-collections",
+   "jobSlug": "154231-enterprise-account-manager-creditors-rights-collections",
+   "jobTitle": "Enterprise Account Manager, Creditors Rights & Collections",
+   "companyName": "Proof",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/01/aae5d762-221.jpeg",
+   "jobIndustry": [
+    "Customer Support & Success"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "Location: RemoteTravel required: 20% for client visits and industry events We're Proof, a high-growth startup in the legal tech industry, founded in 2017. We offer a best-in-class legal services platform used by thousands of law firms and property management companies. Our platform enables law firms and collections parties to access efficient, transparent, and accessible legal&hellip;",
+   "jobDescription": "<p><strong>Location: Remote</strong><br><strong>Travel required: 20% for client visits and industry events</strong></p>\n<p>We're <a href=\"https://www.proofserve.com/\" rel=\"nofollow ugc noopener\" target=\"_blank\">Proof</a>, a high-growth startup in the legal tech industry, founded in 2017. We offer a best-in-class legal services platform used by thousands of law firms and property management companies. Our platform enables law firms and collections parties to access efficient, transparent, and accessible legal and document delivery services, traditionally out of reach. We are on a path to double",
+   "pubDate": "2026-09-29T17:54:50+00:00",
+   "salaryMin": 130000,
+   "salaryMax": 170000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  },
+  {
+   "id": 154238,
+   "url": "https://jobicy.com/jobs/154238-senior-account-executive-creditors-rights-collections",
+   "jobSlug": "154238-senior-account-executive-creditors-rights-collections",
+   "jobTitle": "Senior Account Executive, Creditors Rights & Collections",
+   "companyName": "Proof",
+   "companyLogo": "https://jobicy.com/data/server-nyc0409/galaxy/mercury/2022/01/aae5d762-221.jpeg",
+   "jobIndustry": [
+    "Sales"
+   ],
+   "jobType": [
+    "Full-Time"
+   ],
+   "jobGeo": "USA",
+   "jobLevel": "Director",
+   "jobExcerpt": "We're Proof, a technology-enabled legal services platform built for the largest and most operationally demanding legal organizations in the country. We work with high-volume creditors’ rights law firms, major debt buyers, and institutional property management operators — helping them serve defendants, file cases, manage affidavits, and navigate complex multi-state jurisdictional requirements through a single national&hellip;",
+   "jobDescription": "<p>We're <a href=\"https://www.proofserve.com/\" rel=\"nofollow ugc noopener\" target=\"_blank\">Proof</a>, a technology-enabled legal services platform built for the largest and most operationally demanding legal organizations in the country. We work with high-volume creditors’ rights law firms, major debt buyers, and institutional property management operators — helping them serve defendants, file cases, manage affidavits, and navigate complex multi-state jurisdictional requirements through a single national platform.</p>\n<p>Our creditors’ rights division, spanning consumer collections, debt buyin",
+   "pubDate": "2026-09-29T17:54:49+00:00",
+   "salaryMin": 200000,
+   "salaryMax": 250000,
+   "salaryCurrency": "USD",
+   "salaryPeriod": "yearly"
+  }
+ ],
+ "statusCode": 200,
+ "success": true
+}

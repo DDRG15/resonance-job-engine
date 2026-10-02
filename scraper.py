@@ -1538,6 +1538,23 @@ class GemaScraper:
                     self._log(f"[ENDPOINT] {domain} — sin endpoint_template, se saltea.")
                     continue
 
+                # , Fase 2: el limite que declaran los terminos de la API
+                # (Jobicy 1/hora, Remotive 4/dia) se respeta ENTRE corridas. Saltear no
+                # es un error ni deriva: no se toca la salud del board.
+                falta = endpoint_scraper.espera_pendiente(
+                    estrategia.intervalo_minimo_s, estrategia.ultimo_pedido_ts,
+                    time.time())
+                if falta > 0:
+                    self._log(f"[ENDPOINT] {domain} — se saltea: su API admite un pedido "
+                              f"cada {estrategia.intervalo_minimo_s / 60:.0f} min y "
+                              f"faltan {falta / 60:.0f} min.")
+                    metrics.emit("endpoint_saltado_por_limite", 1, domain=domain)
+                    continue
+                if estrategia.intervalo_minimo_s > 0:
+                    # Se marca ANTES de pedir: un pedido que falla tambien cuenta contra
+                    # el limite del otro lado.
+                    self._strategy.update(domain, ultimo_pedido_ts=time.time())
+
                 def _relevante(titulo: str, _d=domain) -> bool:
                     return title_is_relevant(titulo, self.config.target_titles,
                                              self.profile)
@@ -1556,6 +1573,11 @@ class GemaScraper:
                             crawl_delay_s=estrategia.crawl_delay_s,
                             titulo_trae_empresa=estrategia.titulo_trae_empresa,
                             ubicacion_es_lista=estrategia.ubicacion_es_lista,
+                            solo_si_campo=estrategia.solo_si_campo,
+                            region_del_board=estrategia.region_del_board,
+                            total_path=estrategia.total_path,
+                            ttl_consulta_s=estrategia.ttl_consulta_s,
+                            consultas_ts=dict(estrategia.consultas_ts),
                             es_relevante=_relevante,
                             log=self._log,
                         ),
@@ -1575,9 +1597,20 @@ class GemaScraper:
                     # selector CSS que dejo de matchear. El self-healing lo trata igual.
                     self._strategy.update(domain, health=Health.DEGRADED)
 
+                if estrategia.ttl_consulta_s > 0 and res.consultas:
+                    # Solo las consultas que de verdad se hicieron, y solo las que
+                    # siguen frescas: el mapa no crece con las corridas.
+                    ahora = time.time()
+                    frescas = {u: ts for u, ts in estrategia.consultas_ts.items()
+                               if ahora - float(ts or 0) < estrategia.ttl_consulta_s}
+                    frescas.update({c["url"]: ahora for c in res.consultas})
+                    self._strategy.update(domain, consultas_ts=frescas)
+
                 if res.jobs:
                     await self._ingest_external_jobs(res.jobs, domain)
                     metrics.emit("endpoint_jobs", len(res.jobs), domain=domain)
+                if res.parcial:
+                    metrics.emit("endpoint_cobertura_parcial", 1, domain=domain)
                 metrics.emit("endpoint_latency_ms", res.ms, domain=domain)
         finally:
             await self._write_q.put(None)
