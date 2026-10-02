@@ -181,6 +181,10 @@ INVENTORY.md
 # de GEMA se ven identicos y piden arreglos opuestos. Es la herramienta que evita repetir
 # el CRITICAL del 01-09; dejarla fuera del repo seria perder justo la defensa.
 !tools/check_provider_models.py
+# La herramienta que acompaña cada subida de SCORE_VERSION (29-09). Estaba ignorada por
+# `tools/*` mientras `tests/test_repuntaje_registry.py`, que si se versiona, la importa:
+# en un clon limpio la suite fallaba. Hallado el 01-10 a partir del punto 3 de revision externa.
+!tools/repuntuar_registry.py
 
 # git no re-incluye archivos dentro de un directorio excluido, así que hay que
 # reabrir tests/fixtures/ y volver a excluir su contenido antes de destapar solo
