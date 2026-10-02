@@ -298,6 +298,12 @@ def _salario_de_descripcion(fila: dict, campo: str) -> Optional[str]:
 _PISO_SUELDO_ANUAL_USD = 10_000
 
 
+# Los valores de `salaryPeriod` (Himalayas) y equivalentes que significan "al ano".
+# Medido el 2026-09-30 sobre 20 avisos de Himalayas: annual 17, hourly 2, monthly 1.
+# Jobicy dice "yearly". Lo que no esta aca no se compone: lo anualiza la Fase 6.
+_PERIODOS_ANUALES = frozenset({"annual", "annually", "yearly", "year", "per year", "anual"})
+
+
 def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional[str]:
     """
     `salary_raw` es un string porque `parse_salary_usd()` lee strings. Un endpoint
@@ -306,6 +312,17 @@ def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional
 
     Componer en vez de agregar una columna nueva mantiene una sola ruta de parseo.
     El día que la Fase 4 acepte libras y euros, este camino se beneficia igual.
+
+    **Moneda y periodo declarados (Fase 1 del ).** Si el `field_map`
+    dice donde vive la moneda (`salary_currency`), el monto se compone con ESE
+    codigo —`EUR 90,000 - EUR 120,000`, que v5 ya lee— y no con `$`. Medido en la
+    muestra del 30-09: Himalayas trae EUR, Jobicy trae BRL. Con el `$` de siempre,
+    `BRL 249000` se guardaba como 249.000 dolares: un sueldo inventado, peor que
+    ninguno. Sin codigo en la fila, no se asume el dolar: no hay salario.
+
+    Si dice donde vive el periodo (`salary_period`), solo se compone el anual. Un
+    `hourly` de 60 compuesto como `$60` se leeria como 60 dolares al ano; la Fase 6
+    es la que anualiza, con la tabla de multiplicadores.
     """
     directo = _texto(_por_path(fila, fm["salary_raw"])) if fm.get("salary_raw") else ""
     if directo:
@@ -314,17 +331,30 @@ def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional
     lo = _por_path(fila, fm["salary_min"]) if fm.get("salary_min") else None
     hi = _por_path(fila, fm["salary_max"]) if fm.get("salary_max") else None
     try:
-        lo = int(lo) if lo not in (None, "", 0) else None
-        hi = int(hi) if hi not in (None, "", 0) else None
+        lo = int(float(lo)) if lo not in (None, "", 0) else None
+        hi = int(float(hi)) if hi not in (None, "", 0) else None
     except (TypeError, ValueError):
         return None
 
+    if (lo or hi) and fm.get("salary_period"):
+        periodo = _texto(_por_path(fila, fm["salary_period"])).lower()
+        if periodo not in _PERIODOS_ANUALES:
+            lo = hi = None
+
+    if (lo or hi) and fm.get("salary_currency"):
+        codigo = _texto(_por_path(fila, fm["salary_currency"])).upper()
+        if not re.fullmatch(r"[A-Z]{3}", codigo):
+            return None
+        pre = f"{codigo} "
+    else:
+        pre = "$"
+
     if lo and hi and hi != lo:
-        return f"${lo:,} - ${hi:,}"
+        return f"{pre}{lo:,} - {pre}{hi:,}"
     if lo:
-        return f"${lo:,}"
+        return f"{pre}{lo:,}"
     if hi:
-        return f"${hi:,}"
+        return f"{pre}{hi:,}"
 
     # Ultimo recurso, y en ese orden a proposito: un campo declarado siempre le gana a
     # un numero pescado de la prosa. La descripcion se lee solo cuando la plataforma no
@@ -359,11 +389,39 @@ def _partir_prefijo_empresa(titulo: str) -> tuple[str, str]:
     return resto, empresa
 
 
+def _ubicacion_de_lista(valor: Any) -> str:
+    """
+    `["Argentina", "Peru", "Spain"]` -> `"Argentina; Peru; Spain"`, y `[]` -> `"Worldwide"`.
+
+    Existe por Himalayas: `locationRestrictions` es la lista de paises desde los que se
+    puede trabajar el puesto, a veces de 70 elementos. `_texto` unia una lista con
+    espacios, y "United States United Kingdom Peru" no se puede partir de vuelta. Con
+    "; " queda en el mismo formato que ya publica builtin.com ("Greece; Norway; Peru;
+    ..."), que el matcher lee desde el 29-09.
+
+    **La lista vacia significa "sin restriccion"**, no "sin dato": es la semantica de
+    un campo que se llama *restrictions*, y en la muestra del 30-09 el segundo aviso de
+    `country=<PAIS_CANDIDATO>` vino con `[]` —Himalayas lo devuelve para el pais del candidato porque no excluye a
+    nadie—. Traducirla a "Worldwide" es decir lo que la fuente dijo. Dejarla vacia
+    mandaria el aviso a "el board no la expone", que es falso.
+
+    Transformacion con nombre, activada por `ubicacion_es_lista` en la entrada del
+    board: el mapa mapea, el codigo transforma. Un valor que no es lista pasa como
+    texto, sin tocar.
+    """
+    if not isinstance(valor, (list, tuple)):
+        return _texto(valor)
+    partes = [_texto(v) for v in valor]
+    partes = [p for p in partes if p]
+    return "; ".join(partes) if partes else "Worldwide"
+
+
 def a_job_result(fila: dict, fm: dict, dominio: str,
                  url_base: str = "",
                  titulo_trae_empresa: bool = False,
                  salario_en_descripcion: str = "",
-                 defaults: Optional[dict] = None) -> Optional[JobResult]:
+                 defaults: Optional[dict] = None,
+                 ubicacion_es_lista: bool = False) -> Optional[JobResult]:
     """
     Una fila cruda a `JobResult`, o `None` si no se puede sostener.
 
@@ -401,7 +459,15 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     empresa = _texto(_por_path(fila, fm["company"])) if fm.get("company") else ""
     empresa = empresa or empresa_del_titulo or _texto(dfl.get("company"))
 
-    ubicacion = _texto(_por_path(fila, fm["location"])) if fm.get("location") else ""
+    if fm.get("location"):
+        crudo = _por_path(fila, fm["location"])
+        # `_por_path` devuelve None tanto si el campo falta como si vale null: solo una
+        # lista REAL (vacia incluida) es una declaracion de "sin restriccion".
+        ubicacion = (_ubicacion_de_lista(crudo)
+                     if ubicacion_es_lista and isinstance(crudo, (list, tuple))
+                     else _texto(crudo))
+    else:
+        ubicacion = ""
     ubicacion = ubicacion or _texto(dfl.get("location"))
 
     fecha_limite = _texto(_por_path(fila, fm["deadline"])) if fm.get("deadline") else ""
@@ -445,6 +511,8 @@ def scrape_endpoint(
     titulo_trae_empresa: bool = False,
     salario_en_descripcion: str = "",
     defaults: Optional[dict] = None,
+    ubicacion_es_lista: bool = False,
+    pais: Optional[str] = None,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
     sesion: Optional[requests.Session] = None,
@@ -458,10 +526,23 @@ def scrape_endpoint(
     título tiene que pasar del lado de GEMA o el registry se llena de puestos que nadie
     buscó. `es_relevante` es el mismo criterio que usa `bucket_jobs`, para que un aviso
     no se guarde con una regla y se descarte con otra.
+
+    `{pais}` se reemplaza por el país del candidato (`config.PAIS_CANDIDATO`, o `pais`
+    si se pasa). Es la decisión D2 del : Himalayas responde qué avisos
+    se pueden trabajar desde el pais del candidato, y esa respuesta es mejor que cualquier regex nuestro
+    sobre una lista de 70 países.
     """
     fm = field_map or {}
     t0 = time.perf_counter()
     res = ResultadoEndpoint(dominio=dominio, jobs=[])
+
+    if "{pais}" in endpoint_template:
+        p = pais if pais is not None else getattr(config, "PAIS_CANDIDATO", "")
+        if not p:
+            # Sin país, `country=` vacío trae el catálogo mundial: el filtro de D2 se
+            # apagaría sin que nadie lo note. Se dice en el log de la corrida.
+            log(f"[ENDPOINT] {dominio} — PAIS_CANDIDATO vacío: se consulta sin filtro de país")
+        endpoint_template = endpoint_template.replace("{pais}", requests.utils.quote(p or ""))
 
     if "{title}" in endpoint_template:
         urls = [endpoint_template.replace("{title}", requests.utils.quote(t))
@@ -496,7 +577,8 @@ def scrape_endpoint(
             job = a_job_result(fila, fm, dominio, url_base=url,
                                titulo_trae_empresa=titulo_trae_empresa,
                                salario_en_descripcion=salario_en_descripcion,
-                               defaults=defaults)
+                               defaults=defaults,
+                               ubicacion_es_lista=ubicacion_es_lista)
             if job is None:
                 res.descartados_invalidos += 1
                 continue

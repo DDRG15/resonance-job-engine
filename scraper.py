@@ -1555,6 +1555,7 @@ class GemaScraper:
                             titles=self.config.target_titles,
                             crawl_delay_s=estrategia.crawl_delay_s,
                             titulo_trae_empresa=estrategia.titulo_trae_empresa,
+                            ubicacion_es_lista=estrategia.ubicacion_es_lista,
                             es_relevante=_relevante,
                             log=self._log,
                         ),

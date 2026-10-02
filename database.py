@@ -12,6 +12,7 @@ SRE Principles:
 import hashlib
 import json
 import logging
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
@@ -861,10 +862,19 @@ class GemaDatabase:
 
         Devuelve None ante cualquier cosa que no entienda. Una fecha mal parseada que
         se toma por buena vence avisos vivos, y eso es peor que no barrer nada.
+
+        **Epoch** (, Fase 1): Himalayas manda `expiryDate` como segundos
+        Unix (`1792667993` = 2026-10-22), en 20 de 20 avisos medidos. Antes esto
+        devolvia None para el string, el float y el entero: el deadline se perdia sin
+        que nadie lo notara. Se aceptan solo 10 digitos (segundos, 2001-2286) y 13
+        (milisegundos): un numero de otro largo no es una fecha que sepamos leer.
         """
         if not texto:
             return None
         s = str(texto).strip()
+        if re.fullmatch(r"\d{10}(?:\.\d+)?|\d{13}", s):
+            segundos = float(s) / (1000 if len(s) == 13 else 1)
+            return datetime.fromtimestamp(segundos, timezone.utc).date().isoformat()
         try:                                   # ISO: 2026-10-09, 2026-10-09T15:41:42Z
             return datetime.fromisoformat(s.replace("Z", "+00:00")).date().isoformat()
         except Exception:

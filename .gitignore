@@ -189,6 +189,11 @@ INVENTORY.md
 tests/fixtures/*
 !tests/fixtures/extraction_corpus/
 !tests/fixtures/extraction_corpus/**
+# Respuestas REALES de las APIs de fuentes (), recortadas: el test sin red
+# de cada fuente nueva corre contra lo que la API devolvio de verdad, no contra un JSON
+# escrito a mano que dice lo que uno cree que devuelve.
+!tests/fixtures/fuentes/
+!tests/fixtures/fuentes/**
 
 # Anclado a la raiz. Sin la barra inicial, git lo matchea a CUALQUIER profundidad y se
 # comia docs/LLM_PROVIDERS.md — que si se versiona. La regla original queria mantener

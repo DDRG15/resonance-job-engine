@@ -62,6 +62,38 @@ ENDPOINTS: dict[str, dict] = {
             "deadline": "expires_at",
         },
     },
+
+    # , Fase 1. Medido el 2026-09-30 ():
+    # `country=<PAIS_CANDIDATO>` sin `q` = 2.902 avisos; con `q=python developer` = 171. Traer el
+    # feed entero son 145 paginas de 20, asi que va una consulta por titulo, pagina 1.
+    # Por CSS este board chocaba contra un 403 en cada rama: 6 filas en el registry
+    # desde mayo. La API responde 200 sin key.
+    # - `guid` es la pagina del aviso EN Himalayas: identidad estable para el hash y el
+    #   enlace de vuelta que piden sus terminos ("link back... and mention Himalayas").
+    # - `expiryDate` es epoch en segundos, 20 de 20 avisos; `_a_fecha` lo lee desde
+    #   esta fase. Antes devolvia None y el deadline se perdia en silencio.
+    # - salario: `minSalary` en 6 de 20, periodo annual 17 / hourly 2 / monthly 1,
+    #   moneda USD 8 / EUR 2. Solo se compone el anual y con su codigo (ver `_salario`).
+    # - descripcion: mediana 3.585 caracteres limpios. Entra con la Fase 7.
+    # crawl_delay_s = 1: los terminos no dan cifra, solo "429 al pasarse"; un segundo
+    # entre consultas es 51 s por corrida con la busqueda del CLI.
+    "himalayas.app": {
+        "endpoint_template": "https://himalayas.app/jobs/api/search?q={title}&country={pais}",
+        "response_format": "json",
+        "crawl_delay_s": 1.0,
+        "ubicacion_es_lista": True,
+        "field_map": {
+            "title": "title",
+            "company": "companyName",
+            "url": "guid",
+            "location": "locationRestrictions",
+            "deadline": "expiryDate",
+            "salary_min": "minSalary",
+            "salary_max": "maxSalary",
+            "salary_currency": "currency",
+            "salary_period": "salaryPeriod",
+        },
+    },
 }
 
 
@@ -99,6 +131,12 @@ POLITICAS: dict[str, dict] = {
     # esta en la lista.
     "weworkremotely.com": {"access_policy": "open", "policy_reason":
                            "robots.txt permite el RSS (2026-09-09)"},
+
+    # robots.txt responde 404 (sin reglas). La API publica de busqueda no pide key y
+    # sus terminos permiten el uso con atribucion: enlazar al aviso en Himalayas, que es
+    # exactamente la URL que GEMA guarda.
+    "himalayas.app": {"access_policy": "open", "policy_reason":
+                      "API publica sin key, atribucion por enlace (2026-09-30)"},
 }
 
 

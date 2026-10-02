@@ -127,6 +127,15 @@ TASAS_A_USD: dict = {
 TASAS_MAX_DIAS: int = int(os.getenv("TASAS_MAX_DIAS", "90"))
 
 
+# ── , Fase 1: el pais desde donde trabaja el candidato ──────────
+# Decision D2: Himalayas filtra por pais EN LA FUENTE (`country=<PAIS_CANDIDATO>`). La pregunta
+# "¿se puede trabajar desde el pais del candidato?" la responde quien publica la lista de paises, no un
+# regex nuestro sobre esa lista. Medido el 2026-09-30: con `country=<PAIS_CANDIDATO>` la API
+# incluye los avisos sin restriccion (`locationRestrictions: []`) y los que nombran a
+# el pais del candidato entre sus paises. Va en ingles porque es el valor que la API acepta.
+PAIS_CANDIDATO: str = os.getenv("PAIS_CANDIDATO", "")
+
+
 # ── Fase 3 (2026-09-15): gate de idioma ──────────────────────────────────────
 # Los idiomas en los que podes trabajar. Un aviso que exige uno que no esta aca
 # recibe veredicto FAIL y sale del shortlist; uno que exige uno que si esta pero a

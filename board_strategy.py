@@ -133,6 +133,12 @@ class BoardStrategy(BaseModel):
     tiene campo propio. Medido en weworkremotely.com: 87 de 87 items. Transformacion
     con nombre, activada por un booleano — el `field_map` mapea, el codigo transforma."""
 
+    ubicacion_es_lista: bool = False
+    """La ubicacion llega como LISTA de paises admitidos (Himalayas,
+    `locationRestrictions`): se une con "; " y la lista vacia se lee "Worldwide",
+    porque una lista de restricciones vacia es la ausencia de restriccion. Ver
+    `endpoint_scraper._ubicacion_de_lista`. , Fase 1."""
+
     def is_stale(self, ttl_seconds: float) -> bool:
         """True if the strategy was never probed or its last probe is older
         than ttl. Phase 28/29 use this to decide when to re-probe a board."""
