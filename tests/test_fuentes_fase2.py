@@ -160,9 +160,14 @@ class TestJobicy:
         assert job.salary_raw.startswith(f"{f['salaryCurrency']} ")
         assert "$" not in job.salary_raw
 
-    def test_por_hora_no_se_compone(self):
+    def test_por_hora_se_compone_con_su_periodo(self):
+        """Fase 6: antes no se componia; ahora va con su periodo y se anualiza."""
+        from models import salario_anual_usd
         f = next(f for f in self.FILAS if f.get("salaryPeriod") == "hourly")
-        assert self._job(f).salary_raw is None
+        job = self._job(f)
+        assert job.salary_raw.endswith("/hour")
+        if f.get("salaryCurrency") in ("USD", "EUR", "GBP"):
+            assert salario_anual_usd(job.salary_raw) is not None
 
     def test_sin_claves_de_salario_no_hay_salario(self):
         f = next(f for f in self.FILAS if "salaryMin" not in f)

@@ -136,12 +136,14 @@ class TestSalario:
         assert "$" not in job.salary_raw
         assert salario_anual_usd(job.salary_raw) > int(f["minSalary"])  # convertido
 
-    @pytest.mark.parametrize("periodo", ["hourly", "monthly"])
-    def test_periodo_no_anual_no_se_compone(self, periodo):
-        """`hourly 50` compuesto como `USD 50` seria un sueldo de 50 al ano. La Fase 6
-        anualiza; hasta entonces no hay salario, que es la verdad."""
+    @pytest.mark.parametrize("periodo,mult", [("hourly", 2080), ("monthly", 12)])
+    def test_periodo_no_anual_se_compone_y_se_anualiza(self, periodo, mult):
+        """Hasta la Fase 6 un `hourly 50` no se componia: como `USD 50` habria sido un
+        sueldo de 50 al ano. Ahora se compone con su periodo y el parser lo anualiza."""
         f = _fila(lambda f: f.get("minSalary") and f.get("salaryPeriod") == periodo)
-        assert _job(f).salary_raw is None
+        job = _job(f)
+        assert job.salary_raw.endswith("/hour" if periodo == "hourly" else "/month")
+        assert salario_anual_usd(job.salary_raw) == int(f["minSalary"]) * mult
 
     def test_sin_moneda_no_se_asume_el_dolar(self):
         f = dict(_fila(lambda f: f.get("minSalary") and f.get("currency")))

@@ -319,6 +319,9 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 }
 .cell-score { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 .cell-manual { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--t4-ink); }
+/* Fase 6 (D3): salario publicado en texto, puntuado sin ese eje. */
+.cell-nosal { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--t4-ink); cursor: help; }
+.nosal-note { color: var(--t4-ink); font-size: 12px; }
 .res-none { color: var(--muted); text-align: center; padding: 28px 12px; }
 
 /* -- Panel de detalle -- */

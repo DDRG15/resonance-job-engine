@@ -346,10 +346,13 @@ class TestScrape:
         total = sum(len(tiers[k]) for k in ("tier1", "tier2", "tier3", "tier4"))
         assert total == 3
         assert results["summary"]["new_processed"] == 3
-        # Tier 4 = salario en texto ("Competitive salary") — semántica del matcher
-        assert any(
-            tj["job"]["company"] == "Turing" for tj in tiers["tier4"]
-        ), "el salario no numérico debe caer en Tier 4 (revisión manual)"
+        # v6 (, Fase 6, D3): el salario en texto ("Competitive salary") ya
+        # no cae a Tier 4; se puntua y la API lo marca con `salario_no_confirmado`.
+        turing = [tj for k in ("tier1", "tier2", "tier3") for tj in tiers[k]
+                  if tj["job"]["company"] == "Turing"]
+        assert turing and turing[0]["salario_no_confirmado"] is True, (
+            "el salario no numérico se puntúa y viaja marcado como no confirmado")
+        assert tiers["tier4"] == []
 
     def test_concurrent_scrape_409(self, client, monkeypatch):
         release = threading.Event()

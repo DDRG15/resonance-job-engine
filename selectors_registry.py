@@ -96,6 +96,13 @@ class DomainSelectors:
     # con title_is_relevant, igual que para cualquier otro aviso.
     feed_fijo: bool = False
 
+    # , Fase 6. La moneda de los montos que el board publica SIN moneda.
+    # builtin.com muestra "75K-195K Annually" junto al icono fa-sack-dollar: sin simbolo,
+    # el parser no lo lee y salia 0 de 50 cards con salario. Es un board de EE.UU.: sus
+    # montos son dolares. Transformacion con nombre (`scraper.con_moneda_implicita`),
+    # activada por este campo; vacio = no se asume nada.
+    moneda_implicita: str = ""
+
     # ── Metadata ─────────────────────────────────────────────────────────────
 
     # ISO date the selectors were last verified against the live site.
@@ -523,9 +530,14 @@ SELECTORS: dict[str, DomainSelectors] = {
             "a[class*='company']",
         ],
         salary = [
+            # Verificado 2026-10-01 en el HTML real: el monto va en el span hermano del
+            # icono fa-sack-dollar ("75K-195K Annually"), mismo patron que la ubicacion.
+            # El bloque es d-xl-block: visible con el viewport de 1280 px del scraper.
+            "div:has(> div > i.fa-sack-dollar) span",
             "span[class*='salary']",
             "div[class*='salary']",
         ],
+        moneda_implicita = "USD",
         # Ubicación medida 2026-09-28 sobre 50 cards reales ("python", "backend"):
         # la corrida del 09-17 trajo 108 avisos con 0% de ubicación porque no había
         # selector. El span junto al ícono fa-location-dot trae la sede en 15

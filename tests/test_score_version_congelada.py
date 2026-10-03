@@ -20,7 +20,7 @@ import config
 import matcher
 from models import JobResult
 
-VERSION_CONGELADA = "v5"
+VERSION_CONGELADA = "v6"
 
 TITULOS = {
     ("Backend Engineer", ("backend engineer",)): 50,
@@ -89,6 +89,11 @@ SALARIOS = [
     ("EUR 109", None),                     # truncado: no inventar 109 euros al ano
     ("401k match", None),
     ("Competitive", None),
+    # v6: el periodo se anualiza. Remotive publica asi, y era 90 dolares al ano.
+    ("$90 - $150 /hour", 187200),
+    ("$3,500/month", 42000),
+    ("$150,000 base + 2 days per month remote", 150000),   # ya anual: no se multiplica
+    ("$3,500", None),                                       # sin periodo, sigue cerrado
 ]
 
 
@@ -105,3 +110,14 @@ def test_el_veto_duro_sigue_siendo_fail():
                     location_raw="Worldwide")
     real, _ = matcher._location_verdict(job)
     assert real == "FAIL", _mensaje("veto de ciudadania", "FAIL", real)
+
+
+def test_salario_en_texto_se_puntua_y_se_marca():
+    """v6 (D3): "Competitive" ya no es Tier 4 con -1; se puntua sin el eje de salario."""
+    from models import SearchConfig
+    job = JobResult(title="Backend Engineer", company="Acme", url="https://x.com/3",
+                    source_domain="x.com", salary_raw="Competitive", location_raw="Worldwide")
+    tj = matcher.score_job(job, SearchConfig(target_titles=["Backend Engineer"],
+                                             min_salary=90000))
+    real = (tj.tier, tj.salario_no_confirmado)
+    assert tj.match_score >= 0 and real[1] is True and real[0] != "Tier 4",         _mensaje("salario en texto", "puntuado y marcado", real)

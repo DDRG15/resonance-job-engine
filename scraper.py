@@ -752,6 +752,25 @@ _SALARY_RX = re.compile(
 )
 
 
+_TIENE_MONEDA = re.compile(r"[$€£]|\b(?:USD|EUR|GBP|CAD|AUD|BRL|MXN|PEN)\b", re.IGNORECASE)
+
+
+def con_moneda_implicita(texto: Optional[str], moneda: str) -> Optional[str]:
+    """
+    "75K-195K Annually" + "USD" -> "USD 75K-195K Annually".
+
+    , Fase 6. Para boards que publican montos sin moneda (builtin.com,
+    `DomainSelectors.moneda_implicita`). Solo se antepone si el texto trae un numero y
+    NINGUNA moneda: "$75K" queda como esta, y "Competitive" no gana una moneda que no
+    tiene. El codigo va delante porque es la forma que el parser ya lee ("USD 75k").
+    """
+    if not texto or not moneda:
+        return texto
+    if _TIENE_MONEDA.search(texto) or not re.search(r"\d", texto):
+        return texto
+    return f"{moneda} {texto}"
+
+
 def extract_salary_from_text(text: Optional[str]) -> Optional[str]:
     """Extrae el primer patrón de salario del texto ('$60k - $80k', '$120,000',
     '120k USD'…) o None. Pura, determinista, nunca lanza."""
@@ -2254,6 +2273,7 @@ class GemaScraper:
             title    = await _try_chain(card, sel.title)
             company  = await _try_chain(card, sel.company)
             salary   = await _try_chain(card, sel.salary)   if sel.salary   else None
+            salary   = con_moneda_implicita(salary, getattr(sel, "moneda_implicita", ""))
             location = await _try_chain(card, sel.location) if sel.location else None
             if location and sel.ubicacion_en_tooltip:
                 # builtin: el texto visible puede ser un conteo ("11 Locations")

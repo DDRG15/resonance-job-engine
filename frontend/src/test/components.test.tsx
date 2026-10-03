@@ -134,8 +134,28 @@ describe('StatTiles', () => {
   it('renderiza conteos por tier y duración', () => {
     render(<StatTiles results={RESULTS} />)
     expect(screen.getByText('Tier 1')).toBeInTheDocument()
-    expect(screen.getByText('Tier 4')).toBeInTheDocument()
+    expect(screen.getByText('Salario sin confirmar')).toBeInTheDocument()
     expect(screen.getByText('214')).toBeInTheDocument()
+  })
+
+  it('Tier 1 dice cuántos tienen la ubicación confirmada, no "aplicar ya"', () => {
+    render(<StatTiles results={RESULTS} />)
+    expect(screen.queryByText(/aplicar ya/)).toBeNull()
+    expect(screen.getByText(/con ubicación confirmada/)).toBeInTheDocument()
+  })
+
+  it('cuenta los no confirmados de cualquier tier más los Tier 4 viejos', () => {
+    const conNoConfirmado: ResultsResponse = {
+      ...RESULTS,
+      tiers: {
+        ...RESULTS.tiers!,
+        tier2: [makeJob({ url: 'https://example.com/j3', salary_raw: 'DOE' },
+                        { match_score: 60, tier: 'Tier 2', salario_no_confirmado: true })],
+      },
+    }
+    render(<StatTiles results={conNoConfirmado} />)
+    const tile = screen.getByText('Salario sin confirmar').closest('.tile')!
+    expect(tile.querySelector('.n')!.textContent).toBe('2')
   })
 })
 

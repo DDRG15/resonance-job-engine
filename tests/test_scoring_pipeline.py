@@ -54,20 +54,22 @@ class TestExecutionPathPriority:
 
         Antes competia con el bypass de Tier 4 por decidir el tier, y ganaba. Ahora
         son dos ejes distintos: el tier sale del salario y el ajuste, la elegibilidad
-        sale del veredicto. Un aviso con clearance Y salario en texto es Tier 4 por
-        el salario y FAIL por la elegibilidad, sin que uno pise al otro."""
+        sale del veredicto. Un aviso con clearance Y salario en texto se puntua (v6:
+        sin el eje de salario, marcado) y es FAIL por la elegibilidad, sin que uno
+        pise al otro."""
         j = _job(salary="security clearance required — non-numeric", location=None, n=1)
         tiered = score_job(j, _CFG)
         assert tiered.location_verdict == "FAIL"
         assert tiered.elegible is False
-        assert tiered.tier == "Tier 4"      # lo decide el salario en texto, no el veto
+        assert tiered.match_score >= 0          # el veto no secuestra el puntaje
+        assert tiered.salario_no_confirmado is True
 
-    def test_tier4_bypass_fires_before_math_path(self):
-        # Text salary but no clearance → Tier 4
+    def test_salario_en_texto_va_por_el_camino_matematico(self):
+        # v6 (D3): el bypass a Tier 4 ya no existe; el eje de salario no participa.
         j = _job(salary="Competitive + equity", location="Anywhere", n=2)
         tiered = score_job(j, _CFG)
-        assert tiered.tier == "Tier 4"
-        assert tiered.match_score == -1
+        assert tiered.tier in ("Tier 1", "Tier 2", "Tier 3")
+        assert tiered.match_score >= 0
 
     def test_math_path_fires_when_no_bypass_conditions(self):
         # No clearance, numeric salary → mathematical path → Tier 1/2/3

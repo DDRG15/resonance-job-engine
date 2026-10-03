@@ -87,9 +87,20 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
     header: 'Score',
     cell: (c) => {
       const v = c.getValue<number>()
-      return v < 0
-        ? <span className="cell-manual">MANUAL</span>
-        : <span className="cell-score">{v}</span>
+      if (v < 0) return <span className="cell-manual">MANUAL</span>
+      return (
+        <>
+          <span className="cell-score">{v}</span>
+          {c.row.original.salario_no_confirmado && (
+            <span
+              className="cell-nosal"
+              title="Salario publicado en texto que no se pudo leer: puntuado sin el eje de salario"
+            >
+              $?
+            </span>
+          )}
+        </>
+      )
     },
   },
 ]

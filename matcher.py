@@ -4,17 +4,15 @@ matcher.py — Match Scoring & Tier Bucketing Engine for Project GEMA.
 Scores each JobResult against the SearchConfig and assigns Tier 1/2/3/4.
 No external API calls — pure Python logic, runs in milliseconds.
 
-Scoring weights (mathematical path — Tier 1/2/3 only):
+Scoring weights (renormalized over the dimensions that have data):
     Title match (fuzzy)  : 50 points max
     Salary meets minimum : 25 points
     Must-include present : 15 points max
     Must-exclude absent  : 10 points (penalty applied if found)
 
-Tier 4 (Manual Review) BYPASSES mathematical scoring entirely.
-    Triggered when: salary_raw is present but parse_salary_usd() returns None.
-    Example inputs: 'Competitive', 'Competitive + equity + 401k', 'DOE'
-    These are legitimate salary disclosures in text form — penalizing them
-    with a 0-point salary score would bury potentially excellent jobs in Tier 3.
+Salary in prose ('Competitive', 'DOE') no longer bypasses scoring to Tier 4
+(, Fase 6, D3): the salary dimension drops out, the rest is
+renormalized, and the job carries `salario_no_confirmado`.
 """
 
 import logging
@@ -24,7 +22,7 @@ from typing import Optional
 
 import config
 import metrics
-from models import JobResult, SearchConfig, TieredJob
+from models import JobResult, SearchConfig, TieredJob, salario_anualizado
 
 logger = logging.getLogger(__name__)
 
@@ -548,24 +546,12 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     """
     Scores a single JobResult and returns a TieredJob with full audit trail.
 
-    TIER 4 BYPASS:
-        Condition:  job.salary_raw is a non-empty string
-                    AND job.parse_salary_usd() returns None
+    Salary in prose (non-empty `salary_raw` that `parse_salary_usd()` cannot read,
+    e.g. 'Competitive', 'DOE') is scored like a missing salary: the salary dimension
+    does not participate and the weights renormalize. Whitespace-only `salary_raw`
+    counts as absent, not as prose (Fase 6, D3 — there is no Tier 4 bypass anymore).
 
-        This means the employer disclosed SOMETHING about compensation,
-        but it is in prose form ('Competitive', 'DOE', 'Based on experience').
-        These are NOT missing salary data — they are human-readable salary
-        disclosures that the regex cannot parse as a number.
-
-        Explicit guard — three conditions must ALL be true to trigger bypass:
-            1. salary_raw is not None
-            2. salary_raw is not an empty string (stripped)
-            3. parse_salary_usd() returns None for this non-empty string
-
-        This prevents the edge case where salary_raw=" " (whitespace only)
-        from incorrectly triggering Tier 4.
-
-    Score breakdown for Tier 1/2/3 (max 100):
+    Score breakdown (max 100, renormalized over the dimensions that apply):
         Title match    : 0–50
         Salary gate    : 0–25
         Must-include   : 0–15
@@ -587,35 +573,32 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     loc_verdict, loc_note = _veredicto_desde_delta(loc_delta, lm, ln)
     lang_verdict, lang_note = _language_verdict(job)
 
-    # ── Tier 4 bypass: non-empty text salary that is not a parseable number ──
-    salary_is_text = (
+    # ── Salario en texto: ya no es Tier 4 (, Fase 6, decision D3) ──
+    #
+    # Hasta v5 un salario que no se podia leer ("Competitive", "DOE") sacaba el aviso
+    # del scoring: Tier 4, puntaje -1, revision manual. Un aviso con titulo, ubicacion
+    # y perfil perfectos quedaba debajo de uno mediocre solo porque la empresa no
+    # escribio un numero. Ahora es el mismo algoritmo con un dato faltante, igual que
+    # un aviso sin salario: el eje de salario no participa (`salary_aplica` abajo ya lo
+    # deja afuera, porque el parser devuelve None) y el peso se renormaliza. La marca
+    # «salario no confirmado» la lleva `TieredJob.salario_no_confirmado` y la razon.
+    salario_en_texto = (
         job.salary_raw is not None
         and job.salary_raw.strip() != ""
         and job.parse_salary_usd() is None
     )
-    if salary_is_text:
-        logger.debug(
-            "[T4] Manual Review: '%s' @ %s — salary_raw=%r is non-numeric",
-            job.title, job.company, job.salary_raw,
-        )
-        return TieredJob(
-            job=job,
-            match_score=-1,
-            tier="Tier 4",
-            match_reasons=["Salary disclosed as text — bypassed mathematical scoring"],
-            miss_reasons=[
-                f"Raw salary text: '{job.salary_raw}' — requires manual evaluation"
-            ],
-            location_verdict=loc_verdict, location_note=loc_note,
-            language_verdict=lang_verdict, language_note=lang_note,
-        )
 
     # ── Mathematical scoring path (Tier 1 / 2 / 3) ───────────────────────────
     all_match: list[str] = []
     all_miss:  list[str] = []
+    if salario_en_texto:
+        all_miss.append(f"Salario no confirmado: '{job.salary_raw}' — se puntua sin "
+                        f"el eje de salario")
 
     title_score,   tm, tn  = _score_title(job.title, search_config.target_titles)
     salary_score,  sm, sn  = _score_salary(job, search_config.min_salary)
+    if salario_en_texto:
+        sn = []   # "not published" seria falso: se publico, en texto. Ya lo dice la razon de arriba.
     include_score, im, in_ = _score_must_include(job, search_config.must_include)
     excl_delta,    em, en  = _apply_exclusion_penalty(job, search_config.must_exclude)
     skill_score,   km, kn  = _score_skill_overlap(job, profile)
@@ -847,6 +830,17 @@ def bucket_jobs(
         logger.info("[BUCKET] %d avisos ya puntuados con %s — salteados",
                     saltados_ya_puntuados, getattr(config, "SCORE_VERSION", "?"))
         metrics.emit("jobs_ya_puntuados", saltados_ya_puntuados)
+
+    # , Fase 6: cuantos avisos de esta corrida se puntuaron sin el eje de
+    # salario porque lo publicaron en texto, y cuantos se llevaron a anual desde un
+    # periodo. Si el primero sube de golpe, un board cambio el formato del salario.
+    puntuados = tier1 + tier2 + tier3 + tier4 + no_elegibles
+    no_confirmados = sum(1 for tj in puntuados if tj.salario_no_confirmado)
+    anualizados = sum(1 for tj in puntuados if salario_anualizado(tj.job.salary_raw))
+    if no_confirmados:
+        metrics.emit("jobs_salario_no_confirmado", no_confirmados)
+    if anualizados:
+        metrics.emit("jobs_salario_anualizado", anualizados)
 
     logger.info(
         "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | "

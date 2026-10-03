@@ -303,6 +303,16 @@ _PISO_SUELDO_ANUAL_USD = 10_000
 # Jobicy dice "yearly". Lo que no esta aca no se compone: lo anualiza la Fase 6.
 _PERIODOS_ANUALES = frozenset({"annual", "annually", "yearly", "year", "per year", "anual"})
 
+# Fase 6: los periodos no anuales que se componen, con el sufijo que
+# `models._periodo_del_salario` reconoce para anualizar.
+_SUFIJO_PERIODO = {
+    "hourly": " /hour", "hour": " /hour", "per hour": " /hour",
+    "daily": " /day", "day": " /day", "per day": " /day",
+    "weekly": " /week", "week": " /week", "per week": " /week",
+    "monthly": " /month", "month": " /month", "per month": " /month",
+}
+_SIMBOLO_DE = {"USD": "$", "EUR": "€", "GBP": "£"}
+
 
 def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional[str]:
     """
@@ -336,25 +346,34 @@ def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional
     except (TypeError, ValueError):
         return None
 
+    sufijo = ""
     if (lo or hi) and fm.get("salary_period"):
         periodo = _texto(_por_path(fila, fm["salary_period"])).lower()
         if periodo not in _PERIODOS_ANUALES:
-            lo = hi = None
+            # Fase 6: un periodo conocido se compone CON su periodo y lo anualiza el
+            # parser ("$50 - $90 /hour" -> 104.000). Uno desconocido ("per-project")
+            # no se compone: no hay forma honesta de llevarlo a un sueldo anual.
+            sufijo = _SUFIJO_PERIODO.get(periodo)
+            if sufijo is None:
+                lo = hi = None
 
     if (lo or hi) and fm.get("salary_currency"):
         codigo = _texto(_por_path(fila, fm["salary_currency"])).upper()
         if not re.fullmatch(r"[A-Z]{3}", codigo):
             return None
-        pre = f"{codigo} "
+        # Un periodo no anual va con simbolo cuando el parser lo tiene: "USD 50" sin
+        # miles no lo lee (lo protege del presupuesto "USD 2,000" de Canonical), y
+        # "$50 /hour" si. Las monedas sin simbolo conocido conservan el codigo.
+        pre = _SIMBOLO_DE.get(codigo, f"{codigo} ") if sufijo else f"{codigo} "
     else:
         pre = "$"
 
     if lo and hi and hi != lo:
-        return f"{pre}{lo:,} - {pre}{hi:,}"
+        return f"{pre}{lo:,} - {pre}{hi:,}{sufijo}"
     if lo:
-        return f"{pre}{lo:,}"
+        return f"{pre}{lo:,}{sufijo}"
     if hi:
-        return f"{pre}{hi:,}"
+        return f"{pre}{hi:,}{sufijo}"
 
     # Ultimo recurso, y en ese orden a proposito: un campo declarado siempre le gana a
     # un numero pescado de la prosa. La descripcion se lee solo cuando la plataforma no

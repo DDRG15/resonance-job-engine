@@ -96,6 +96,9 @@ export interface TieredJobDto {
   location_note: string
   language_verdict: string
   language_note: string
+  // Plan 30-09, Fase 6 (D3): el aviso publico salario en texto ("Competitive") y se
+  // puntuo sin el eje de salario. Opcional: filas de antes de v6 no lo traen.
+  salario_no_confirmado?: boolean
 }
 
 export interface SummaryDto {

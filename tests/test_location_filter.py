@@ -164,7 +164,7 @@ class TestLocationInScoreJob:
         tiered = score_job(j, _CFG)
         assert tiered.location_verdict == "FAIL"
         assert tiered.elegible is False
-        assert tiered.tier == "Tier 4"
+        assert tiered.tier in ("Tier 1", "Tier 2", "Tier 3")   # v6: ya no Tier 4
 
     def test_us_only_no_baja_el_puntaje_pero_da_FAIL(self):
         """El puesto calza igual de bien; lo que cambia es que no podes postular.

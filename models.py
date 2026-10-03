@@ -20,7 +20,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -221,14 +221,21 @@ class JobResult(BaseModel):
 
 
 def salario_anual_usd(texto: Optional[str]) -> Optional[int]:
+    """Un texto de salario a USD anuales, o None. Ver `_salario_anual_detalle`."""
+    return _salario_anual_detalle(texto)[0]
+
+
+def _salario_anual_detalle(texto: Optional[str]) -> tuple[Optional[int], bool]:
     """
+    (USD anuales o None, si se anualizo desde un periodo no anual).
+
     Un texto de salario a USD anuales, o None. La logica que vivia en
     JobResult.parse_salary_usd, sacada a modulo el 2026-09-29 para que el extractor
     de descripciones pueda medir cada candidato sin fabricar un JobResult: tiene que
     descartar montos que no son un sueldo anual (ver endpoint_scraper).
     """
     if not texto:
-        return None
+        return None, False
 
     import re
     # Input is lowercased so the usd\b branch matches 'USD', 'usd', 'Usd'.
@@ -261,16 +268,28 @@ def salario_anual_usd(texto: Optional[str]) -> Optional[int]:
     # piso de 90k (el de la busqueda de la API): Tier 2 con 59 puntos leido bien, Tier 3
     # con 25 leido mal ("Salary $185 below minimum"). Con 1-2 digitos sigue siendo
     # decimal ("$85.5k").
+    # , Fase 6: el PERIODO. Remotive publica "$90 - $150 /hour" y esto
+    # devolvia 90 — noventa dolares al ano —, asi que el aviso caia a Tier 3 por
+    # "salario por debajo del minimo". Con periodo no anual se multiplica, y se abre
+    # la forma de un digito de miles ("$3,500/month") que sin periodo sigue cerrada
+    # por el presupuesto de Canonical ("USD 2,000").
+    multiplicador, techo = _periodo_del_salario(raw)
+    if multiplicador != 1:
+        num_sim = r'(?:\d{1,3}(?:[.,]\d{3})+|\d{2,3})(?:\.\d+)?'
+        num_pre = r'\d{1,3}(?:[.,]\d{3})+|\d{2,3}(?:\.\d+)?'
+    else:
+        num_sim = r'\d{2,3}(?:[.,]\d{3})*(?:\.\d+)?'
+        num_pre = r'\d{2,3}(?:[.,]\d{3})+|\d{2,3}(?:\.\d+)?(?=\s*k)'
     matches = re.findall(
-        r'([$£€])\s*(\d{2,3}(?:[.,]\d{3})*(?:\.\d+)?)\s*(k)?'
+        rf'([$£€])\s*({num_sim})\s*(k)?'
         r'|'
         r'(\d{2,3}(?:[.,]\d{3})*(?:\.\d+)?)\s*(k)?\s*(usd|eur|gbp)\b'
         r'|'
-        r'\b(usd|eur|gbp)\s*(\d{2,3}(?:[.,]\d{3})+|\d{2,3}(?:\.\d+)?(?=\s*k))\s*(k)?',
+        rf'\b(usd|eur|gbp)\s*({num_pre})\s*(k)?',
         raw,
     )
     if not matches:
-        return None
+        return None, False
 
     _SIMBOLO = {"$": "usd", "£": "gbp", "€": "eur"}
     # Import diferido: config importa models en algunos caminos, y un import
@@ -305,7 +324,56 @@ def salario_anual_usd(texto: Optional[str]) -> Optional[int]:
         except ValueError:
             continue
 
-    return min(values) if values else None
+    if not values:
+        return None, False
+    base = min(values)
+    # Solo se anualiza un monto que es plausible para ese periodo. "$150,000 base + 2
+    # days per month remote" nombra un mes, pero 150.000 no es un mensual: ya es anual.
+    if multiplicador != 1 and base < techo:
+        return int(base * multiplicador), True
+    return base, False
+
+
+# Periodo -> (multiplicador a anual, techo por debajo del cual el monto es de ese
+# periodo). Los techos son holgados a proposito: un mensual de 60.000 USD o una tarifa
+# de 1.000 USD la hora no son sueldos de los boards que GEMA lee; por encima, el
+# numero ya es anual y la palabra de periodo habla de otra cosa (PTO, stipend).
+_PERIODOS_SALARIO = (
+    ("hora", 2080, 1_000,
+     r"/\s*(?:hr|hour|h)\b|\bper\s+hour\b|\ban\s+hour\b|\bhourly\b|\bpor\s+hora\b|/\s*hora\b"),
+    ("dia", 260, 5_000,
+     r"/\s*day\b|\bper\s+day\b|\bdaily\b|\bpor\s+d[ií]a\b|/\s*d[ií]a\b"),
+    ("semana", 52, 20_000,
+     r"/\s*(?:wk|week)\b|\bper\s+week\b|\ba\s+week\b|\bweekly\b|\bpor\s+semana\b|\bsemanal\b"),
+    ("mes", 12, 60_000,
+     r"/\s*(?:mo|month)\b|\bper\s+month\b|\ba\s+month\b|\bmonthly\b|\bmensual(?:es)?\b"
+     r"|\bal\s+mes\b|\bpor\s+mes\b|/\s*mes\b"),
+)
+_PERIODO_ANUAL = (r"/\s*(?:yr|year)\b|\bper\s+(?:year|annum)\b|\ba\s+year\b|\bannual(?:ly)?\b"
+                  r"|\byearly\b|\bal\s+a[nñ]o\b|\bpor\s+a[nñ]o\b|\banual\b")
+
+
+def _periodo_del_salario(texto_lower: str) -> tuple[int, int]:
+    """
+    (multiplicador, techo) del periodo que nombra el texto; (1, 0) si es anual o no
+    nombra ninguno.
+
+    Una marca anual explicita gana sobre cualquier otra: "$120k a year + $1k monthly
+    stipend" es un sueldo anual con un extra mensual, no un mensual de 120k.
+    """
+    import re
+    if re.search(_PERIODO_ANUAL, texto_lower):
+        return 1, 0
+    for _nombre, mult, techo, patron in _PERIODOS_SALARIO:
+        if re.search(patron, texto_lower):
+            return mult, techo
+    return 1, 0
+
+
+def salario_anualizado(texto: Optional[str]) -> bool:
+    """True si `salario_anual_usd` multiplico el monto por un periodo no anual. Para la
+    metrica `jobs_salario_anualizado` del ."""
+    return _salario_anual_detalle(texto)[1]
 
 
 # =============================================================================
@@ -374,6 +442,20 @@ class TieredJob(BaseModel):
         """False si algun veto es FAIL. Un FLAG sigue siendo elegible: marcado,
         no descartado — descartar en silencio es peor que mostrar con una nota."""
         return "FAIL" not in (self.location_verdict, self.language_verdict)
+
+    @computed_field
+    @property
+    def salario_no_confirmado(self) -> bool:
+        """
+        El aviso publico salario en texto ("Competitive", "DOE") que no se pudo leer
+        como sueldo anual. , Fase 6, decision D3: ya no saca el aviso del
+        scoring —antes iba a Tier 4 aunque titulo, ubicacion y perfil calzaran—; se
+        puntua sin el eje de salario y se marca. Calculado, no guardado: sale de
+        `salary_raw`, asi que una fila vieja lo trae igual y no puede contradecirse.
+        No publicar salario NO es esto: es un dato ausente, sin marca.
+        """
+        crudo = (self.job.salary_raw or "").strip()
+        return bool(crudo) and salario_anual_usd(crudo) is None
 
     @field_validator("tier")
     @classmethod

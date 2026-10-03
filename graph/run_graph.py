@@ -253,6 +253,11 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
         f"- Tier 3: {len(t3)}\n"
         f"- Tier 4: {len(t4)}"
     )
+    # v6 (, D3): el salario en texto se puntua; la cuenta dice cuantos.
+    sin_confirmar = sum(1 for tj in (t1 + t2 + t3)
+                        if getattr(tj, "salario_no_confirmado", False))
+    if sin_confirmar:
+        report += f"\n- Salario sin confirmar: {sin_confirmar}"
     errores = state.get("errors") or []
     if errores:
         report += f"\n\n⚠️ {len(errores)} error(es) durante el run:"

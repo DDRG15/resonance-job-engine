@@ -97,6 +97,8 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 #   v3  desde 2026-09-19  score de titulo continuo (cobertura 0.70 / precision 0.30)
 #   v4  desde 2026-09-29  veredicto de ubicacion sin tildes y con ISO-3 de LATAM
 #   v5  desde 2026-09-29  salario: separador de miles con punto, codigo delante
+#   v6  desde 2026-10-01  salario por periodo anualizado; salario en texto ya no es
+#                         Tier 4: se puntua sin ese eje y se marca (D3, )
 #
 # El salto a v3 es retroactivo: 9bc8e4b cambio _score_title y dejo la version en v2,
 # asi que 1024 filas quedaron con puntajes escalonados bajo la misma etiqueta que los
@@ -107,7 +109,7 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 # ya vistos no vuelven a pasar por bucket_jobs). Despues de subirla hay que correr
 # tools/repuntuar_registry.py. tests/test_score_version_congelada.py falla si alguien
 # cambia la salida de score_job sin tocar esta linea.
-SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v5")
+SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v6")
 
 
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────

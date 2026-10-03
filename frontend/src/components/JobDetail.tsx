@@ -109,6 +109,9 @@ export default function JobDetail({ tj }: Props) {
           <dt>Salario</dt>
           <dd className={j.salary_raw ? '' : 'absent'}>
             {j.salary_raw || 'no publicado'}
+            {tj.salario_no_confirmado && (
+              <span className="nosal-note"> · no confirmado — puntuado sin el eje de salario</span>
+            )}
           </dd>
         </div>
         <div>
