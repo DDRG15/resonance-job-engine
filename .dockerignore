@@ -48,6 +48,12 @@ drift_quarantine/
 *.db-wal
 *.bak
 
+# Snapshots de tools/repuntuar_registry.py (Plan30 Fase 3): copias COMPLETAS del registry.
+# `*.db` de arriba NO los cubre: en .dockerignore un patron sin `**/` matchea solo en la
+# raiz del contexto, asi que `backups/gema_registry_2026....db` entraria a la imagen con
+# todo el historial de avisos y postulaciones. Se excluye el directorio entero.
+backups/
+
 # --- GIT ---
 .git/
 .gitignore

@@ -43,6 +43,25 @@ def _aislar_drift_quarantine(tmp_path, monkeypatch):
     )
 
 
+@pytest.fixture(autouse=True)
+def _permitir_testserver(monkeypatch):
+    """
+    El TestClient manda `Host: testserver`; la API solo acepta los hosts de
+    config.ALLOWED_HOSTS (Plan30 Fase 3), que en produccion son localhost y 127.0.0.1.
+
+    Se agrega en el test y no en la configuracion: poner `testserver` en el default
+    habilitaria en produccion un Host que solo existe en la suite. Se parchea
+    `config.ALLOWED_HOSTS` y no la variable de entorno porque config.py carga el `.env`
+    con override=True: un GEMA_ALLOWED_HOSTS en el .env de quien corre la suite pisaria
+    la variable y dejaria rojos todos los tests de la API.
+
+    Autouse por la misma razon que el aislamiento de red: el proximo test con
+    TestClient no tiene por que saber que existe este middleware.
+    """
+    import config
+    monkeypatch.setattr(config, "ALLOWED_HOSTS", [*config.ALLOWED_HOSTS, "testserver"])
+
+
 class RedProhibida(ConnectionError):
     """
     Un test intentó salir a internet.

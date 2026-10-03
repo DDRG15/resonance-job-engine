@@ -15,7 +15,6 @@ El contrato completo (14 endpoints, checklist de paridad con main.py) vive
 en PHASE_FIX_ → sección B6.0.
 """
 
-import io
 import json
 import asyncio
 import logging
@@ -34,7 +33,6 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-import pandas as pd
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -42,6 +40,9 @@ from pydantic import BaseModel
 
 import config
 import selectors_registry
+from excel_seguro import construir_xlsx
+from host_guard import HostGuardMiddleware
+from origin_guard import OriginGuardMiddleware
 from database import GemaDatabase
 from integrations import NotionClient, SheetsClient
 from models import SearchConfig, SearchVaultEntry
@@ -184,6 +185,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Plan30 Fase 3: la API no tiene autenticacion, asi que lo unico que separa a un
+# navegador de la maquina de /api/reset son dos headers que la pagina atacante no
+# controla. Orden de afuera hacia adentro (add_middleware inserta al frente, asi que
+# se agrega al reves): Host -> Origin -> CORS -> app.
+#   Origin: POST/PUT/PATCH/DELETE con Origin ajeno -> 403. Corta el formulario cruzado
+#           (CORS no lo frena: decide la lectura, no la ejecucion). config.ALLOWED_ORIGINS.
+#   Host:   Host ajeno -> 400. Corta el DNS rebinding. config.ALLOWED_HOSTS.
+app.add_middleware(OriginGuardMiddleware)
+app.add_middleware(HostGuardMiddleware)
 
 
 # =============================================================================
@@ -401,9 +412,9 @@ def export_excel():
             "Source":       tj.job.source_domain,
             "Date Fetched": tj.job.scraped_at.strftime("%Y-%m-%d %H:%M UTC"),
         })
-    buf = io.BytesIO()
-    pd.DataFrame(rows).to_excel(buf, index=False, engine="openpyxl")
-    buf.seek(0)
+    # Plan30 Fase 3 (revision externa 14): titulo, empresa, salario y URL los escribio un board.
+    # excel_seguro los deja como texto —nunca formula— y solo enlaza http/https.
+    buf = construir_xlsx(rows)
     run_id_short = (runs.run_id or "gema")[:8]
     return StreamingResponse(
         buf,
