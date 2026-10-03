@@ -29,6 +29,10 @@ ENV/
 *.db-shm
 *.db-wal
 *.bak
+# Snapshots de tools/repuntuar_registry.py (Plan30 Fase 3): copias completas del
+# registry. `*.db` ya las cubriria, pero un snapshot con otra extension no, y el
+# directorio entero no se versiona nunca.
+backups/
 
 # Credentials — ignore the key files but track the directory itself
 credentials/*.json

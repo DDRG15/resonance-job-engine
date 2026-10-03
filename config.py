@@ -303,6 +303,119 @@ GEMA_DB_PATH: str = os.getenv("GEMA_DB_PATH", "gema_registry.db")
 DB_BACKUP_SUFFIX: str = ".bak"
 DEFAULT_TTL_HOURS: int = int(os.getenv("DEFAULT_TTL_HOURS", "0"))
 
+# Donde `tools/repuntuar_registry.py` deja la copia de la base antes de escribir. Una ruta
+# relativa se resuelve contra la raiz del repo, no contra el cwd: `.gitignore` y
+# `.dockerignore` excluyen `backups/` en la raiz, y un directorio que cambia segun desde
+# donde se lance la herramienta es un directorio que esas reglas no cubren.
+GEMA_BACKUP_DIR: str = os.getenv("GEMA_BACKUP_DIR", "backups")
+
+
+# =============================================================================
+# API: hosts permitidos (Plan30 Fase 3)
+# =============================================================================
+#
+# La API no tiene autenticacion: CV, setup, scheduler y reset quedan abiertos a quien
+# alcance el puerto. docker-compose ya publica solo en 127.0.0.1, pero un navegador en la
+# misma maquina puede ser empujado a hablarle por DNS rebinding: una pagina de
+# `evil.example` cuyo DNS pasa a resolver 127.0.0.1 hace que el navegador mande
+# `Host: evil.example` a localhost:8000 y, para el navegador, la respuesta es del mismo
+# origen que la pagina. Esa pagina lee el perfil y dispara un reset. El unico dato que el
+# atacante no controla es el Host que le toca al navegador, asi que ahi se corta.
+#
+# Lista separada por comas, sin puerto (el middleware compara solo el host). Acepta
+# `*.dominio.com`. Un `*` pelado se descarta: apagar la proteccion no se hace con un
+# valor por defecto de comodin; se hace listando los hosts que de verdad se van a usar.
+_ALLOWED_HOSTS_DEFAULT = "localhost,127.0.0.1"
+
+
+def parse_allowed_hosts(raw: str) -> list[str]:
+    """
+    Lista de patrones de Host validos a partir del texto de GEMA_ALLOWED_HOSTS.
+
+    Descarta, con aviso en el log, lo que no puede funcionar o apaga la proteccion:
+    un `*` pelado, un comodin que no sea `*.dominio`, un patron con puerto o con
+    esquema (el middleware compara el host sin puerto, asi que `localhost:8000` no
+    matchea NADA y deja al usuario fuera de su propia API). Si no queda ningun patron
+    valido vuelve al valor por defecto: una variable mal escrita no puede dejar el
+    servidor sin ningun host permitido ni abrirlo a todos.
+    """
+    import logging
+
+    validos: list[str] = []
+    for pat in (p.strip().lower() for p in (raw or "").split(",")):
+        if not pat:
+            continue
+        sin_puerto = pat.startswith("[") or ":" not in pat
+        comodin_ok = "*" not in pat or (pat.startswith("*.") and "*" not in pat[1:])
+        if pat == "*" or not sin_puerto or not comodin_ok or "/" in pat or " " in pat:
+            logging.getLogger("gema.config").warning(
+                "[CONFIG] GEMA_ALLOWED_HOSTS: se descarta %r (sin puerto ni esquema, "
+                "y '*' solo como '*.dominio.com').", pat,
+            )
+            continue
+        if pat not in validos:
+            validos.append(pat)
+    return validos or _ALLOWED_HOSTS_DEFAULT.split(",")
+
+
+ALLOWED_HOSTS: list[str] = parse_allowed_hosts(
+    os.getenv("GEMA_ALLOWED_HOSTS", _ALLOWED_HOSTS_DEFAULT)
+)
+
+# ── Origins permitidos para metodos que mutan estado ─────────────────────────
+#
+# El Host no alcanza. Una pagina de `evil.example` abierta en el navegador de el usuario puede
+# mandar un `<form method=POST action="http://localhost:8000/api/reset">` y el navegador
+# lo envia con `Host: localhost:8000` —el Host es el del destino, que es legitimo—. No hay
+# preflight de CORS para un formulario simple, asi que CORS no lo frena: CORS decide si la
+# pagina puede LEER la respuesta, no si el request se ejecuta. El reset ya corrio. Lo que
+# delata el request es el header `Origin`, que el navegador pone en todo POST/PUT/PATCH/
+# DELETE y que la pagina no puede falsear ni quitar.
+#
+# Lista separada por comas de `esquema://host[:puerto]`, sin ruta. Los cuatro del default
+# son los dos del frontend en desarrollo (Vite, 5173) y los dos de la API que sirve el
+# bundle (8000, tambien el contenedor publicado en 127.0.0.1:8000). El proxy de Vite
+# reenvia el Origin del navegador sin tocarlo, asi que los POST del frontend en dev llegan
+# con `http://localhost:5173`.
+_ALLOWED_ORIGINS_DEFAULT = (
+    "http://localhost:5173,http://127.0.0.1:5173,"
+    "http://localhost:8000,http://127.0.0.1:8000"
+)
+
+
+def parse_allowed_origins(raw: str) -> list[str]:
+    """
+    Lista de origins validos a partir del texto de GEMA_ALLOWED_ORIGINS.
+
+    Un origin es `http(s)://host[:puerto]` y nada mas: sin ruta, sin comodin. Se descarta
+    con aviso lo que no cumple —un `*` que dejaria pasar a cualquier pagina, una URL con
+    ruta que nunca iguala a un Origin real— y si no queda nada vuelve al default.
+    """
+    import logging
+    import re
+
+    validos: list[str] = []
+    # rstrip("/"): `http://localhost:5173/` es el error de tipeo mas comun y un Origin real
+    # nunca lleva barra final, asi que se normaliza en vez de descartarlo.
+    for original in (p.strip() for p in (raw or "").split(",")):
+        if not original:
+            continue
+        o = original.lower().rstrip("/")
+        if not re.fullmatch(r"https?://[a-z0-9.\-]+(:\d{1,5})?|https?://\[[0-9a-f:]+\](:\d{1,5})?", o):
+            logging.getLogger("gema.config").warning(
+                "[CONFIG] GEMA_ALLOWED_ORIGINS: se descarta %r (formato "
+                "`http(s)://host[:puerto]`, sin ruta ni comodin).", original,
+            )
+            continue
+        if o not in validos:
+            validos.append(o)
+    return validos or _ALLOWED_ORIGINS_DEFAULT.split(",")
+
+
+ALLOWED_ORIGINS: list[str] = parse_allowed_origins(
+    os.getenv("GEMA_ALLOWED_ORIGINS", _ALLOWED_ORIGINS_DEFAULT)
+)
+
 
 # =============================================================================
 # Integration: Notion
