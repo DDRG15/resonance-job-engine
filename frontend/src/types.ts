@@ -182,12 +182,21 @@ export interface Application {
   applied_at: string | null
   closed_at: string | null
   salary_offered: number | null
+  // Fase 9: «próxima acción» = qué hacer (`next_action`) y cuándo (`follow_up_at`,
+  // YYYY-MM-DD). La pareja se edita junta pero cada mitad se puede dejar vacía.
   follow_up_at: string | null
+  next_action: string | null
+  // La calcula el BACKEND (fecha anterior a hoy en la ciudad del candidato y postulación abierta). El
+  // front no la recalcula: si el badge, la fila y el reporte de Discord usaran tres
+  // relojes, mostrarían tres números distintos para la misma pregunta.
+  vencida?: boolean
   notes: string | null
 }
 
 export interface ApplicationsResponse {
   applications: Application[]
+  // Total de vencidas, filtre o no la lista. Es el número del badge del sidebar.
+  vencidas: number
   // La maquina de estados viaja con la respuesta para que el front no la duplique:
   // si vive en dos lugares, el dia que se agregue un estado se actualiza uno solo.
   estados: string[]

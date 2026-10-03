@@ -24,6 +24,9 @@ interface Props {
   onOpenDuplicados: () => void
   duplicadosPending: number
   reviewPending: number
+  // Fase 9: cuántas postulaciones abiertas tienen la próxima acción atrasada. Opcional
+  // para que quien monte el Sidebar sin esa consulta no vea un badge inventado.
+  overdueApps?: number
 }
 
 export default function Sidebar({
@@ -31,6 +34,7 @@ export default function Sidebar({
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb, onOpenStats,
   onOpenReview,
   onOpenPipeline, reviewPending, onOpenDuplicados, duplicadosPending,
+  overdueApps = 0,
 }: Props) {
   // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
   // es LA destructiva (borra sesión, apaga cron, limpia estado persistido F8).
@@ -114,6 +118,15 @@ export default function Sidebar({
             <button type="button" className="btn mini" onClick={onOpenPipeline}
                     style={{ flex: 1 }}>
               Postulaciones
+              {overdueApps > 0 && (
+                <span
+                  className="side-badge"
+                  title={`${overdueApps} próxima(s) acción(es) vencida(s)`}
+                  aria-label={`${overdueApps} ${overdueApps === 1 ? 'vencida' : 'vencidas'}`}
+                >
+                  {overdueApps}
+                </span>
+              )}
             </button>
           </div>
           <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>

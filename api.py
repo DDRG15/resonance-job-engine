@@ -549,25 +549,50 @@ class PostulacionNueva(BaseModel):
     status: str = "postulado"
     notes: Optional[str] = None
     follow_up_at: Optional[str] = None
+    # Fase 9: qué hay que hacer en `follow_up_at` («escribir al recruiter»).
+    next_action: Optional[str] = None
 
 
 class PostulacionMovida(BaseModel):
-    status: str
+    """
+    El cuerpo del PATCH. Dos usos sobre el MISMO endpoint, no dos caminos:
+
+    - mover de estado: `status` (+ `nota`, `salary_offered`), como desde la Fase 7;
+    - editar la próxima acción (Fase 9): `next_action` y/o `follow_up_at`, con o sin
+      `status`.
+
+    `status` pasó a opcional para eso. Un campo ausente no se toca; uno enviado como
+    `null` o `""` se borra. Por eso el handler mira `model_fields_set` y no el valor.
+    """
+    status: Optional[str] = None
     nota: Optional[str] = None
     salary_offered: Optional[int] = None
+    next_action: Optional[str] = None
+    follow_up_at: Optional[str] = None
 
 
 @app.get("/api/applications")
-def list_applications(status: Optional[str] = None):
+def list_applications(status: Optional[str] = None, overdue: bool = False):
     """Las postulaciones, más recientemente movidas primero.
 
     `estados` y `cadena` viajan con la respuesta para que el front no tenga que
     duplicar la máquina de estados: si la lista de estados vive en dos lugares,
     el día que se agregue uno solo se va a actualizar uno.
+
+    Fase 9: `?overdue=true` devuelve solo las vencidas (próxima acción con fecha
+    anterior a hoy y postulación abierta), las más atrasadas primero. `vencidas` es el
+    total de vencidas SIEMPRE, filtre o no: es el número del badge del sidebar y sale
+    del mismo cálculo que la marca `vencida` de cada fila y que el reporte de Discord.
     """
     import applications as app_dom
+    vencidas = app.state.db.vencidas()
+    if overdue:
+        postulaciones = [a for a in vencidas if not status or a["status"] == status]
+    else:
+        postulaciones = app.state.db.listar_postulaciones(status=status)
     return {
-        "applications": app.state.db.listar_postulaciones(status=status),
+        "applications": postulaciones,
+        "vencidas": len(vencidas),
         "estados": sorted(app_dom.ESTADOS),
         "cadena": list(app_dom.CADENA),
         "terminales": sorted(app_dom.TERMINALES),
@@ -580,18 +605,55 @@ def create_application(body: PostulacionNueva):
     try:
         return app.state.db.crear_postulacion(
             body.url, status=body.status, notes=body.notes,
-            follow_up_at=body.follow_up_at)
+            follow_up_at=body.follow_up_at, next_action=body.next_action)
     except app_dom.TransicionInvalida as exc:
         raise HTTPException(400, str(exc))
+    except ValueError as exc:
+        # Fecha o texto de la próxima acción inválidos: el payload está mal formado.
+        raise HTTPException(422, str(exc))
 
 
 @app.patch("/api/applications/{app_id}")
 def move_application(app_id: str, body: PostulacionMovida):
     import applications as app_dom
+    import database as db_mod
+
+    campos = body.model_fields_set
+    edicion: dict = {}
+    if "next_action" in campos:
+        edicion["next_action"] = body.next_action
+    if "follow_up_at" in campos:
+        edicion["follow_up_at"] = body.follow_up_at
+
+    if body.status is None:
+        if not edicion:
+            raise HTTPException(
+                422, "el PATCH necesita status, next_action o follow_up_at")
+        if body.nota is not None or body.salary_offered is not None:
+            # Antes eran obligatorios con status; sin él no hay movimiento al cual
+            # asociarlos y descartarlos en silencio parecería que se guardaron.
+            raise HTTPException(
+                422, "nota y salary_offered solo se guardan al mover de estado (falta status)")
+
+    # Validar la edición ANTES de mover: si la fecha es inválida, la postulación no
+    # puede quedar movida de estado con la edición a medias.
     try:
-        return app.state.db.mover_postulacion(
-            app_id, body.status, nota=body.nota,
-            salary_offered=body.salary_offered)
+        if "next_action" in edicion:
+            db_mod.normalizar_proxima_accion(edicion["next_action"])
+        if "follow_up_at" in edicion:
+            db_mod.normalizar_fecha_accion(edicion["follow_up_at"])
+    except ValueError as exc:
+        raise HTTPException(422, str(exc))
+
+    try:
+        resultado = None
+        if body.status is not None:
+            resultado = app.state.db.mover_postulacion(
+                app_id, body.status, nota=body.nota,
+                salary_offered=body.salary_offered)
+        if edicion:
+            resultado = app.state.db.editar_proxima_accion(app_id, **edicion)
+        return resultado
     except KeyError:
         raise HTTPException(404, "postulación no encontrada")
     except app_dom.TransicionInvalida as exc:
