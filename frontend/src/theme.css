@@ -621,6 +621,27 @@ details.warn-details .warn-list {
 .app-acciones { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
 .app-acciones .btn { font-size: 10.5px; padding: 3px 8px; }
 
+/* Fase 9: próxima acción. Vencida = rojo de tier 3, el mismo que ya significa «algo
+   salió mal»; no se inventa un color nuevo para la urgencia. */
+.app-next { display: flex; align-items: center; gap: 8px; margin-top: 4px;
+  font-size: 12px; color: var(--muted); min-width: 0; }
+.app-next-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.app-next time { font-family: var(--mono); font-size: 11px; color: var(--faint); flex: none; }
+.app-next.vencida { color: var(--t3-ink); }
+.app-next.vencida time { color: var(--t3-ink); }
+.app-edit { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 6px; }
+.app-edit input[type="text"] { flex: 1 1 200px; min-width: 0; }
+.app-edit input[type="date"] { flex: 0 0 auto; color-scheme: dark; }
+.vencidas-count { color: var(--t3-ink); font-weight: 600; }
+
+/* Badge numérico del botón Postulaciones en el sidebar. */
+.side-badge {
+  display: inline-block; margin-left: 6px; min-width: 18px; padding: 0 6px;
+  border-radius: 9px; font-size: 10.5px; font-weight: 700; line-height: 17px;
+  text-align: center; color: var(--t3-ink);
+  background: rgba(225, 29, 72, .18); border: 1px solid rgba(225, 29, 72, .5);
+}
+
 .conv { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 16px; }
 .conv h4 { margin: 0; font-size: 13.5px; font-weight: 600; }
 .conv-row { display: grid; grid-template-columns: 120px 1fr 96px;

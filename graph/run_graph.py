@@ -31,6 +31,7 @@ telemetría.
 """
 
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -40,6 +41,12 @@ from langgraph.types import RunnableConfig
 
 from graph.instrumentation import traced_node
 from graph.state import RunState
+
+# Fase 9. Los nodos avisan al humano por `ctx.emit` (el stream que mira); este logger
+# existe solo para lo que tiene que quedar en el log del proceso aunque nadie esté
+# mirando el stream. El cron pone `ctx.log = queue.put` y esa cola no la lee nadie, así
+# que «no hay webhook, no se avisó» dicho solo por ahí no lo vería el 1 AM de nadie.
+logger = logging.getLogger("gema.run_graph")
 
 
 def _rt(config: RunnableConfig):
@@ -265,8 +272,60 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
             report += f"\n  • {err}"
         if len(errores) > 5:
             report += f"\n  • … y {len(errores) - 5} más"
+    report += _seccion_vencidas(ctx)
     ctx.notify(report)
     return {}
+
+
+#: Cuántas vencidas se listan en el reporte. El resto se cuenta, no se lista: Discord
+#: corta en 2000 caracteres y un reporte que no entra se pierde ENTERO, tiers incluidos.
+_MAX_VENCIDAS_EN_REPORTE = 5
+
+
+def _seccion_vencidas(ctx) -> str:
+    """
+    Las próximas acciones vencidas, para pegar al reporte de Discord (Fase 9, D5).
+
+    Va en el MISMO mensaje que los tiers y no en uno aparte: dos mensajes serían dos
+    ráfagas contra el rate limit del webhook (5 por 5 s) y un segundo canal que hay que
+    acordarse de mirar. Si no hay vencidas devuelve "" — un recordatorio que aparece
+    siempre, vacío, es ruido y enseña a no leerlo.
+
+    Nunca rompe el reporte: si la consulta falla, el reporte de tiers sale igual y el
+    fallo queda en el log. Sin webhook configurado tampoco es un error, pero se dice:
+    una vencida que no avisó por falta de webhook es un aviso que nadie sabe que no llegó.
+    """
+    if ctx is None or ctx.db is None:
+        return ""
+    try:
+        vencidas = ctx.db.vencidas()
+    except Exception as exc:
+        ctx.emit(f"[VENCIDAS] no se pudieron consultar ({type(exc).__name__}: {exc}); "
+                 f"el reporte sale sin esa sección")
+        return ""
+    if not vencidas:
+        return ""
+
+    import config
+    if ctx.discord is None or not config.DISCORD_WEBHOOK_URL:
+        aviso = (f"[VENCIDAS] {len(vencidas)} proxima(s) accion(es) vencida(s), pero no hay "
+                 f"DISCORD_WEBHOOK_URL configurado: no se avisa por Discord "
+                 f"(estan en la vista Postulaciones)")
+        ctx.emit(aviso)
+        logger.warning(aviso)
+    else:
+        ctx.emit(f"[VENCIDAS] {len(vencidas)} proxima(s) accion(es) vencida(s) "
+                 f"incluidas en el reporte de Discord")
+
+    texto = f"\n\n⏰ {len(vencidas)} próxima(s) acción(es) vencida(s):"
+    for a in vencidas[:_MAX_VENCIDAS_EN_REPORTE]:
+        puesto = (a.get("title") or a.get("url") or "?")[:60]
+        empresa = f" @ {a['company'][:30]}" if a.get("company") else ""
+        accion = (a.get("next_action") or "sin texto")[:80]
+        texto += f"\n  • {puesto}{empresa} — {accion} (venció {a['follow_up_at']})"
+    if len(vencidas) > _MAX_VENCIDAS_EN_REPORTE:
+        texto += f"\n  • … y {len(vencidas) - _MAX_VENCIDAS_EN_REPORTE} más"
+    return texto
 
 
 @traced_node("push", graph="run", degrade=lambda exc, state: {})

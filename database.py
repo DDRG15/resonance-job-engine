@@ -15,10 +15,11 @@ import logging
 import re
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Generator, Optional
 from urllib.parse import urlparse, urlunparse
+from zoneinfo import ZoneInfo
 
 from models import JobResult, SearchConfig, SearchVaultEntry
 import config
@@ -48,6 +49,124 @@ def _now_iso() -> str:
     """UTC siempre. Un timestamp de telemetría en hora local no se puede correlacionar
     con nada — ni entre máquinas, ni a través de un cambio de horario."""
     return datetime.now(timezone.utc).isoformat()
+
+
+# =============================================================================
+# Fase 9 (2026-09-30) — próxima acción de una postulación
+#
+# `follow_up_at` se escribía desde la Fase 7 y nadie lo leía: una postulación con
+# «escribir al recruiter el jueves» se enteraba del jueves por casualidad, y un
+# seguimiento que no se hace a tiempo es una postulación que pasa a `sin_respuesta`
+# sin que nadie lo haya decidido. La fase conecta el dato con dos lectores: la vista de
+# postulaciones (marca la vencida) y el reporte del cron (la avisa por Discord).
+#
+# Estas funciones son el único lugar donde vive la regla de «vencida». La lista, el
+# contador del sidebar y el reporte de Discord la llaman a ella: tres copias del mismo
+# criterio terminan en tres números distintos para la misma pregunta.
+# =============================================================================
+
+#: Tope del texto. «Escribir al recruiter» son 22 caracteres; 200 cubre una frase larga
+#: y evita que un pegado accidental de un mail entero viaje al reporte de Discord, que
+#: corta en 2000 caracteres.
+MAX_PROXIMA_ACCION = 200
+
+#: Distingue «no mandaron el campo» (no tocar) de «mandaron null» (borrar). Con None
+#: solo no se puede borrar una fecha sin pisar también la otra.
+SIN_CAMBIO = object()
+
+
+def normalizar_fecha_accion(valor) -> Optional[str]:
+    """
+    Devuelve la fecha como `YYYY-MM-DD`, `None` si el valor está vacío, o lanza
+    `ValueError` si no es una fecha.
+
+    Se guarda solo el día. «Vencida» se decide por día calendario —una acción para el
+    jueves no vence el jueves a las 00:01—, así que una hora guardada sería un dato que
+    nadie lee y que dos clientes (el input `date` del front y un curl) escribirían en
+    formatos distintos. Si llega un datetime ISO se acepta y se descarta la hora.
+
+    Strings en la base y no un tipo fecha: es lo que `follow_up_at` ya era desde la
+    Fase 7, y el orden lexicográfico de `YYYY-MM-DD` coincide con el cronológico.
+    """
+    if valor is None:
+        return None
+    if not isinstance(valor, str):
+        raise ValueError("follow_up_at debe ser una fecha YYYY-MM-DD (o vacío para borrarla)")
+    texto = valor.strip()
+    if not texto:
+        return None
+    try:
+        if len(texto) == 10:
+            return date.fromisoformat(texto).isoformat()
+        return datetime.fromisoformat(texto).date().isoformat()
+    except ValueError:
+        raise ValueError(
+            f"follow_up_at debe ser una fecha YYYY-MM-DD (o vacío para borrarla), "
+            f"llegó {valor!r}") from None
+
+
+def normalizar_proxima_accion(valor) -> Optional[str]:
+    """
+    El texto de la próxima acción, sin espacios sobrantes; `None` si está vacío.
+
+    Lanza `ValueError` si pasa de `MAX_PROXIMA_ACCION`. No se trunca: un texto cortado
+    en silencio parece completo, y quien lo escribió no se entera de que perdió el final.
+    """
+    if valor is None:
+        return None
+    if not isinstance(valor, str):
+        raise ValueError("next_action debe ser texto")
+    texto = valor.strip()
+    if not texto:
+        return None
+    if len(texto) > MAX_PROXIMA_ACCION:
+        raise ValueError(
+            f"next_action admite hasta {MAX_PROXIMA_ACCION} caracteres, "
+            f"llegaron {len(texto)}")
+    return texto
+
+
+def hoy_local() -> date:
+    """
+    «Hoy» en la zona del cron (`SCHEDULER_TIMEZONE`, la ciudad del candidato por defecto), no en UTC.
+
+    La fecha de seguimiento la elige una persona en la ciudad del candidato. Con UTC, entre las 19:00 y la
+    medianoche de la ciudad del candidato «hoy» ya es mañana y una acción para hoy figuraría vencida cinco
+    horas antes de tiempo, justo en la franja en que el usuario revisa la pantalla.
+    """
+    try:
+        return datetime.now(ZoneInfo(config.SCHEDULER_TIMEZONE)).date()
+    except Exception as exc:
+        logger.warning("[DB] SCHEDULER_TIMEZONE %r no sirve (%s); 'hoy' sale de la "
+                       "hora local del sistema", config.SCHEDULER_TIMEZONE, exc)
+        return date.today()
+
+
+def _fecha_de(texto) -> Optional[date]:
+    """La fecha de un `follow_up_at` ya guardado, o None si no se puede leer."""
+    try:
+        normalizada = normalizar_fecha_accion(texto)
+    except ValueError:
+        return None
+    return date.fromisoformat(normalizada) if normalizada else None
+
+
+def esta_vencida(fila, hoy: date) -> bool:
+    """
+    Una postulación está vencida si tiene fecha, la fecha es anterior a `hoy` y la
+    postulación sigue abierta.
+
+    **Anterior a hoy, no «hasta hoy».** Una acción para hoy todavía se puede hacer;
+    marcarla vencida a la mañana enseña a ignorar la marca. **Y abierta:** una
+    postulación rechazada o aceptada ya no tiene nada que atender, y contarla inflaría
+    el badge con cosas que nadie puede hacer. «Cerrada» es `applications.TERMINALES`,
+    la misma fuente que usa el embudo, no una lista paralela.
+    """
+    import applications as app
+    if fila["status"] in app.TERMINALES:
+        return False
+    fecha = _fecha_de(fila["follow_up_at"])
+    return fecha is not None and fecha < hoy
 
 
 # Un aviso con 40 razones de match es un aviso con un bug en el matcher, no un aviso
@@ -120,7 +239,8 @@ CREATE TABLE IF NOT EXISTS applications (
     closed_at        TEXT,
     salary_offered   INTEGER,
     follow_up_at     TEXT,
-    notes            TEXT
+    notes            TEXT,
+    next_action      TEXT
 );
 """
 
@@ -435,6 +555,20 @@ class GemaDatabase:
                     else:
                         logger.error("[DB MIGRATION] ALTER seen_jobs_registry failed unexpectedly: %s", exc)
                         raise
+
+            # ── Fase 9 (2026-09-30): la próxima acción de una postulación ──
+            # `follow_up_at` ya existía y no tenía texto: una fecha sin «qué hacer ese
+            # día» es una alarma sin mensaje. El DDL de arriba ya la trae para bases
+            # nuevas; esto la agrega a las que se crearon en la Fase 7. Aditiva y con el
+            # mismo criterio que arriba: «duplicate column» es lo esperado en una base
+            # migrada, cualquier otro error grita.
+            try:
+                conn.execute("ALTER TABLE applications ADD COLUMN next_action TEXT")
+                logger.info("Migration: added next_action column to applications")
+            except Exception as exc:
+                if "duplicate column" not in str(exc).lower():
+                    logger.error("[DB MIGRATION] ALTER applications failed unexpectedly: %s", exc)
+                    raise
         logger.info("Database initialized: %s", self.db_path)
 
     def backup(self) -> str:
@@ -1258,7 +1392,8 @@ class GemaDatabase:
 
     def crear_postulacion(self, url: str, *, status: str = "postulado",
                           notes: Optional[str] = None,
-                          follow_up_at: Optional[str] = None) -> dict:
+                          follow_up_at: Optional[str] = None,
+                          next_action: Optional[str] = None) -> dict:
         """
         Registra una postulación contra un aviso del registry.
 
@@ -1281,6 +1416,10 @@ class GemaDatabase:
 
         if status not in app.ESTADOS:
             raise app.TransicionInvalida(f"Estado desconocido: {status!r}")
+        # Se valida ANTES de abrir la conexión: una fecha o un texto inválidos no pueden
+        # dejar una postulación a medias. Lanzan ValueError (la API lo traduce a 422).
+        follow_up_at = normalizar_fecha_accion(follow_up_at)
+        next_action = normalizar_proxima_accion(next_action)
 
         job_hash = self.compute_hash(url)
         ahora = _now_iso()
@@ -1302,8 +1441,8 @@ class GemaDatabase:
                 """INSERT INTO applications
                    (app_id, job_hash, url, title, company, source_domain,
                     tier_al_aplicar, score_al_aplicar, status, created_at,
-                    stage_changed_at, applied_at, follow_up_at, notes)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    stage_changed_at, applied_at, follow_up_at, notes, next_action)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (app_id, job_hash, url,
                  aviso["title"] if aviso else None,
                  aviso["company"] if aviso else None,
@@ -1312,7 +1451,7 @@ class GemaDatabase:
                  aviso["match_score"] if aviso else None,
                  status, ahora, ahora,
                  ahora if status != app.BORRADOR else None,
-                 follow_up_at, notes),
+                 follow_up_at, notes, next_action),
             )
             conn.execute(
                 "INSERT INTO application_events (app_id, desde, hasta, ocurrio_en, nota) "
@@ -1371,17 +1510,110 @@ class GemaDatabase:
         logger.info("[APP] %s: %s -> %s", app_id[:8], desde, hasta)
         return dict(nueva)
 
+    def editar_proxima_accion(self, app_id: str, *, next_action=SIN_CAMBIO,
+                              follow_up_at=SIN_CAMBIO) -> dict:
+        """
+        Cambia la próxima acción de una postulación (texto y/o fecha) sin moverla de
+        estado. Fase 9.
+
+        Cada campo es independiente: lo que no se manda no se toca, y mandar `None` o
+        un texto vacío lo borra. Hay que poder borrar una fecha sin perder el texto, y
+        al revés; con un solo parámetro `None` las dos cosas serían la misma.
+
+        No escribe en `application_events`. Ese histórico registra por qué ESTADOS pasó
+        una postulación y la conversión se mide sobre él; una fecha de seguimiento
+        movida tres veces no es una transición, y mezclarlas ensuciaría el embudo.
+
+        Se puede editar una postulación cerrada: el dato no se pierde ni se bloquea,
+        simplemente no cuenta como vencida (ver `esta_vencida`).
+
+        Lanza `ValueError` si el texto o la fecha no son válidos y `KeyError` si la
+        postulación no existe; en ninguno de los dos casos se escribe nada.
+        """
+        sets: list[str] = []
+        params: list = []
+        if next_action is not SIN_CAMBIO:
+            sets.append("next_action=?")
+            params.append(normalizar_proxima_accion(next_action))
+        if follow_up_at is not SIN_CAMBIO:
+            sets.append("follow_up_at=?")
+            params.append(normalizar_fecha_accion(follow_up_at))
+        if not sets:
+            raise ValueError("no hay nada que cambiar: falta next_action o follow_up_at")
+
+        with _get_connection(self.db_path) as conn:
+            existe = conn.execute(
+                "SELECT 1 FROM applications WHERE app_id=?", (app_id,)).fetchone()
+            if existe is None:
+                raise KeyError(f"No existe la postulacion {app_id!r}")
+            conn.execute(
+                f"UPDATE applications SET {', '.join(sets)} WHERE app_id=?",
+                (*params, app_id))
+            fila = conn.execute(
+                "SELECT * FROM applications WHERE app_id=?", (app_id,)).fetchone()
+        logger.info("[APP] %s: proxima accion editada", app_id[:8])
+        return dict(fila)
+
     def listar_postulaciones(self, status: Optional[str] = None,
-                             limit: int = 500) -> list[dict]:
-        q = "SELECT * FROM applications"
+                             limit: int = 500, *, solo_vencidas: bool = False,
+                             hoy: Optional[date] = None) -> list[dict]:
+        """
+        Las postulaciones, con la marca `vencida` calculada por `esta_vencida`.
+
+        `solo_vencidas=True` es la consulta de vencidas de la Fase 9 y devuelve las más
+        atrasadas primero: la que lleva más días sin atenderse es la que más se enfría.
+        `hoy` existe para que un test fije la fecha; en producción es `hoy_local()`.
+        """
+        import applications as app
+
+        hoy = hoy or hoy_local()
+        donde: list[str] = []
         params: list = []
         if status:
-            q += " WHERE status=?"
+            donde.append("status=?")
             params.append(status)
-        q += " ORDER BY stage_changed_at DESC LIMIT ?"
-        params.append(max(1, min(int(limit), 2000)))
+        if solo_vencidas:
+            # Prefiltro barato; el criterio final lo decide `esta_vencida` en Python.
+            # Se excluyen los cerrados en SQL para que un montón de rechazadas con fecha
+            # vieja no ocupen el LIMIT antes de llegar a las abiertas.
+            cerrados = sorted(app.TERMINALES)
+            donde.append("follow_up_at IS NOT NULL AND follow_up_at <> ''")
+            donde.append(f"status NOT IN ({','.join('?' * len(cerrados))})")
+            params.extend(cerrados)
+
+        q = "SELECT * FROM applications"
+        if donde:
+            q += " WHERE " + " AND ".join(donde)
+        tope = max(1, min(int(limit), 2000))
+        if solo_vencidas:
+            # Sin LIMIT en SQL: se corta DESPUÉS de filtrar, o el tope se comería filas
+            # que el filtro de Python iba a descartar.
+            q += " ORDER BY follow_up_at ASC, stage_changed_at DESC"
+        else:
+            q += " ORDER BY stage_changed_at DESC LIMIT ?"
+            params.append(tope)
+
         with _get_connection(self.db_path) as conn:
-            return [dict(r) for r in conn.execute(q, params).fetchall()]
+            filas = [dict(r) for r in conn.execute(q, params).fetchall()]
+
+        for f in filas:
+            f["vencida"] = esta_vencida(f, hoy)
+        if not solo_vencidas:
+            return filas
+
+        ilegibles = [f for f in filas if _fecha_de(f["follow_up_at"]) is None]
+        if ilegibles:
+            # Una fecha escrita antes de que la API la validara («la semana que viene»)
+            # no se puede comparar y no va a avisar nunca. Se nombra en el log en vez de
+            # callarla: el aviso que no llega es el que nadie echa de menos.
+            logger.warning("[APP] %d postulacion(es) abiertas con follow_up_at ilegible "
+                           "no pueden vencer nunca: %s", len(ilegibles),
+                           [f["app_id"][:8] for f in ilegibles[:5]])
+        return [f for f in filas if f["vencida"]][:tope]
+
+    def vencidas(self, hoy: Optional[date] = None) -> list[dict]:
+        """Las postulaciones abiertas con la próxima acción atrasada. Fase 9."""
+        return self.listar_postulaciones(solo_vencidas=True, limit=2000, hoy=hoy)
 
     def historial_postulacion(self, app_id: str) -> list[dict]:
         with _get_connection(self.db_path) as conn:

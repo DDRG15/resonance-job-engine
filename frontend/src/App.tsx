@@ -40,6 +40,15 @@ export default function App() {
       fetch('/api/correlators').then((r) => r.json() as Promise<{ total: number }>),
   })
 
+  // Fase 9: el badge de Postulaciones. Cuenta las vencidas con el MISMO cálculo del
+  // backend (`vencidas` viaja en cada respuesta de /api/applications); recalcular acá
+  // con el reloj del navegador daría otro número que el reporte de Discord.
+  const appsQ = useQuery({
+    queryKey: ['applications-overdue'],
+    queryFn: () =>
+      fetch('/api/applications?overdue=true').then((r) => r.json() as Promise<{ vencidas: number }>),
+  })
+
   // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
   const [auditReport, setAuditReport] = useState<string | null>(null)
@@ -162,6 +171,7 @@ export default function App() {
         }}
         reviewPending={reviewQ.data?.stats.pending ?? 0}
         duplicadosPending={dupQ.data?.total ?? 0}
+        overdueApps={appsQ.data?.vencidas ?? 0}
       />
       <main>
         {backendDown && (
@@ -176,7 +186,10 @@ export default function App() {
         {showReview && (
           <ReviewPanel onClose={() => setShowReview(false)} onChanged={refresh} />
         )}
-        {showPipeline && <Pipeline onClose={() => setShowPipeline(false)} />}
+        {showPipeline && (
+          <Pipeline onClose={() => setShowPipeline(false)}
+                    onChanged={() => void qc.invalidateQueries({ queryKey: ['applications-overdue'] })} />
+        )}
         {showDup && (
           <Duplicados onClose={() => setShowDup(false)}
                       onChanged={() => void dupQ.refetch()} />
