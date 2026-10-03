@@ -22,6 +22,9 @@ interface Props {
   onOpenReview: () => void
   onOpenPipeline: () => void
   onOpenDuplicados: () => void
+  onOpenFuentes: () => void
+  // Fuentes SOSPECHOSAS (cayeron a cero contra su historial); 0 si no hay o no se midió.
+  fuentesSospechosas: number
   duplicadosPending: number
   reviewPending: number
   // Fase 9: cuántas postulaciones abiertas tienen la próxima acción atrasada. Opcional
@@ -34,6 +37,7 @@ export default function Sidebar({
   ttlHours, onTtlChange, onLoadVault, onChanged, onKill, onOpenDb, onOpenStats,
   onOpenReview,
   onOpenPipeline, reviewPending, onOpenDuplicados, duplicadosPending,
+  onOpenFuentes, fuentesSospechosas,
   overdueApps = 0,
 }: Props) {
   // Triaje Kimi r3: confirmación SOLO para destructivas — y el kill switch
@@ -108,6 +112,22 @@ export default function Sidebar({
           </details>
         ))}
 
+      {/* Fase 4: el token de Notion se valida al arrancar la API. Antes la tarjeta
+          mostraba la integración activa con solo que la key existiera. */}
+      {status?.notion_estado && status.notion_estado.estado !== 'apagado' && (
+        <span
+          className={status.notion_estado.estado === 'valido' ? 'pill-ok'
+            : status.notion_estado.estado === 'invalido' ? 'pill-bad' : 'pill-warn'}
+          title={status.notion_estado.detalle}
+          data-testid="notion-estado"
+        >
+          <span className="dot" />{' '}
+          {status.notion_estado.estado === 'valido' ? 'Notion · token válido'
+            : status.notion_estado.estado === 'invalido' ? 'Notion · token inválido'
+            : 'Notion · no verificado'}
+        </span>
+      )}
+
       <CVUpload profile={profile} onChanged={onChanged} />
 
       {stats && (
@@ -154,6 +174,10 @@ export default function Sidebar({
             <button type="button" className="btn mini" onClick={onOpenDuplicados}
                     style={{ flex: 1 }}>
               Duplicados{duplicadosPending > 0 ? ` (${duplicadosPending})` : ''}
+            </button>
+            <button type="button" className="btn mini" onClick={onOpenFuentes}
+                    style={{ flex: 1 }}>
+              Fuentes{fuentesSospechosas > 0 ? ` (${fuentesSospechosas})` : ''}
             </button>
           </div>
         </div>

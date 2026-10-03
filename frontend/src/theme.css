@@ -592,6 +592,19 @@ details.warn-details .warn-list {
 .source-count { font-family: var(--mono); text-align: right; color: var(--text); }
 @media (max-width: 760px) { .stats-grid { grid-template-columns: 1fr; } }
 
+/* ── Fase 4: estado de las fuentes. Mismos tonos que los tiers (paleta validada CVD);
+   el glifo de cada estado va en el texto, el color solo lo refuerza. ── */
+.estado-fuente { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.estado-fuente.sana            { color: var(--t1-ink); }
+.estado-fuente.sospechosa      { color: var(--t3-ink); }
+.estado-fuente.sin_rendimiento { color: var(--t2-ink); }
+.estado-fuente.sin_medir       { color: var(--muted); }
+.pill-bad {
+  display: inline-flex; align-items: center; gap: 7px; align-self: flex-start;
+  font-size: 12px; border-radius: 99px; padding: 4px 11px;
+  color: var(--t3-ink); background: rgba(225,29,72,.1); border: 1px solid rgba(225,29,72,.45);
+}
+
 /* ── Setup wizard (primera corrida) ── */
 .wizard-wrap { max-width: 560px; margin: 8vh auto; padding: 0 20px; }
 .wizard-wrap h2 { font-size: 26px; font-weight: 650; margin: 0 0 4px; }

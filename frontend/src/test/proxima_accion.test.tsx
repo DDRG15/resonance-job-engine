@@ -193,6 +193,7 @@ describe('Sidebar — badge de Postulaciones (Fase 9)', () => {
           onKill={() => {}} onOpenDb={() => {}} onOpenStats={() => {}}
           onOpenReview={() => {}} onOpenPipeline={onOpenPipeline}
           onOpenDuplicados={() => {}} duplicadosPending={0} reviewPending={0}
+          onOpenFuentes={() => {}} fuentesSospechosas={0}
           overdueApps={overdueApps}
         />
       </ToastProvider>,

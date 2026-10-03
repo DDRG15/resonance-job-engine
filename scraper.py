@@ -50,6 +50,7 @@ WEBHOOK INTEGRATION:
 """
 
 import asyncio
+import contextvars
 import functools
 import itertools
 import json
@@ -73,6 +74,7 @@ from playwright.async_api import (
 from playwright_stealth import Stealth
 
 import config
+import fuentes_estado
 import metrics
 from board_strategy import (
     AccessVector, BoardStrategyRegistry, ExtractionMode, Health, Protection,
@@ -230,6 +232,34 @@ def _es_feed_fijo(domain: str) -> bool:
     """True si el board ignora el parametro de busqueda (ver DomainSelectors.feed_fijo)."""
     sel = get_selectors(domain)
     return bool(sel and getattr(sel, "feed_fijo", False))
+
+
+# Fase 4 (2026-09-30): cuántos avisos CRUDOS devolvió cada rama CSS.
+#
+# `_scrape_srp` devuelve solo los avisos NUEVOS (la dedup contra el registry ocurre
+# adentro, card por card), así que contar `len(jobs)` marcaría "vacío" a un board sano
+# cuyos avisos ya estaban todos vistos: la segunda corrida del día daría cero en todo y
+# la regla de fuentes sospechosas gritaría en cada board. Lo que cuenta es cuántas cards
+# había en la página.
+#
+# Se acumula en un ContextVar y no en un atributo del scraper porque las ramas de un
+# mismo board corren a la vez bajo asyncio.gather: un contador por dominio mezclaría los
+# 51 títulos entre sí. Cada tarea de gather copia el contexto al nacer, así que el dict
+# que `_bounded` pone acá es de esa rama y de ninguna otra.
+#
+# None = la rama no consultó la fuente (breaker abierto, query ya visitada, sin
+# selectores). Es un valor distinto de 0: "no pregunté" y "pregunté y no había nada" no
+# pueden compartir número.
+_ITEMS_RAMA: contextvars.ContextVar = contextvars.ContextVar("gema_items_rama",
+                                                              default=None)
+
+
+def _sumar_items_rama(n: int) -> None:
+    """Suma n avisos crudos a la rama en curso. No-op fuera de una rama (los tests que
+    llaman a `_scrape_srp` directo no arman el contexto)."""
+    acum = _ITEMS_RAMA.get()
+    if acum is not None:
+        acum["items"] = (acum["items"] or 0) + n
 
 
 def _camoufox_targets(all_domains: list[str], strategy) -> list[str]:
@@ -1289,7 +1319,8 @@ class GemaScraper:
                     encolado = time.perf_counter()
                     inicio_iso = datetime.now(timezone.utc).isoformat()
 
-                    def _traza(estado: str, arranco: float, err: str | None = None):
+                    def _traza(estado: str, arranco: float, err: str | None = None,
+                               items: int | None = None, aceptados: int | None = None):
                         # queue_wait_ms separa "el board es lento" de "el semaforo estaba
                         # lleno". Son dos problemas distintos con dos arreglos distintos.
                         trazas.append({
@@ -1299,6 +1330,7 @@ class GemaScraper:
                             "exec_ms": (time.perf_counter() - arranco) * 1000.0,
                             "queue_wait_ms": (arranco - encolado) * 1000.0,
                             "status": estado, "error": err,
+                            "items": items, "aceptados": aceptados,
                         })
 
                     # Una rama que el breaker saltea no ejecuta nada: exec_ms tiene que
@@ -1317,12 +1349,15 @@ class GemaScraper:
                             _traza("skipped_breaker", time.perf_counter())
                             return []
                         arranco = time.perf_counter()
+                        acum = {"items": None}
+                        _ITEMS_RAMA.set(acum)
                         try:
                             salida = await self._scrape_srp(context, domain, title)
                         except Exception as exc:
-                            _traza("error", arranco, f"{type(exc).__name__}: {exc}")
+                            _traza("error", arranco, f"{type(exc).__name__}: {exc}",
+                                   items=acum["items"])
                             raise
-                        _traza("ok", arranco)
+                        _traza("ok", arranco, items=acum["items"], aceptados=len(salida))
                         return salida
 
                 # Un board de feed fijo ignora la busqueda: pedirlo por cada titulo es
@@ -1374,6 +1409,12 @@ class GemaScraper:
                         f"[TRACE] {escritas} trazas SRP escritas. Mas caros: "
                         + ", ".join(f"{d} {ms/1000:.1f}s" for d, ms in top)
                     )
+                    # Fase 4: con las trazas ya en la base, cada board se compara contra
+                    # su historial y emite fuente_items / fuente_sospechosa_total.
+                    for e in await fuentes_estado.evaluar_css(
+                            self.db, self.summary.run_id, trazas):
+                        if e["estado"] == fuentes_estado.SOSPECHOSA:
+                            self._log(f"[FUENTE SOSPECHOSA] {e['fuente']}: {e['motivo']}")
 
                 # camoufox — route boards whose strategy vector is camoufox to the
                 # Firefox scraper (Cloudflare Bot Fight Mode bypass). Phase 28:
@@ -1511,6 +1552,8 @@ class GemaScraper:
                 fuentes, titles=self.config.target_titles,
                 es_relevante=_relevante, log=self._log,
             )
+            await fuentes_estado.registrar_ats(          # Fase 4: una traza por empresa
+                self.db, self.summary.run_id, resultados)
             for r in resultados:
                 dominio = ats_registry.dominio_de(r.fuente.plataforma)
                 if r.error:
@@ -1601,6 +1644,8 @@ class GemaScraper:
                             log=self._log,
                         ),
                     )
+                    await fuentes_estado.registrar_endpoint(     # Fase 4: traza + estado
+                        self.db, self.summary.run_id, domain, res)
                 except Exception as exc:
                     # Un board que explota reporta y sigue. Que un endpoint falle no
                     # puede tumbar la corrida — seria una regresion contra el
@@ -1608,6 +1653,8 @@ class GemaScraper:
                     msg = f"{domain} endpoint: {type(exc).__name__}: {exc}"
                     self._log(f"[ERROR] {msg}")
                     self.summary.errors.append(msg)
+                    await fuentes_estado.registrar_endpoint(     # Fase 4: explotó = 0
+                        self.db, self.summary.run_id, domain, None, msg)
                     continue
 
                 if res.error:
@@ -1775,6 +1822,10 @@ class GemaScraper:
             self._log(f"[BLITZ] skip {domain} | '{title}' → query '{query}' ya visitada")
             return []
         self._visited_srp_urls.add(url)
+        # Desde acá la rama SÍ consulta la fuente: items pasa de None ("no pregunté") a 0.
+        # Un 403, un SRP vacío y un selector que no matchea terminan en 0 a propósito —
+        # la regla de fuentes decide por conteo, no por la razón del cero.
+        _sumar_items_rama(0)
 
         self._log(f"[BLITZ] -> {domain} | '{title}' (q='{query}') | {url}")
 
@@ -2156,6 +2207,7 @@ class GemaScraper:
 
         self._log(f"[CARDS] {domain}: {len(card_elements)} cards found on SRP.")
         self.summary.total_urls_found += len(card_elements)
+        _sumar_items_rama(len(card_elements))   # Fase 4: avisos crudos, antes del delta load
 
         # FIX A live-test 07-18: veredicto de salud a nivel SRP, no por-card. Un
         # card individual que no parsea (sin href, o extracción None) es falla de

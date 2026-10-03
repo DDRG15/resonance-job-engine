@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import EmbudoSection from './EmbudoSection'
 
 interface DashboardStats {
   by_tier: Record<string, number>
@@ -157,6 +158,9 @@ export default function StatsBoard({ onClose }: Props) {
               </div>
             ))}
           </div>
+
+          {/* Fase 5: qué títulos nunca producen y qué rinde cada fuente. Propone, no borra. */}
+          <EmbudoSection />
         </div>
       )}
     </div>

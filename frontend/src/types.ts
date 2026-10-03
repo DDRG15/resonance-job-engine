@@ -16,6 +16,41 @@ export interface Status {
   needs_setup: boolean
   ttl_hours: number
   integrations: { notion: boolean; sheets: boolean }
+  // Fase 4: el estado REAL del token de Notion, no solo "hay una key". Opcional para que
+  // un backend anterior al 30-09 siga siendo un Status válido.
+  notion_estado?: NotionEstado
+}
+
+export type EstadoNotion = 'apagado' | 'valido' | 'invalido' | 'no_verificado'
+
+export interface NotionEstado {
+  estado: EstadoNotion
+  detalle: string
+  verificado_en: string | null
+}
+
+// Fase 4: estado de cada fuente, decidido por conteo contra su historial.
+export type EstadoFuente = 'sana' | 'sospechosa' | 'sin_rendimiento' | 'sin_medir'
+
+export interface FuenteEstado {
+  fuente: string
+  tipo: 'css' | 'endpoint' | 'ats'
+  estado: EstadoFuente
+  items: number | null
+  aceptados: number | null
+  run_id: string
+  corrida: string | null
+  historial: number[]
+  ultima_con_avisos: string | null
+  corridas_medidas: number
+  hubo_error: boolean
+  motivo: string
+}
+
+export interface FuentesResponse {
+  fuentes: FuenteEstado[]
+  resumen: Record<EstadoFuente, number>
+  ventana_corridas: number
 }
 
 export interface RegistryStats {

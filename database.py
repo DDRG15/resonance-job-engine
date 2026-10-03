@@ -358,6 +358,18 @@ CREATE TABLE IF NOT EXISTS runs (
 # fan-out a la vez y el semáforo las frena adentro del nodo, así que veinte nodos pueden
 # figurar "corriendo" mientras diecisiete esperan un tab de Chromium. Sumados, el número
 # miente sobre dónde se fue el tiempo.
+#
+# Fase 4 (2026-09-30): `items` y `aceptados` cuentan avisos, no tiempo. Hasta el 29-09
+# la tabla sabía cuánto tardó cada rama y no sabía cuánto trajo: trueup.io gastó 1.618 s
+# en 51 búsquedas vacías y la única forma de enterarse fue sumar tiempos a mano.
+#   items      avisos CRUDOS que la fuente devolvió, ANTES de cualquier filtro propio y de
+#              la dedup contra el registry. NULL = la rama no consultó la fuente (breaker
+#              abierto, query ya visitada) o la fila es anterior a esta columna; NULL no
+#              es cero, y todo lo que lee esta columna tiene que distinguirlos.
+#   aceptados  lo que pasó a la dedup. Ramas CSS: avisos NUEVOS (post delta load).
+#              Endpoint/ATS: avisos que pasan relevancia y validez, aunque el registry
+#              ya los tenga. Son dos magnitudes distintas bajo un mismo nombre porque
+#              cada camino filtra en un punto distinto; la decisión de salud usa `items`.
 _DDL_NODE_TRACES = """
 CREATE TABLE IF NOT EXISTS node_traces (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -370,7 +382,9 @@ CREATE TABLE IF NOT EXISTS node_traces (
     exec_ms       REAL,
     queue_wait_ms REAL,
     status        TEXT,
-    error         TEXT
+    error         TEXT,
+    items         INTEGER,
+    aceptados     INTEGER
 );
 """
 
@@ -579,6 +593,25 @@ class GemaDatabase:
                 if "duplicate column" not in str(exc).lower():
                     logger.error("[DB MIGRATION] ALTER applications failed unexpectedly: %s", exc)
                     raise
+
+            # ── Fase 4 (2026-09-30): node_traces cuenta avisos ──
+            # Aditiva: una base creada antes de hoy tiene la tabla sin estas dos
+            # columnas y `CREATE TABLE IF NOT EXISTS` no las agrega. Las filas viejas
+            # quedan con NULL —"no medido"—, nunca con 0: un cero inventado por la
+            # migración marcaría como vacía a toda fuente que corrió antes de hoy.
+            for mig_col, mig_sql in (
+                ("items",     "ALTER TABLE node_traces ADD COLUMN items INTEGER"),
+                ("aceptados", "ALTER TABLE node_traces ADD COLUMN aceptados INTEGER"),
+            ):
+                try:
+                    conn.execute(mig_sql)
+                    logger.info("Migration: added %s column to node_traces", mig_col)
+                except Exception as exc:
+                    if "duplicate column" in str(exc).lower():
+                        pass  # esperado — la columna ya existe
+                    else:
+                        logger.error("[DB MIGRATION] ALTER node_traces failed unexpectedly: %s", exc)
+                        raise
         logger.info("Database initialized: %s", self.db_path)
 
     def backup(self) -> str:
@@ -1980,16 +2013,18 @@ class GemaDatabase:
         status: str = "ok",
         error: Optional[str] = None,
         started_at: Optional[str] = None,
+        items: Optional[int] = None,
+        aceptados: Optional[int] = None,
     ) -> None:
         try:
             with _get_connection(self.db_path) as conn:
                 conn.execute(
                     """INSERT INTO node_traces
                        (run_id, node, graph, domain, title, started_at,
-                        exec_ms, queue_wait_ms, status, error)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        exec_ms, queue_wait_ms, status, error, items, aceptados)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (run_id, node, graph, domain, title, started_at or _now_iso(),
-                     exec_ms, queue_wait_ms, status, _clip(error)),
+                     exec_ms, queue_wait_ms, status, _clip(error), items, aceptados),
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_node_trace failed for %s: %s", node, exc)
@@ -2014,14 +2049,15 @@ class GemaDatabase:
                 conn.executemany(
                     """INSERT INTO node_traces
                        (run_id, node, graph, domain, title, started_at,
-                        exec_ms, queue_wait_ms, status, error)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        exec_ms, queue_wait_ms, status, error, items, aceptados)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     [
                         (r.get("run_id"), r.get("node"), r.get("graph"),
                          r.get("domain"), r.get("title"),
                          r.get("started_at") or _now_iso(),
                          r.get("exec_ms"), r.get("queue_wait_ms"),
-                         r.get("status", "ok"), _clip(r.get("error")))
+                         r.get("status", "ok"), _clip(r.get("error")),
+                         r.get("items"), r.get("aceptados"))
                         for r in rows
                     ],
                 )
@@ -2192,6 +2228,50 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT * FROM node_traces WHERE run_id = ? ORDER BY id", (run_id,)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    # Los tres nodos que LEEN una fuente. Un nodo del grafo (scrape, bucket, push...) no
+    # cuenta avisos de ninguna fuente y no entra a estas consultas.
+    NODOS_FUENTE = ("scrape_srp", "fuente_endpoint", "fuente_ats")
+
+    def get_items_por_fuente_y_corrida(self) -> list[dict]:
+        """
+        Una fila por (fuente, corrida), la más nueva primero dentro de cada fuente.
+
+        Es la entrada de la regla de estado de `fuentes_estado`: agrega las ramas CSS de
+        un board (51 filas por corrida) a un solo número comparable con el de un
+        endpoint (1 fila) o el de una empresa ATS (1 fila).
+
+        `items` es SUM sobre las filas medidas y queda NULL si NINGUNA lo fue. SQLite
+        ignora los NULL al sumar, así que una corrida donde solo midieron 3 de 51 ramas
+        suma esas 3: `medidas` y `trazas` van aparte para que quien lee sepa cuánta de
+        la corrida entra en el número, y una corrida anterior a la columna (todo NULL)
+        no se lea como cero.
+
+        Agrupa por `run_id` del grafo, no por fecha: dos corridas el mismo día son dos
+        corridas (el 29-09 hubo tres). Sin `run_id` no hay forma de saber a qué corrida
+        pertenece una traza, así que esas filas no se cuentan.
+        """
+        ph = ",".join("?" for _ in self.NODOS_FUENTE)
+        with _get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                f"""SELECT domain,
+                           run_id,
+                           MIN(started_at)                              AS inicio,
+                           SUM(items)                                   AS items,
+                           COUNT(items)                                 AS medidas,
+                           COUNT(*)                                     AS trazas,
+                           SUM(aceptados)                               AS aceptados,
+                           MAX(CASE WHEN status = 'error' THEN 1 ELSE 0 END) AS hubo_error,
+                           MAX(CASE WHEN node = 'fuente_ats' THEN 3
+                                    WHEN node = 'fuente_endpoint' THEN 2
+                                    ELSE 1 END)                         AS tipo
+                    FROM node_traces
+                    WHERE node IN ({ph}) AND domain IS NOT NULL AND run_id IS NOT NULL
+                    GROUP BY domain, run_id
+                    ORDER BY domain, inicio DESC""",
+                self.NODOS_FUENTE,
             ).fetchall()
         return [dict(r) for r in rows]
 

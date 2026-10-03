@@ -429,6 +429,44 @@ ALLOWED_ORIGINS: list[str] = parse_allowed_origins(
 
 
 # =============================================================================
+# Fase 4 (2026-09-30) — Fuentes honestas
+# =============================================================================
+
+# Cuántas corridas MEDIDAS hacia atrás cuentan como "historial reciente" de una fuente.
+# Una fuente con items = 0 hoy y avisos en alguna de estas corridas está SOSPECHOSA:
+# "no pude leer" y "no había nada" son estados distintos y el conteo contra el historial
+# es lo único que los separa (el código HTTP no: Ashby devuelve 200 con un arreglo vacío
+# tanto si el board no existe como si te está limitando).
+#
+# Por qué 5 y no 2 o 20. La unidad es la corrida y no el día: el usuario corrió tres veces el
+# 29-09 y cero veces entre el 04-09 y el 29-09, así que una ventana de "7 días" estaría
+# llena un día y vacía el otro, y una fuente rota en un mes sin corridas quedaría "sin
+# historial" por pura inactividad. Con el cron en martes/viernes/sábado, 5 corridas son
+# ~1,7 semanas: bastan para que un cero aislado de una fuente que rinde unos pocos avisos
+# (una empresa ATS con 3 vacantes) no tape el historial, y no tantas como para que una
+# fuente muerta siga figurando "sospechosa" un mes después de haber dejado de rendir.
+# Pasadas N corridas medidas en cero, la fuente deja de ser "sospechosa" y pasa a
+# "sin rendimiento" —con la fecha de su último aviso a la vista—: la alerta fue la
+# métrica `fuente_sospechosa_total` durante esas N corridas, no un estado eterno.
+FUENTE_VENTANA_CORRIDAS: int = int(os.getenv("FUENTE_VENTANA_CORRIDAS", "5"))
+
+# Fase 5 — embudo por (fuente × título), embudo_fuentes.py y tools/embudo.py.
+# La ventana es más larga que la de fuentes porque la pregunta es otra: no "¿se rompió
+# esta fuente?", que tiene que saltar rápido, sino "¿este título produce algo en algún
+# board?", que se decide con evidencia acumulada. 10 corridas con el cron en martes,
+# viernes y sábado son ~3 semanas. Un título se propone para podar solo con al menos
+# EMBUDO_MIN_CORRIDAS_MEDIDAS corridas MEDIDAS (items no NULL): con una sola, un mal día
+# de red propondría sacar títulos sanos. La poda la decide el usuario; esto solo propone.
+EMBUDO_VENTANA_CORRIDAS: int = int(os.getenv("EMBUDO_VENTANA_CORRIDAS", "10"))
+EMBUDO_MIN_CORRIDAS_MEDIDAS: int = int(os.getenv("EMBUDO_MIN_CORRIDAS_MEDIDAS", "3"))
+
+# Timeout de la ÚNICA consulta (users/me) con que se valida el token de Notion al
+# arrancar. El arranque de la API espera como máximo esto: más de 3 s sin respuesta es
+# una red caída, y ese caso se reporta "no verificado", no "inválido".
+NOTION_VERIFY_TIMEOUT_MS: int = int(os.getenv("NOTION_VERIFY_TIMEOUT_MS", "3000"))
+
+
+# =============================================================================
 # Integration: Notion
 # =============================================================================
 
