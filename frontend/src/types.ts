@@ -9,6 +9,9 @@ export interface Status {
   nominal: boolean
   scheduler: { enabled: boolean; next_run: string | null }
   is_running: boolean
+  // revision externa 2026-09-30, punto 1: gate de scrape tomado (corrida manual O del cron).
+  // Opcional: un backend anterior no lo manda y la UI cae a `is_running`.
+  scrape_gate_busy?: boolean
   has_results: boolean
   needs_setup: boolean
   ttl_hours: number
@@ -112,10 +115,27 @@ export interface SummaryDto {
   duration_seconds: number | null
 }
 
+// revision externa 2026-09-30, punto 9: el último run según la DB, para cuando la sesión no sabe
+// nada de ninguna corrida (típicamente tras reiniciar el servidor). `results_available`
+// es false siempre: los tiers completos no se reconstruyen desde la DB.
+export interface LastRunDto {
+  run_id: string
+  status: 'ok' | 'interrupted' | 'crashed' | 'running' | string
+  trigger: string | null
+  started_at: string | null
+  completed_at: string | null
+  interrupted_at: string | null
+  error: string | null
+  tier_counts: { tier1: number; tier2: number; tier3: number; tier4: number } | null
+  results_available: boolean
+  message: string
+}
+
 export interface ResultsResponse {
   run_id: string | null
   is_running: boolean
   has_results: boolean
+  last_run?: LastRunDto | null
   summary: SummaryDto | null
   tiers: {
     tier1: TieredJobDto[]

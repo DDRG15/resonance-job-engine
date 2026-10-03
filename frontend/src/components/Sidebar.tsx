@@ -43,14 +43,35 @@ export default function Sidebar({
     return () => clearTimeout(t)
   }, [killArmed])
 
+  // revision externa 2026-09-30, punto 1: el botón se llamaba "Kill Switch" y nunca mató nada —
+  // una corrida en curso no se puede cancelar. Mientras haya una (manual o del cron) el
+  // backend responde 409, así que el botón se deshabilita y dice por qué en vez de
+  // dejar que el clic falle.
+  const corriendo = !!status && (status.is_running || !!status.scrape_gate_busy)
+  // Sin status todavía no se sabe si hay corrida: se espera en vez de adivinar.
+  const bloqueado = !status || corriendo
+
   async function handleKill() {
+    if (bloqueado) return
     if (!killArmed) {
       setKillArmed(true)
       return
     }
     setKillArmed(false)
-    await postReset()
-    toast('Sesión reseteada — config, perfil y cron limpiados', 'warn')
+    try {
+      await postReset()
+    } catch (e) {
+      // 409: la corrida arrancó entre que se pintó el botón y el clic.
+      const msg = String(e)
+      toast(
+        msg.includes('409')
+          ? 'No se puede limpiar la sesión: hay una corrida activa. Esperá a que termine.'
+          : `No se pudo limpiar la sesión — ${msg}`,
+        'error',
+      )
+      return
+    }
+    toast('Sesión limpiada — config, perfil y cron borrados', 'warn')
     onKill()
   }
 
@@ -166,15 +187,26 @@ export default function Sidebar({
 
       <GodMode />
 
+      {corriendo && (
+        <span className="side-note" style={{ marginTop: 'auto' }}>
+          Hay una corrida en curso y no se puede cancelar: la sesión se puede limpiar
+          cuando termine.
+        </span>
+      )}
       <button
         type="button"
         className="kill"
-        style={killArmed ? { background: 'rgba(220,38,38,.25)', fontWeight: 700 } : undefined}
+        disabled={bloqueado}
+        title={corriendo ? 'Hay una corrida en curso; no se puede limpiar hasta que termine' : undefined}
+        style={{
+          ...(killArmed ? { background: 'rgba(220,38,38,.25)', fontWeight: 700 } : {}),
+          ...(corriendo ? { marginTop: 6 } : {}),
+        }}
         onClick={() => void handleKill()}
       >
         {killArmed
           ? '¿Seguro? Borra sesión y apaga el cron — clic para confirmar'
-          : 'Reset Session — Kill Switch'}
+          : 'Limpiar sesión'}
       </button>
     </aside>
   )

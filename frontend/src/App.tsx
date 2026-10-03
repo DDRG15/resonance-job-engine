@@ -7,6 +7,7 @@ import {
 import CommandCenter from './components/CommandCenter'
 import DbViewer from './components/DbViewer'
 import Header from './components/Header'
+import LastRunBanner from './components/LastRunBanner'
 import Pipeline from './components/Pipeline'
 import Duplicados from './components/Duplicados'
 import PipelineConsole from './components/PipelineConsole'
@@ -39,6 +40,11 @@ export default function App() {
     queryFn: () =>
       fetch('/api/correlators').then((r) => r.json() as Promise<{ total: number }>),
   })
+
+  // revision externa 2026-09-30, punto 9: el último run según la DB. Tras reiniciar el servidor la
+  // sesión no tiene resultados, y sin esto la pantalla quedaba vacía sin decir por qué.
+  const lastRunQ = useQuery({ queryKey: ['last-run'], queryFn: getResults })
+  const lastRun = lastRunQ.data?.last_run ?? null
 
   // Estado de sesión local (espejo del server-side de api.py)
   const [config, setConfig] = useState<SearchConfigDto | null>(null)
@@ -114,6 +120,9 @@ export default function App() {
   function handleScrapeStarted(id: string) {
     setResults(null)
     setRunId(id)
+    // El status trae `scrape_gate_busy`: sin recargarlo, "Limpiar sesión" seguiría
+    // habilitado hasta la próxima invalidación y el clic terminaría en 409.
+    refresh()
   }
 
   async function handleRunDone() {
@@ -180,6 +189,9 @@ export default function App() {
         {showDup && (
           <Duplicados onClose={() => setShowDup(false)}
                       onChanged={() => void dupQ.refetch()} />
+        )}
+        {results === null && runId === null && !status?.is_running && lastRun && (
+          <LastRunBanner lastRun={lastRun} />
         )}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />

@@ -2324,6 +2324,16 @@ def try_acquire_scrape_gate() -> bool:
     return _SCRAPE_GATE.acquire(blocking=False)
 
 
+def scrape_gate_is_busy() -> bool:
+    """Consulta SIN tomar el gate: True si hay una corrida (manual o cron) activa.
+
+    revision externa 2026-09-30, punto 1: `RunManager.reset()` y `/api/status` necesitan saber si
+    el gate esta ocupado sin competir por el. Tomarlo "para mirar" (try_acquire +
+    release) abriria una ventana en la que un `start()` legitimo veria el gate tomado
+    y respondera 409 por culpa de una simple consulta."""
+    return _SCRAPE_GATE.locked()
+
+
 def release_scrape_gate() -> None:
     """Libera el gate. Idempotente: liberar dos veces no explota."""
     try:
