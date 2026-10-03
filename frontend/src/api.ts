@@ -1,5 +1,6 @@
 // Cliente HTTP fino contra api.py. En dev, Vite proxya /api → localhost:8000.
 
+import { CV_CONSENT_VERSION } from './consent'
 import type {
   AuditVerdict, CvProfile, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
   SchedulerUpdate, SearchConfigDto, Status, VaultEntry,
@@ -82,10 +83,26 @@ export const getCvProfile = () =>
 export async function postCv(file: File): Promise<{ profile: CvProfile }> {
   const form = new FormData()
   form.append('file', file)
+  // Versión del aviso de envío que el usuario aceptó (punto 12 de revision externa): el servidor
+  // responde 428 sin ella y no manda nada al LLM.
+  form.append('llm_consent', CV_CONSENT_VERSION)
   // Sin Content-Type manual: el browser setea el boundary de multipart
   const res = await fetch('/api/cv', { method: 'POST', body: form })
-  if (!res.ok) throw new Error(`HTTP ${res.status} — ${await res.text()}`)
+  if (!res.ok) throw new Error(await mensajeDeError(res))
   return res.json()
+}
+
+// 413 (archivo grande), 428 (sin aviso), 422/503 (parseo): el servidor ya redacta el
+// mensaje para una persona en `detail`; mostrar el JSON crudo es mostrar ruido.
+async function mensajeDeError(res: Response): Promise<string> {
+  const body = await res.text()
+  try {
+    const detail = (JSON.parse(body) as { detail?: unknown }).detail
+    if (typeof detail === 'string' && detail) return detail
+  } catch {
+    // cuerpo no JSON: cae al formato genérico
+  }
+  return `HTTP ${res.status} — ${body}`
 }
 
 export const deleteCv = () =>

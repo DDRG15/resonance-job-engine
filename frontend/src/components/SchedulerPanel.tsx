@@ -26,7 +26,9 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
   const [days, setDays] = useState<string[]>(scheduler.cron_days)
   const [hour, setHour] = useState(scheduler.cron_hour)
   const [minute, setMinute] = useState(scheduler.cron_minute)
-  const [retainCv, setRetainCv] = useState(false)
+  // Punto 11 de revision externa: la preferencia viene del servidor. Nacía en false en cada carga y el
+  // primer PUT siguiente (p. ej. apagar el cron) la enviaba así, pidiendo borrar el perfil.
+  const [retainCv, setRetainCv] = useState(scheduler.retain_cv)
   const [error, setError] = useState<string | null>(null)
 
   // Patrón "adjusting state when a prop changes" — el server confirma el
@@ -40,6 +42,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
     setDays(scheduler.cron_days)
     setHour(scheduler.cron_hour)
     setMinute(scheduler.cron_minute)
+    setRetainCv(scheduler.retain_cv)
   }
 
   const toast = useToast()
@@ -165,22 +168,34 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
             {String(hour).padStart(2, '0')}:{String(minute).padStart(2, '0')} — hora
             local (la ciudad del candidato), precisión de minutos
           </span>
-          <div className="toggle-row">
-            <span>Retener CV entre corridas</span>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={retainCv}
-              className={`switch ${retainCv ? 'on' : ''}`}
-              onClick={() => {
-                const next = !retainCv
-                setRetainCv(next)
-                if (enabled) void apply({ retain_cv: next })
-              }}
-            />
-          </div>
         </>
       )}
+
+      {/* La retención aplica a ambos modos (el backend la guarda en el scheduler, no en el
+          modo): ocultarla en intervalo dejaba una preferencia activa sin control visible. */}
+      <div className="toggle-row">
+        <span>Retener CV entre corridas</span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={retainCv}
+          className={`switch ${retainCv ? 'on' : ''}`}
+          onClick={() => {
+            const next = !retainCv
+            setRetainCv(next)
+            // Siempre al servidor, con o sin cron: la preferencia rige el próximo CV que se
+            // suba. Con el cron apagado el PUT va con enabled=false y el backend la guarda
+            // («pausar, no descartar»). Antes solo se mandaba con el cron prendido y la
+            // nota de abajo prometía una retención que el servidor no conocía.
+            void apply({ retain_cv: next })
+          }}
+        />
+      </div>
+      <span className="side-note">
+        {retainCv
+          ? 'Se guarda en disco solo el perfil (rol, skills, región), nunca el CV. Apagar esto borra ese archivo del disco.'
+          : 'El perfil vive solo en memoria y se pierde al reiniciar el server.'}
+      </span>
 
       {scheduler.enabled ? (
         <div className="sched-status">

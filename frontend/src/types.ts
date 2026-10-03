@@ -61,6 +61,8 @@ export interface SchedulerState {
   next_run: string | null
   last_run: string
   has_config: boolean
+  // Preferencia real de retener el perfil del CV en disco (punto 11 de revision externa)
+  retain_cv: boolean
 }
 
 export interface SchedulerUpdate {

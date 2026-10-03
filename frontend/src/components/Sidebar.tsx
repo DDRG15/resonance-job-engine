@@ -83,7 +83,7 @@ export default function Sidebar({
           </details>
         ))}
 
-      <CVUpload profile={profile} onChanged={onChanged} />
+      <CVUpload profile={profile} retained={scheduler?.retain_cv ?? false} onChanged={onChanged} />
 
       {stats && (
         <div className="side-sec">

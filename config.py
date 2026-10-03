@@ -253,6 +253,35 @@ SCHEDULER_CRON_HOUR: int = int(os.getenv("SCHEDULER_CRON_HOUR", "9"))       # lo
 # (role/skills/signals) — NEVER the raw CV document. Opt-in; default = discard.
 CV_PROFILE_PATH: str = os.getenv("CV_PROFILE_PATH", "cv_profile.json")
 
+# --- Subida y parseo del CV (revision externa 2026-09-30, punto 12) -----------------------------
+# El CV sale a un proveedor LLM externo y entra por un endpoint sin autenticacion: cada
+# tope de abajo existe porque sin el, un archivo hostil (o un PDF patologico) cuesta CPU,
+# memoria o una llamada de pago, y quien paga es la maquina de el usuario.
+
+# Tope de bytes del upload. Un CV de texto pesa 50-500 KB; uno diseñado con foto, 1-2 MB.
+# 5 MiB cubre el segundo con holgura y deja fuera todo lo que ya no es un CV. Se aplica
+# ANTES de leer el cuerpo (upload_guard.py) — validar despues de read() es tarde: para
+# entonces el archivo entero ya esta en memoria o en un temporal.
+CV_MAX_UPLOAD_BYTES: int = int(os.getenv("CV_MAX_UPLOAD_BYTES", str(5 * 1024 * 1024)))
+# Paginas de PDF que se leen. extract_cv_text ya trunca a 8 000 caracteres (~3-4 paginas
+# de CV): leer 500 paginas para descartar 499 es costo puro. 10 cubre un CV largo.
+CV_MAX_PDF_PAGES: int = int(os.getenv("CV_MAX_PDF_PAGES", "10"))
+# Presupuesto de reloj del parseo de PDF. Un PDF normal de 2 paginas tarda <1 s; 20 s es
+# 20x el caso normal y aun asi corta una pagina patologica antes de que el usuario crea
+# que la app se colgo.
+CV_PARSE_TIMEOUT_SECONDS: float = float(os.getenv("CV_PARSE_TIMEOUT_SECONDS", "20"))
+# Un .docx es un zip: 5 KB comprimidos pueden abrir 50 MB de XML. Tope sobre el tamano
+# DESCOMPRIMIDO declarado en el directorio del zip (se lee sin descomprimir). Un CV real
+# abre a <5 MB; 50 MiB deja margen para docx con imagenes y rechaza los zip-bomb.
+CV_MAX_DOCX_UNCOMPRESSED_BYTES: int = int(
+    os.getenv("CV_MAX_DOCX_UNCOMPRESSED_BYTES", str(50 * 1024 * 1024))
+)
+# Version del aviso de envio del CV a proveedores externos. La UI la guarda al aceptar y
+# el server la exige en cada upload (sin ella: 428, y nada llega al LLM). Se cambia
+# cuando cambia lo que el aviso promete — la aceptacion de una version vieja no vale.
+# Duplicada en frontend/src/consent.ts; tests/test_cv_ciclo_y_privacidad.py las compara.
+CV_CONSENT_VERSION: str = "cv-llm-2026-09-30"
+
 
 # =============================================================================
 # Scraper Configuration
