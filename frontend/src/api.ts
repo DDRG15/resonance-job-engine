@@ -1,7 +1,7 @@
 // Cliente HTTP fino contra api.py. En dev, Vite proxya /api → localhost:8000.
 
 import type {
-  AuditVerdict, CvProfile, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
+  AuditVerdict, CvProfile, FuentesResponse, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
   SchedulerUpdate, SearchConfigDto, Status, VaultEntry,
 } from './types'
 
@@ -18,6 +18,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getStatus = () => request<Status>('/api/status')
+
+export const getFuentes = () => request<FuentesResponse>('/api/fuentes')
 
 export const getRegistryStats = () => request<RegistryStats>('/api/registry/stats')
 

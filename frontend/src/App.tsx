@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  getConfig, getCvProfile, getRegistryStats, getResults, getScheduler, getStatus, getVault,
+  getConfig, getCvProfile, getFuentes, getRegistryStats, getResults, getScheduler, getStatus, getVault,
   loadVaultEntry,
 } from './api'
 import CommandCenter from './components/CommandCenter'
 import DbViewer from './components/DbViewer'
+import FuentesPanel from './components/FuentesPanel'
 import Header from './components/Header'
 import Pipeline from './components/Pipeline'
 import Duplicados from './components/Duplicados'
@@ -28,6 +29,9 @@ export default function App() {
   const vaultQ = useQuery({ queryKey: ['vault'], queryFn: getVault })
   const schedQ = useQuery({ queryKey: ['scheduler'], queryFn: getScheduler })
   const cvQ = useQuery({ queryKey: ['cv'], queryFn: getCvProfile })
+  // Fase 4: el contador del botón «Fuentes». Una fuente sospechosa que nadie ve es una
+  // fuente que sigue gastando corridas sin que nadie lo sepa.
+  const fuentesQ = useQuery({ queryKey: ['fuentes'], queryFn: getFuentes })
   const reviewQ = useQuery({
     queryKey: ['review'],
     queryFn: () =>
@@ -52,6 +56,7 @@ export default function App() {
   const [showReview, setShowReview] = useState(false)
   const [showPipeline, setShowPipeline] = useState(false)
   const [showDup, setShowDup] = useState(false)
+  const [showFuentes, setShowFuentes] = useState(false)
 
   const status = statusQ.data ?? null
   const backendDown = statusQ.isError
@@ -160,6 +165,11 @@ export default function App() {
           setShowDup(true); setShowPipeline(false); setShowDb(false); setShowStats(false)
           setShowReview(false)
         }}
+        onOpenFuentes={() => {
+          setShowFuentes(true); setShowStats(false); setShowDb(false); setShowReview(false)
+          setShowPipeline(false); setShowDup(false)
+        }}
+        fuentesSospechosas={fuentesQ.data?.resumen?.sospechosa ?? 0}
         reviewPending={reviewQ.data?.stats.pending ?? 0}
         duplicadosPending={dupQ.data?.total ?? 0}
       />
@@ -172,6 +182,7 @@ export default function App() {
         )}
         <Header status={status} />
         {showStats && <StatsBoard onClose={() => setShowStats(false)} />}
+        {showFuentes && <FuentesPanel onClose={() => setShowFuentes(false)} />}
         {showDb && <DbViewer onClose={() => setShowDb(false)} />}
         {showReview && (
           <ReviewPanel onClose={() => setShowReview(false)} onChanged={refresh} />

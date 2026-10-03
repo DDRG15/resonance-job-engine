@@ -13,6 +13,7 @@ from typing import Optional
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 import config
+import metrics
 from models import TieredJob
 
 logger = logging.getLogger(__name__)
@@ -33,11 +34,90 @@ class NotionClient:
         Status       (select)  — "To Review" | "Manual Review" | "Applied" | "Interview" | "Rejected"
     """
 
+    # Estado del TOKEN, distinto de "hay una key en el .env". Hasta el 2026-09-30
+    # `/api/status` mostraba Notion activo con solo que la key existiera: el token de
+    # el usuario estaba vencido y la tarjeta decía que todo andaba. Cuatro estados, y
+    # "no verificado" NO es "inválido": sin red o con timeout no se sabe, y declarar
+    # roto algo que quizá anda es el mismo error en el sentido opuesto.
+    ESTADO_APAGADO = "apagado"              # sin key: la integración no está configurada
+    ESTADO_VALIDO = "valido"                # Notion aceptó el token (users/me -> 200)
+    ESTADO_INVALIDO = "invalido"            # Notion respondió 401
+    ESTADO_NO_VERIFICADO = "no_verificado"  # sin red, timeout, 5xx, 429 o aún sin consultar
+
+    # Atributos de clase y no de __init__: tests/test_notion_client.py construye el
+    # cliente con __new__ (sin pasar por __init__) y el estado tiene que existir igual.
+    _estado_token: str = ESTADO_NO_VERIFICADO
+    _detalle_token: str = "sin verificar"
+    _verificado_en: Optional[str] = None
+
     def __init__(self, api_key: Optional[str] = None, database_id: Optional[str] = None):
         self.api_key = api_key or config.NOTION_API_KEY
         self.database_id = database_id or config.NOTION_DATABASE_ID
         self._client = None
         self._initialize()
+
+    @property
+    def estado_token(self) -> str:
+        """El estado cacheado del token. Sin key es siempre `apagado`."""
+        if not getattr(self, "api_key", ""):
+            return self.ESTADO_APAGADO
+        return self._estado_token
+
+    def info_token(self) -> dict:
+        """Lo que sirve `/api/status`: estado, razón en una línea y cuándo se verificó."""
+        return {
+            "estado": self.estado_token,
+            "detalle": self._detalle_token if self.estado_token != self.ESTADO_APAGADO
+                       else "NOTION_API_KEY no está configurada",
+            "verificado_en": self._verificado_en,
+        }
+
+    def _fijar_estado(self, estado: str, detalle: str) -> None:
+        from datetime import datetime, timezone
+        self._estado_token = estado
+        self._detalle_token = detalle
+        self._verificado_en = datetime.now(timezone.utc).isoformat()
+
+    def verificar_token(self, *, cliente=None) -> str:
+        """
+        Valida el token con UNA consulta barata (`users/me`) y cachea el resultado.
+
+        Una sola, sin reintentos y con timeout corto (`NOTION_VERIFY_TIMEOUT_MS`): el
+        arranque de la API espera esta llamada, y un reintento con backoff convertiría
+        una red caída en 10 s de arranque. `cliente` permite inyectar un cliente de
+        Notion armado sobre un transporte falso; en producción se crea uno propio con
+        el timeout corto, sin tocar el que usa `push_job`.
+
+        Sin red, con timeout, 429 o 5xx -> `no_verificado`. Solo un 401 es `invalido`.
+        El token no se escribe en ningún log ni en el detalle.
+        """
+        if not self.api_key:
+            return self.ESTADO_APAGADO
+        try:
+            if cliente is None:
+                from notion_client import Client
+                cliente = Client(auth=self.api_key,
+                                 timeout_ms=config.NOTION_VERIFY_TIMEOUT_MS)
+            cliente.users.me()
+        except ImportError:
+            self._fijar_estado(self.ESTADO_NO_VERIFICADO, "notion-client no instalado")
+        except Exception as exc:
+            status = getattr(exc, "status", None)
+            if status == 401:
+                self._fijar_estado(self.ESTADO_INVALIDO,
+                                   "Notion rechazó el token (401): vencido o revocado")
+                logger.error("Notion rechazó el token al arrancar (401). Renová "
+                             "NOTION_API_KEY en .env y reiniciá la API.")
+                metrics.emit("notion_token_invalido", 1, origen="arranque")
+            else:
+                motivo = f"HTTP {status}" if status else type(exc).__name__
+                self._fijar_estado(self.ESTADO_NO_VERIFICADO,
+                                   f"no se pudo verificar ({motivo})")
+                logger.warning("Notion: token sin verificar (%s).", motivo)
+        else:
+            self._fijar_estado(self.ESTADO_VALIDO, "Notion aceptó el token")
+            logger.info("Notion: token válido.")
+        return self.estado_token
 
     def _initialize(self) -> None:
         if not self.api_key:
@@ -132,6 +212,12 @@ class NotionClient:
                     "Update NOTION_API_KEY in .env to re-enable."
                 )
                 self._client = None
+                # El 401 de un push es la misma verdad que el de users/me: el indicador
+                # no puede seguir diciendo "válido" porque la verificación de arranque
+                # corrió antes de que el token se revocara.
+                self._fijar_estado(self.ESTADO_INVALIDO,
+                                   "Notion rechazó el token (401): vencido o revocado")
+                metrics.emit("notion_token_invalido", 1, origen="push")
                 return None
             logger.error("Notion push failed for %s: %s", job.title, exc)
             raise

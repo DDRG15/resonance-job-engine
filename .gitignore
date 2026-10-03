@@ -107,6 +107,8 @@ tools/*
 # `tools/*` hizo que un `git add` se saltara en silencio una herramienta nueva
 # cuatro veces distintas. Herramienta nueva en tools/ = línea nueva acá.
 !tools/probe_endpoints.py
+# , Fase 5: tests/test_embudo.py importa la herramienta.
+!tools/embudo.py
 
 # Job search session results — scraped data with personal context
 

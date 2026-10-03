@@ -41,6 +41,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 import config
+import fuentes_estado
 import selectors_registry
 from database import GemaDatabase
 from integrations import NotionClient, SheetsClient
@@ -138,6 +139,17 @@ async def lifespan(app: FastAPI):
     app.state.notion = NotionClient()
     app.state.sheets = SheetsClient()
     app.state.runs = RunManager(app.state.db, app.state.notion, app.state.sheets)
+    # Fase 4 (2026-09-30): el token de Notion se valida UNA vez al arrancar y el
+    # resultado se cachea en el cliente. `/api/status` decía "Notion activo" con solo
+    # que la key existiera, y el token de el usuario estaba vencido: la tarjeta mentía y el
+    # primer síntoma real era un 401 en medio de una corrida. Va a un hilo para no
+    # bloquear el event loop; el arranque espera, como máximo, NOTION_VERIFY_TIMEOUT_MS.
+    # Un fallo de la verificación nunca tumba el arranque: queda "no verificado".
+    try:
+        if getattr(app.state.notion, "api_key", ""):
+            await asyncio.to_thread(app.state.notion.verificar_token)
+    except Exception as exc:
+        logging.getLogger("gema.api").warning("[NOTION] verificación de token falló: %s", exc)
     # v3 Fase 6: el cron corre el MISMO grafo que la corrida manual, y el nodo `push`
     # necesita los clientes. Sin esto el ctx del cron llega con notion=None y el push se
     # saltea en silencio — que es exactamente la deriva que la Fase 6 vino a cerrar, solo
@@ -812,6 +824,17 @@ def status():
         if sel.domain in active and selectors_registry.is_selector_stale(sel)
     ]
     warnings = config.validate_config()
+    # Fase 4: estado REAL del token de Notion (ver NotionClient.verificar_token). Un
+    # cliente None —un test, un arranque degradado— es una integración apagada.
+    _notion = app.state.notion
+    notion_info = (_notion.info_token() if hasattr(_notion, "info_token")
+                   else {"estado": "apagado", "detalle": "integración ausente",
+                         "verificado_en": None})
+    if notion_info["estado"] == "invalido":
+        warnings = warnings + [
+            f"Notion: {notion_info['detalle']}. Renová NOTION_API_KEY en .env y "
+            f"reiniciá la API."
+        ]
     providers = sum(
         bool(getattr(config, k, "").strip()) for k in _LLM_KEY_NAMES
     )
@@ -838,10 +861,36 @@ def status():
         # cualquier camino que deje el cliente en None —un test, un arranque degradado—
         # convierte /api/status en un 500 en vez de reportar la integracion como apagada.
         "integrations": {
-            "notion": getattr(app.state.notion, "is_enabled", False),
+            # `is_enabled` dice "hay key y database id"; no dice que el token sirva.
+            # Un token que Notion ya rechazó no cuenta como integración activa.
+            "notion": (getattr(app.state.notion, "is_enabled", False)
+                       and notion_info["estado"] != "invalido"),
             "sheets": getattr(app.state.sheets, "is_enabled", False),
         },
+        "notion_estado": notion_info,
     }
+
+
+@app.get("/api/fuentes")
+def fuentes():
+    """
+    Fase 4 — el estado de cada fuente en su corrida más reciente, decidido por conteo
+    contra su historial (ver fuentes_estado.py): sana, sospechosa, sin rendimiento o
+    sin medir. 0 tokens, todo desde `node_traces`.
+    """
+    return fuentes_estado.estado_de_fuentes(app.state.db)
+
+
+@app.get("/api/embudo")
+def embudo():
+    """
+    Fase 5 — rendimiento por (fuente × título) en las últimas corridas medidas, y qué
+    títulos proponer podar (ver embudo_fuentes.py). Propone, no borra: la poda la decide
+    el usuario. Solo lectura sobre `node_traces`, 0 tokens. La sección de embudo de la vista de
+    estadísticas (`EmbudoSection.tsx`) lee de acá.
+    """
+    import embudo_fuentes
+    return embudo_fuentes.embudo_desde_db(app.state.db.db_path)
 
 
 @app.get("/api/setup")
