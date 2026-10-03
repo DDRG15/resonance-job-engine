@@ -495,7 +495,10 @@ def _enviar_multipart(chunks: int, declarar_content_length: bool) -> dict:
         if message["type"] == "http.response.start":
             estado["status"] = message["status"]
 
-    headers = [(b"content-type", b"multipart/form-data; boundary=x")]
+    # Host: el guard de la Fase 3 es el middleware mas externo y rechaza (400) un request
+    # sin Host antes de que llegue al tope de bytes. Un navegador siempre lo manda.
+    headers = [(b"host", b"localhost:8000"),
+               (b"content-type", b"multipart/form-data; boundary=x")]
     if declarar_content_length:
         headers.append((b"content-length", str(total).encode()))
     scope = {
