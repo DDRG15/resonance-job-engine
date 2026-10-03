@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 from models import JobResult, SearchConfig, SearchVaultEntry
 import config
+import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -542,10 +543,19 @@ class GemaDatabase:
                 # permite auditar el barrido.
                 ("deadline",   "ALTER TABLE seen_jobs_registry ADD COLUMN deadline TEXT"),
                 ("expired_at", "ALTER TABLE seen_jobs_registry ADD COLUMN expired_at TEXT"),
+
+                # ── revision externa 2026-09-30, punto 9: runs huerfanos ──
+                # Cuando el servidor muere a mitad de una corrida, su fila queda en
+                # `running` para siempre. Al arrancar se reconcilian a `interrupted`:
+                # la causa va en `error` (columna que ya existe para eso) y la hora en
+                # que se DETECTO va aca. No se toca `completed_at`: la corrida nunca
+                # termino, y un timestamp inventado haria mentir cualquier duracion.
+                # Aditiva: la app vieja ignora la columna, rollback sin migracion inversa.
+                ("interrupted_at", "ALTER TABLE runs ADD COLUMN interrupted_at TEXT"),
             ):
                 try:
                     conn.execute(mig_sql)
-                    logger.info("Migration: added %s column to seen_jobs_registry", mig_col)
+                    logger.info("Migration: added %s column (%s)", mig_col, mig_sql)
                 except Exception as exc:
                     # AUDIT #7: distinguish the expected case (column already exists) from
                     # a real ALTER failure (lock, disk, permission). Swallowing the latter
@@ -1881,6 +1891,10 @@ class GemaDatabase:
         `tier_counts` lleva los CUATRO tiers. ScrapeRunSummary solo carga tres pese a
         que bucket_jobs devuelve cuatro, así que el cuarto se pierde salvo que se lo
         pase explícitamente acá.
+
+        Cerrar una corrida limpia `interrupted_at`: si la reconciliación del arranque
+        marcó por error una corrida que seguía viva (otro proceso sobre la misma DB), el
+        cierre real gana y no deja una fila `ok` con huella de interrupción.
         """
         t1, t2, t3, t4 = tier_counts or (None, None, None, None)
         try:
@@ -1889,7 +1903,8 @@ class GemaDatabase:
                     """UPDATE runs SET completed_at = ?, status = ?, summary_json = ?,
                               tier1_count = ?, tier2_count = ?, tier3_count = ?,
                               tier4_count = ?, domains_aborted = ?,
-                              breaker_state_json = ?, error = ?
+                              breaker_state_json = ?, error = ?,
+                              interrupted_at = NULL
                        WHERE run_id = ?""",
                     (
                         completed_at or _now_iso(), status, summary_json,
@@ -1902,6 +1917,55 @@ class GemaDatabase:
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_run_end failed for %s: %s", run_id, exc)
+
+    def reconcile_orphan_runs(
+        self,
+        cause: str = ("el proceso terminó antes de cerrar la corrida "
+                      "(reinicio del servidor o caída)"),
+    ) -> list[dict]:
+        """
+        Pasa a `interrupted` toda fila de `runs` que sigue en `running`. Se llama UNA vez,
+        al arrancar la API.
+
+        Escenario (revision externa 2026-09-30, punto 9): el servidor muere a mitad de un scrape
+        —reinicio, OOM, corte de luz—. Los hilos del run son daemon, así que nadie cierra
+        la fila: queda `running` para siempre, `/api/results` arranca vacío y nada le
+        dice a el usuario si la última corrida terminó, se cortó o nunca existió.
+
+        Decisión: GEMA es un solo proceso (uvicorn --workers 1; el gate de scrape es un
+        lock de proceso), así que al arrancar toda fila `running` es huérfana por
+        definición. El UPDATE exige `status = 'running'`: si un CLI de otro proceso
+        estuviera corriendo en ese instante y se marcara por error, su `record_run_end`
+        posterior sobrescribe el estado con el real — el error se autocorrige.
+
+        Fail-safe como el resto de la telemetría: loguea fuerte y devuelve [] — una
+        higiene que falla no puede impedir que la API levante. Devuelve las filas
+        reconciliadas (run_id, started_at, trigger) para que el caller las muestre.
+        """
+        try:
+            ahora = _now_iso()
+            with _get_connection(self.db_path) as conn:
+                huerfanas = [dict(r) for r in conn.execute(
+                    "SELECT run_id, started_at, trigger FROM runs "
+                    "WHERE status = 'running' ORDER BY started_at"
+                ).fetchall()]
+                if huerfanas:
+                    conn.execute(
+                        "UPDATE runs SET status = 'interrupted', interrupted_at = ?, "
+                        "error = ? WHERE status = 'running'",
+                        (ahora, _clip(cause, 2000)),
+                    )
+        except Exception as exc:
+            logger.error("[RECONCILE] no se pudo reconciliar runs huérfanos: %s", exc)
+            return []
+        if huerfanas:
+            logger.warning(
+                "[RECONCILE] %d run(s) quedaron en 'running' tras morir el proceso "
+                "anterior: marcados 'interrupted' (%s)",
+                len(huerfanas), ", ".join(r["run_id"][:8] for r in huerfanas),
+            )
+            metrics.emit("runs_interrupted_total", len(huerfanas))
+        return huerfanas
 
     def record_node_trace(
         self,

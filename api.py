@@ -53,6 +53,7 @@ from nlp_engine import (
     generate_ephemeral_profile,
 )
 from run_manager import RunManager, RunInProgressError
+from scraper import scrape_gate_is_busy
 from scheduler_service import SchedulerService
 from setup_wizard import needs_setup, _save_keys, _test_groq_key, _test_gemini_key
 
@@ -139,6 +140,15 @@ async def lifespan(app: FastAPI):
     app.state.notion = NotionClient()
     app.state.sheets = SheetsClient()
     app.state.runs = RunManager(app.state.db, app.state.notion, app.state.sheets)
+    # revision externa 2026-09-30, punto 9: una sola instancia de proceso, asi que toda fila de
+    # `runs` en `running` al arrancar es de un proceso que ya murio. Sin esto quedaba
+    # `running` para siempre y /api/results arrancaba vacio sin decir por que.
+    # Aislado: si la higiene falla (DB bloqueada) la API igual tiene que levantar.
+    try:
+        app.state.db.reconcile_orphan_runs()
+    except Exception as exc:
+        logging.getLogger("gema.api").error(
+            "[RECONCILE] fallo la reconciliacion de runs huerfanos: %s", exc)
     # v3 Fase 6: el cron corre el MISMO grafo que la corrida manual, y el nodo `push`
     # necesita los clientes. Sin esto el ctx del cron llega con notion=None y el push se
     # saltea en silencio — que es exactamente la deriva que la Fase 6 vino a cerrar, solo
@@ -366,6 +376,76 @@ async def stream_logs():
 # Fase 4 — Resultados + export
 # =============================================================================
 
+def _last_run_dto() -> Optional[dict]:
+    """Ultimo run registrado en la DB, con un mensaje honesto de que se sabe y que no.
+
+    revision externa 2026-09-30, punto 9: tras un reinicio `/api/results` salia vacio y la UI no
+    podia distinguir "nunca corri" de "corri ayer y se perdio la sesion". La fila de
+    `runs` si sobrevive. Los TIERS COMPLETOS no se reconstruyen (quedan fuera de este
+    cambio: exigirian ligar cada aviso del registry a su run_id); por eso
+    `results_available` es siempre False y el mensaje lo dice.
+    """
+    try:
+        filas = app.state.db.get_recent_runs(limit=1)
+    except Exception as exc:
+        logging.getLogger("gema.api").warning("[RESULTS] no se pudo leer el ultimo run: %s", exc)
+        return None
+    if not filas:
+        return None
+    fila = filas[0]
+    estado = fila.get("status") or "desconocido"
+    origen = fila.get("trigger") or "?"
+    inicio = (fila.get("started_at") or "")[:16].replace("T", " ")
+    contadores = None
+    if fila.get("tier1_count") is not None:
+        contadores = {
+            "tier1": fila.get("tier1_count"), "tier2": fila.get("tier2_count"),
+            "tier3": fila.get("tier3_count"), "tier4": fila.get("tier4_count"),
+        }
+    resumen = None
+    if fila.get("summary_json"):
+        try:
+            resumen = json.loads(fila["summary_json"])
+        except ValueError:
+            resumen = None
+
+    en_db = "los avisos que alcanzó a registrar y puntuar están en «Ver DB»"
+    if estado == "interrupted":
+        mensaje = (f"La última corrida ({origen}, inicio {inicio} UTC) se interrumpió: el "
+                   f"servidor se reinició o cayó antes de que terminara. Sus tiers no se "
+                   f"guardaron; {en_db}.")
+    elif estado == "ok":
+        partes = ""
+        if contadores:
+            partes = (f" Tier 1: {contadores['tier1']}, Tier 2: {contadores['tier2']}, "
+                      f"Tier 3: {contadores['tier3']}, Tier 4: {contadores['tier4']}.")
+        mensaje = (f"Última corrida ({origen}, inicio {inicio} UTC): terminó bien.{partes} "
+                   f"El detalle por tier no está disponible aquí tras un reinicio del "
+                   f"servidor ni en corridas del cron; {en_db}.")
+    elif estado == "crashed":
+        mensaje = (f"La última corrida ({origen}, inicio {inicio} UTC) falló: "
+                   f"{(fila.get('error') or 'sin detalle')[:300]}. {en_db.capitalize()}.")
+    elif estado == "running":
+        mensaje = (f"Hay una corrida en curso ({origen}, inicio {inicio} UTC) que no "
+                   f"lanzó esta sesion; sus resultados quedarán en «Ver DB» al terminar.")
+    else:
+        mensaje = f"Última corrida ({origen}, inicio {inicio} UTC): estado «{estado}»."
+
+    return {
+        "run_id": fila.get("run_id"),
+        "status": estado,
+        "trigger": fila.get("trigger"),
+        "started_at": fila.get("started_at"),
+        "completed_at": fila.get("completed_at"),
+        "interrupted_at": fila.get("interrupted_at"),
+        "error": fila.get("error"),
+        "tier_counts": contadores,
+        "summary": resumen,
+        "results_available": False,
+        "message": mensaje,
+    }
+
+
 @app.get("/api/results")
 def get_results():
     runs: RunManager = app.state.runs
@@ -375,6 +455,10 @@ def get_results():
         "has_results": runs.results is not None,
         "summary": None,
         "tiers": None,
+        # Solo cuando la sesion no sabe nada de ninguna corrida: ni una propia ni un
+        # Reset deliberado ("Limpiar sesion" no puede rellenarse con historial).
+        "last_run": (_last_run_dto()
+                     if runs.run_id is None and not runs.session_cleared else None),
     }
     if runs.summary is not None:
         out["summary"] = runs.summary.model_dump(mode="json")
@@ -747,13 +831,20 @@ def set_godmode(body: GodModeUpdate):
 
 @app.post("/api/reset")
 def reset_session():
-    """Kill switch — equivalente al Reset Total de Streamlit.
+    """Limpiar sesión (antes "Kill Switch": nunca canceló nada) — equivale al Reset
+    Total de Streamlit. 409 si hay una corrida activa: no hay cancelación real.
 
     F8: también limpia el estado persistido — un reset es un reset,
     no vuelve solo después del próximo boot.
     """
     with app.state.state_lock:  # NEW #4: limpieza atómica de todo el estado
-        app.state.runs.reset()
+        # revision externa 2026-09-30, punto 1: runs.reset() va PRIMERO y es lo unico que puede
+        # rechazar. Si hay una corrida activa levanta RunInProgressError ANTES de que
+        # se toque config, perfil, godmode o cron: un 409 no muta nada.
+        try:
+            app.state.runs.reset()
+        except RunInProgressError as exc:
+            raise HTTPException(409, str(exc))
         app.state.current_config = None
         app.state.audit_report = None
         app.state.profile = None
@@ -902,6 +993,9 @@ def status():
             "next_run": sched.get_next_run_time() if sched.enabled else None,
         },
         "is_running": runs.is_running,
+        # True si hay una corrida (manual O del cron) con el gate tomado. La UI lo usa
+        # para deshabilitar "Limpiar sesion" con la razon a la vista (revision externa punto 1).
+        "scrape_gate_busy": scrape_gate_is_busy(),
         "has_results": runs.results is not None,
         "needs_setup": needs_setup(),
         "ttl_hours": app.state.ttl_hours,

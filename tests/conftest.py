@@ -57,9 +57,18 @@ def _permitir_testserver(monkeypatch):
 
     Autouse por la misma razon que el aislamiento de red: el proximo test con
     TestClient no tiene por que saber que existe este middleware.
+
+    Ademas se fija la variable de entorno, porque `setup_wizard.needs_setup()` hace
+    `importlib.reload(config)` en cada GET /api/status: la recarga recalcula
+    ALLOWED_HOSTS desde el entorno y borra el atributo parcheado. Sin la variable, la
+    primera request despues de un /api/status recibia el 400 del guard (integracion del
+    03-10, `test_reset_y_gate`). La variable no cubre un GEMA_ALLOWED_HOSTS escrito en el
+    .env, que la recarga vuelve a imponer; el atributo cubre todo lo que no recarga.
     """
     import config
-    monkeypatch.setattr(config, "ALLOWED_HOSTS", [*config.ALLOWED_HOSTS, "testserver"])
+    hosts = [*config.ALLOWED_HOSTS, "testserver"]
+    monkeypatch.setenv("GEMA_ALLOWED_HOSTS", ",".join(hosts))
+    monkeypatch.setattr(config, "ALLOWED_HOSTS", hosts)
 
 
 class RedProhibida(ConnectionError):
