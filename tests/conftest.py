@@ -57,18 +57,47 @@ def _permitir_testserver(monkeypatch):
 
     Autouse por la misma razon que el aislamiento de red: el proximo test con
     TestClient no tiene por que saber que existe este middleware.
-
-    Ademas se fija la variable de entorno, porque `setup_wizard.needs_setup()` hace
-    `importlib.reload(config)` en cada GET /api/status: la recarga recalcula
-    ALLOWED_HOSTS desde el entorno y borra el atributo parcheado. Sin la variable, la
-    primera request despues de un /api/status recibia el 400 del guard (integracion del
-    03-10, `test_reset_y_gate`). La variable no cubre un GEMA_ALLOWED_HOSTS escrito en el
-    .env, que la recarga vuelve a imponer; el atributo cubre todo lo que no recarga.
     """
     import config
-    hosts = [*config.ALLOWED_HOSTS, "testserver"]
-    monkeypatch.setenv("GEMA_ALLOWED_HOSTS", ",".join(hosts))
-    monkeypatch.setattr(config, "ALLOWED_HOSTS", hosts)
+    monkeypatch.setattr(config, "ALLOWED_HOSTS", [*config.ALLOWED_HOSTS, "testserver"])
+
+
+@pytest.fixture(autouse=True)
+def _sin_recarga_de_config_en_needs_setup(monkeypatch):
+    """
+    `setup_wizard.needs_setup()` hace `importlib.reload(config)`, y la API lo llama en
+    cada GET /api/status. En la suite eso deshace todo parche de `config` hecho antes:
+    el ALLOWED_HOSTS con `testserver` (el 400 del guard que rompio `test_reset_y_gate`
+    al integrar el 03-10), el CV_PROFILE_PATH temporal de abajo, y GEMA_DB_PATH, que el
+    `.env` de el usuario SI define: despues de un /api/status, cualquier `GemaDatabase()`
+    nuevo apuntaba a la base real. En los tests la recarga se anula.
+
+    Ningun test depende de ella: los de `/api/setup` mockean `_save_keys` y los de
+    `test_setup_wizard.py` ya anulaban `importlib.reload` por su cuenta.
+    """
+    import types
+
+    import setup_wizard
+    monkeypatch.setattr(setup_wizard, "importlib", types.SimpleNamespace(reload=lambda m: m))
+
+
+@pytest.fixture(autouse=True)
+def _aislar_cv_profile(tmp_path, monkeypatch):
+    """
+    Ningun test lee, crea ni borra el cv_profile.json real.
+
+    CV_PROFILE_PATH es relativo ("cv_profile.json"): sin esto resuelve contra el cwd, que
+    para quien corre la suite desde la raiz del repo es el archivo de el usuario. Hasta el
+    punto 11 de revision externa (2026-09-30) el riesgo era latente: enable_cron(retain=False)
+    llama a _discard_profile y cualquier test de la API que activara el cron borraba el
+    perfil retenido de verdad. Con clear_profile() (DELETE /api/cv, Reset) hay tres
+    caminos mas que borran, asi que el aislamiento deja de ser opcional.
+
+    Autouse por la misma razon que el del drift_quarantine: el test que se olvide de
+    pedirlo es el que borra el archivo.
+    """
+    import config
+    monkeypatch.setattr(config, "CV_PROFILE_PATH", str(tmp_path / "cv_profile.json"))
 
 
 class RedProhibida(ConnectionError):

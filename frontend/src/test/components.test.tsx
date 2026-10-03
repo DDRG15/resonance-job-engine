@@ -80,6 +80,7 @@ const SCHED: SchedulerState = {
   next_run: 'vie 10 jul 08:00',
   last_run: 'No runs yet',
   has_config: true,
+  retain_cv: false,
 }
 
 beforeEach(() => {

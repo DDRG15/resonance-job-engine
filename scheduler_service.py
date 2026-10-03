@@ -61,6 +61,10 @@ class SchedulerService:
         self.cron_minute: int = 0   # F9 (live test 07-10): precisión de minutos
         self.config = None          # SearchConfig | None
         self.profile = None         # dict | None — ephemeral CV profile
+        # Preferencia REAL de retencion del perfil en disco (revision externa 2026-09-30, punto 11).
+        # Antes vivia solo en el body del PUT y api.py serializaba False a ciegas: tras
+        # reiniciar, _apply_pending_schedule reconfiguraba con False y borraba el archivo.
+        self.retain_cv: bool = False
         self.is_running: bool = False
         self.last_run_at: Optional[datetime] = None
         self.last_run_new_jobs: int = 0
@@ -73,17 +77,32 @@ class SchedulerService:
 
         # If the user opted to retain the CV profile, load it so an unattended
         # cron survives a restart. Ephemeral profile only — never the raw CV.
+        # Si el archivo existe, la retencion estaba activa: solo _save_profile lo escribe y
+        # solo con retain=True. api._restore_state corrige esta inferencia con la
+        # preferencia serializada cuando api_state.json la trae.
         self._maybe_load_profile()
+        if self.profile is not None:
+            self.retain_cv = True
 
     # -------------------------------------------------------------------------
     # Public API
     # -------------------------------------------------------------------------
 
-    def enable(self, interval_hours: int, config, profile, db) -> None:
-        """Start (or restart) the interval job with the given config."""
+    def enable(
+        self, interval_hours: int, config, profile, db,
+        retain_profile: Optional[bool] = None,
+    ) -> None:
+        """Start (or restart) the interval job with the given config.
+
+        retain_profile: None deja la preferencia como esta (compatibilidad con quien
+        llama sin ella); True/False la fija igual que en enable_cron. La preferencia es
+        del scheduler, no del modo: cambiar de cron a intervalo no la pierde.
+        """
         self.interval_hours = interval_hours
         self.config = config
         self.profile = profile
+        if retain_profile is not None:
+            self.set_retain(retain_profile)
 
         # Remove existing job before re-adding — handles interval changes
         if self._scheduler.get_job(_JOB_ID):
@@ -124,10 +143,7 @@ class SchedulerService:
         self.cron_hour = hour
         self.cron_minute = minute
 
-        if retain_profile and profile:
-            self._save_profile(profile)
-        elif not retain_profile:
-            self._discard_profile()
+        self.set_retain(retain_profile)
 
         if self._scheduler.get_job(_JOB_ID):
             self._scheduler.remove_job(_JOB_ID)
@@ -151,6 +167,32 @@ class SchedulerService:
     # -------------------------------------------------------------------------
     # CV profile retention (B4) — ephemeral profile only, never the raw CV
     # -------------------------------------------------------------------------
+
+    def set_retain(self, retain: bool) -> None:
+        """Fija la preferencia de retencion y deja el disco coherente con ella.
+        True con perfil en memoria -> lo guarda; False -> borra el archivo (el perfil de
+        sesion en memoria NO se toca: "no retener" es "no dejarlo en disco", no
+        "descartar"). Activar la retencion sin perfil no crea nada."""
+        self.retain_cv = bool(retain)
+        if self.retain_cv:
+            if self.profile:
+                self._save_profile(self.profile)
+        else:
+            self._discard_profile()
+
+    def set_profile(self, profile: Optional[dict]) -> None:
+        """Perfil nuevo desde la API (CV recien subido). Llega al cron de inmediato y, solo
+        si la retencion esta activa, tambien a disco. Sin retencion NUNCA se crea el archivo."""
+        self.profile = profile
+        if self.retain_cv and profile:
+            self._save_profile(profile)
+
+    def clear_profile(self) -> None:
+        """Olvida el perfil del scheduler Y el archivo retenido. La preferencia retain_cv
+        se conserva: descartar el CV actual no es decidir que el proximo no se retenga.
+        La invoca api.clear_profile(), la unica operacion de descarte (revision externa punto 11)."""
+        self.profile = None
+        self._discard_profile()
 
     def _save_profile(self, profile: dict) -> None:
         try:

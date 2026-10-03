@@ -1235,21 +1235,98 @@ _GENERIC_FALLBACK_PROFILE: dict = {
 }
 
 
+# Tope de caracteres del texto del CV que entra al prompt. Suficiente para cualquier CV
+# real y por debajo del limite de tokens de la llamada de parseo.
+_CV_TEXT_CAP = 8_000
+
+
+def _extract_pdf_text(file_bytes: bytes) -> str:
+    """
+    Texto de un PDF con tres topes (revision externa 2026-09-30, punto 12): paginas, caracteres y
+    reloj. Antes se recorrian TODAS las paginas para quedarse con 8 000 caracteres: un
+    PDF de 500 paginas (o una sola pagina patologica) bloqueaba la peticion y la CPU de
+    la maquina hasta terminar, y nadie podia cortarlo.
+
+    El parseo corre en un hilo con presupuesto de reloj (CV_PARSE_TIMEOUT_SECONDS). Python
+    no puede matar un hilo: al vencer el presupuesto la llamada VUELVE con lo ya extraido
+    y el hilo huerfano termina la pagina en curso y se detiene en el limite de pagina
+    (bandera `cancelar`). Lo que queda acotado es la latencia de la peticion y el trabajo
+    total (una pagina, no el documento); una sola pagina que consuma CPU sin fin no se
+    interrumpe sin un subproceso — limite conocido, documentado en el reporte.
+    """
+    chunks: list[str] = []
+    cancelar = threading.Event()
+    terminado = threading.Event()
+    max_paginas = max(1, config.CV_MAX_PDF_PAGES)
+
+    def _trabajo() -> None:
+        try:
+            import io
+            import pdfplumber
+            # pages= evita construir objetos Page para el resto del documento
+            with pdfplumber.open(
+                io.BytesIO(file_bytes), pages=list(range(1, max_paginas + 1))
+            ) as pdf:
+                total = 0
+                for i, page in enumerate(pdf.pages):
+                    if cancelar.is_set() or i >= max_paginas or total >= _CV_TEXT_CAP:
+                        break
+                    texto = page.extract_text() or ""
+                    chunks.append(texto)
+                    total += len(texto)
+        except Exception as exc:
+            logger.warning("[CV] Text extraction failed for PDF: %s", exc)
+        finally:
+            terminado.set()
+
+    threading.Thread(target=_trabajo, daemon=True, name="cv-pdf-parse").start()
+    if not terminado.wait(timeout=config.CV_PARSE_TIMEOUT_SECONDS):
+        cancelar.set()
+        logger.warning(
+            "[CV] PDF cortado por tiempo (%.1fs): se usa el texto de las paginas "
+            "ya leidas (%d).", config.CV_PARSE_TIMEOUT_SECONDS, len(chunks),
+        )
+    return "\n".join(list(chunks))
+
+
+def _docx_descomprimido_excede(file_bytes: bytes) -> bool:
+    """True si el directorio del zip declara mas bytes descomprimidos que el tope.
+    Lee solo el directorio central: no descomprime nada, asi que un zip-bomb se detecta
+    en microsegundos en vez de tragarse la memoria dentro de python-docx."""
+    import io
+    import zipfile
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            total = sum(info.file_size for info in z.infolist())
+    except zipfile.BadZipFile:
+        return False  # no es un zip: que python-docx falle con su error de siempre
+    if total > config.CV_MAX_DOCX_UNCOMPRESSED_BYTES:
+        logger.warning(
+            "[CV] DOCX rechazado: %d bytes descomprimidos > tope %d.",
+            total, config.CV_MAX_DOCX_UNCOMPRESSED_BYTES,
+        )
+        return True
+    return False
+
+
 def extract_cv_text(filename: str, file_bytes: bytes) -> str:
     """
     Extracts plain text from an uploaded CV file (PDF, DOCX, TXT, or MD).
     Lazy-imports heavy libraries so they do not load at module startup.
     Truncates output to 8 000 chars — sufficient for any real CV and
     stays safely below the LLM token limit for the parse call.
+
+    Punto 12 de revision externa: PDF acotado por paginas/caracteres/reloj (_extract_pdf_text) y
+    DOCX rechazado si su descompresion excede el tope. Contrato intacto: nunca lanza;
+    un archivo rechazado devuelve "" y la API responde 422 como con cualquier parser caido.
     """
     ext = filename.rsplit(".", 1)[-1].lower()
     try:
         if ext == "pdf":
-            import io
-            import pdfplumber
-            with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
-                text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+            text = _extract_pdf_text(file_bytes)
         elif ext == "docx":
+            if _docx_descomprimido_excede(file_bytes):
+                return ""
             import io
             import docx
             doc = docx.Document(io.BytesIO(file_bytes))
@@ -1259,7 +1336,43 @@ def extract_cv_text(filename: str, file_bytes: bytes) -> str:
     except Exception as exc:
         logger.warning("[CV] Text extraction failed for %r: %s", filename, exc)
         return ""
-    return text[:8_000]
+    return text[:_CV_TEXT_CAP]
+
+
+# --- Redaccion local de contacto antes de salir al proveedor (revision externa punto 12, sol. B) ---
+# Email y telefono no aportan nada al perfil (rol, skills, region) y son lo mas facil de
+# detectar sin falsos positivos. Nombre, historial y direccion NO se redactan: no hay
+# regex que los distinga de un cargo o un proyecto sin destruir el perfil, y el aviso de la
+# UI dice que esos datos si salen.
+_EMAIL_RE = re.compile(
+    r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}"
+)
+# Candidato a telefono: secuencia de digitos con espacios, guiones y parentesis, sin
+# punto, coma ni barra (esos separan versiones, IPs, miles y fechas, no telefonos). Se
+# valida despues por cantidad de digitos.
+_PHONE_CANDIDATE_RE = re.compile(
+    r"(?<![\w.,/])\+?\(?\d[\d \t()\-]{7,}\d(?!\w)"
+)
+_YEARS_ONLY_RE = re.compile(r"^(?:(?:19|20)\d{2}[ \t\-]*)+$")
+
+
+def _es_telefono(candidato: str) -> bool:
+    digitos = len(re.sub(r"\D", "", candidato))
+    if not 9 <= digitos <= 15:
+        return False
+    if _YEARS_ONLY_RE.match(candidato):
+        return False  # "2019 - 2023 - 2024": anos, no telefono
+    if " - " in candidato:
+        return False  # rangos ("90 000 - 120 000"); los telefonos no llevan " - "
+    return True
+
+
+def _redact_contact_data(text: str) -> str:
+    """Reemplaza emails y telefonos por marcadores. Local, sin red, determinista."""
+    text = _EMAIL_RE.sub("[email]", text)
+    return _PHONE_CANDIDATE_RE.sub(
+        lambda m: "[telefono]" if _es_telefono(m.group(0)) else m.group(0), text
+    )
 
 
 def generate_ephemeral_profile(raw_cv_text: str, raise_on_failure: bool = False) -> dict:
@@ -1289,6 +1402,12 @@ def generate_ephemeral_profile(raw_cv_text: str, raise_on_failure: bool = False)
             raise RuntimeError("CV text vacío — nada que analizar")
         return _GENERIC_FALLBACK_PROFILE.copy()
 
+    # Punto 12 de revision externa: lo unico que sale al proveedor es el texto con email y telefono
+    # ya redactados. Solo se loguean conteos, jamas el contenido.
+    safe_cv_text = _redact_contact_data(raw_cv_text)
+    logger.info("[CV] Redaccion local: %d chars -> %d chars antes de enviar al LLM.",
+                len(raw_cv_text), len(safe_cv_text))
+
     parse_prompt = f"""You are a CV parser. Extract structured data from the CV below.
 Return ONLY a JSON object matching this exact schema — no prose, no markdown:
 
@@ -1309,7 +1428,7 @@ Rules:
 - If a field cannot be determined, use an empty list or reasonable default string.
 
 CV TEXT:
-{raw_cv_text}"""
+{safe_cv_text}"""
 
     # Este path GANA autocorrección al pasar por el grafo. v2 no la tenía: cualquier
     # excepción saltaba directo al proveedor siguiente, así que un JSON con una coma de

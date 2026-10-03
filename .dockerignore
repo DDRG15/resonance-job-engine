@@ -25,6 +25,9 @@ cookies/*.json
 cookies/session/
 # Perfil derivado del CV: dato personal. docker-compose lo monta read-only.
 user_profile.yaml
+# Perfil del CV retenido para el cron (rol/skills/region): dato personal, estado de
+# runtime. revision externa 2026-09-30, punto 11. Sin comentario al final de la linea de abajo.
+cv_profile.json
 
 # --- LARGE BINARIES: downloaded/built during `docker build`, not copied ---
 # Binario de Firefox de camoufox (~530 MB): lo baja `python -m camoufox fetch`.

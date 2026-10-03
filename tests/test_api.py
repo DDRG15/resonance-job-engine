@@ -419,6 +419,10 @@ class TestScrape:
 # /api/cv (perfil efímero — LLM mockeado, nada a disco)
 # =============================================================================
 
+# Punto 12 de revision externa: /api/cv exige la version vigente del aviso de envio aceptada.
+_CONSENT = {"llm_consent": config_module.CV_CONSENT_VERSION}
+
+
 class TestCV:
     def test_cv_initially_none(self, client):
         assert client.get("/api/cv").json()["profile"] is None
@@ -433,6 +437,7 @@ class TestCV:
         r = client.post(
             "/api/cv",
             files={"file": ("cv.txt", b"el usuario - Python Backend Developer", "text/plain")},
+            data=_CONSENT,
         )
         assert r.status_code == 200
         assert r.json()["profile"]["role"] == "Python Backend Dev"
@@ -443,7 +448,7 @@ class TestCV:
             api_module, "generate_ephemeral_profile",
             lambda text, raise_on_failure=False: {"role": "x"},
         )
-        client.post("/api/cv", files={"file": ("cv.txt", b"cv", "text/plain")})
+        client.post("/api/cv", files={"file": ("cv.txt", b"cv", "text/plain")}, data=_CONSENT)
         client.delete("/api/cv")
         assert client.get("/api/cv").json()["profile"] is None
 
@@ -455,6 +460,7 @@ class TestCV:
         monkeypatch.setattr(api_module, "generate_ephemeral_profile", _all_dead)
         r = client.post(
             "/api/cv", files={"file": ("cv.txt", b"el usuario - Python Dev", "text/plain")},
+            data=_CONSENT,
         )
         assert r.status_code == 503
         assert client.get("/api/cv").json()["profile"] is None
@@ -466,6 +472,7 @@ class TestCV:
         monkeypatch.setattr(api_module, "extract_cv_text", lambda name, data: "")
         r = client.post(
             "/api/cv", files={"file": ("cv.pdf", b"%PDF-fake", "application/pdf")},
+            data=_CONSENT,
         )
         assert r.status_code == 422
         assert client.get("/api/cv").json()["profile"] is None

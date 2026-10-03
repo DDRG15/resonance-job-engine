@@ -33,7 +33,7 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, Form, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -56,6 +56,7 @@ from nlp_engine import (
 from run_manager import RunManager, RunInProgressError
 from scraper import scrape_gate_is_busy
 from scheduler_service import SchedulerService
+from upload_guard import MaxBodySizeMiddleware
 from setup_wizard import needs_setup, _save_keys, _test_groq_key, _test_gemini_key
 
 _LLM_KEY_NAMES = (
@@ -83,12 +84,19 @@ def _persist_state() -> None:
             "cron_days_str": sched.cron_days,
             "cron_hour": sched.cron_hour,
             "cron_minute": sched.cron_minute,
-            "retain_cv": False,  # el perfil tiene su propia persistencia opt-in
+            # Punto 11 de revision externa: antes era False fijo. Un cron activado con retencion
+            # se serializaba como "sin retencion" y el siguiente arranque borraba el
+            # archivo que el usuario pidio conservar.
+            "retain_cv": sched.retain_cv,
         }
     cfg = app.state.current_config
     payload = {
         "config": cfg.model_dump(mode="json") if cfg else None,
         "schedule": schedule,
+        # Preferencia de nivel superior: existe aunque no haya cron (apagarlo reteniendo
+        # el perfil es pausar, no descartar). Su AUSENCIA marca un api_state.json de la
+        # version anterior — _restore_profile la distingue de un False explicito.
+        "retain_cv": sched.retain_cv,
     }
     try:
         API_STATE_FILE.write_text(
@@ -100,15 +108,57 @@ def _persist_state() -> None:
         logging.getLogger("gema.api").warning("[F8] no se pudo persistir estado: %s", exc)
 
 
+def _restore_profile(payload: dict) -> None:
+    """Reconcilia perfil retenido y preferencia al boot (revision externa 2026-09-30, punto 11).
+
+    Reglas, en orden de autoridad:
+      1. api_state.json con clave `retain_cv` (formato nuevo): manda. True conserva el
+         archivo; False lo borra — un cv_profile.json suelto contra una preferencia
+         explicita de no retener es dato personal que el usuario dijo que no quedara.
+      2. Sin clave (api_state.json legado o inexistente): el archivo es la evidencia.
+         Solo _save_profile lo escribe y solo con retencion activa, asi que su existencia
+         prueba que el usuario la pidio; borrarlo era exactamente el bug.
+    El perfil retenido se hidrata tambien en app.state.profile: sin eso la UI mostraba
+    "sin perfil" (sin boton Descartar) mientras el cron seguia usando uno.
+    """
+    sched: SchedulerService = app.state.sched
+    if "retain_cv" in payload:
+        sched.retain_cv = bool(payload["retain_cv"])
+        if not sched.retain_cv:
+            sched.clear_profile()
+    if sched.retain_cv and sched.profile is not None:
+        app.state.profile = sched.profile
+
+
+def clear_profile() -> None:
+    """ÚNICA operación de descarte del perfil del CV (revision externa punto 11, solución A).
+
+    Antes había tres sitios con tres definiciones distintas de "descartar": DELETE /api/cv
+    limpiaba solo app.state.profile, Reset no tocaba el scheduler ni el archivo, y la
+    UI prometía «los scores vuelven a ser genéricos» mientras el cron del martes seguía
+    puntuando con el perfil retenido. Limpia las tres copias a la vez: memoria de la API,
+    memoria del scheduler y cv_profile.json. Reentrante (RLock): Reset ya tiene el lock.
+    """
+    with app.state.state_lock:
+        app.state.profile = None
+        app.state.sched.clear_profile()
+
+
 def _restore_state() -> None:
     """Al boot: restaura búsqueda confirmada y re-arma/activa el cron (F8)."""
-    if not API_STATE_FILE.exists():
-        return
-    try:
-        payload = json.loads(API_STATE_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        import logging
-        logging.getLogger("gema.api").warning("[F8] estado persistido ilegible: %s", exc)
+    payload: dict = {}
+    legible = True
+    if API_STATE_FILE.exists():
+        try:
+            payload = json.loads(API_STATE_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            import logging
+            logging.getLogger("gema.api").warning("[F8] estado persistido ilegible: %s", exc)
+            payload, legible = {}, False
+    # El perfil se restaura aunque no haya api_state.json: un cv_profile.json retenido
+    # no depende de que exista (ni de que se pueda leer) el estado del cron.
+    _restore_profile(payload)
+    if not legible or not API_STATE_FILE.exists():
         return
     if payload.get("config"):
         try:
@@ -117,6 +167,9 @@ def _restore_state() -> None:
             app.state.current_config = None
     if payload.get("schedule"):
         app.state.pending_schedule = payload["schedule"]
+        # La preferencia vigente es la del scheduler (ya reconciliada arriba), no la
+        # copia del dict: en un api_state.json legado esa copia es el False del bug.
+        app.state.pending_schedule["retain_cv"] = app.state.sched.retain_cv
         # Con config restaurada el cron se ACTIVA; sin config queda armado
         _apply_pending_schedule()
 
@@ -201,6 +254,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="GEMA API", version="2.1-b6", lifespan=lifespan)
 
+def _mensaje_cv_grande(tope: int) -> str:
+    limite = f"{tope // (1024 * 1024)} MB" if tope >= 1024 * 1024 else f"{tope // 1024} KB"
+    return (
+        f"El archivo supera el límite de {limite} para un CV. Un CV de texto ocupa menos "
+        "de 1 MB: expórtalo de nuevo sin imágenes pesadas o súbelo como TXT/MD. "
+        "No se envió nada a ningún proveedor."
+    )
+
+
+# Punto 12 de revision externa: tope de bytes de /api/cv ANTES de que FastAPI vuelque el multipart a
+# un temporal. Se registra antes que CORS para que CORS quede por fuera y el 413 lleve sus
+# cabeceras (el navegador no puede leer el mensaje de una respuesta sin ellas).
+app.add_middleware(
+    MaxBodySizeMiddleware,
+    path="/api/cv",
+    method="POST",
+    max_bytes=lambda: config.CV_MAX_UPLOAD_BYTES,
+    mensaje=_mensaje_cv_grande,
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -211,7 +284,7 @@ app.add_middleware(
 # Plan30 Fase 3: la API no tiene autenticacion, asi que lo unico que separa a un
 # navegador de la maquina de /api/reset son dos headers que la pagina atacante no
 # controla. Orden de afuera hacia adentro (add_middleware inserta al frente, asi que
-# se agrega al reves): Host -> Origin -> CORS -> app.
+# se agrega al reves): Host -> Origin -> CORS -> tope de bytes del CV -> app.
 #   Origin: POST/PUT/PATCH/DELETE con Origin ajeno -> 403. Corta el formulario cruzado
 #           (CORS no lo frena: decide la lectura, no la ejecucion). config.ALLOWED_ORIGINS.
 #   Host:   Host ajeno -> 400. Corta el DNS rebinding. config.ALLOWED_HOSTS.
@@ -794,8 +867,25 @@ def application_stats(dimension: str = "tier_al_aplicar"):
 
 
 @app.post("/api/cv")
-def upload_cv(file: UploadFile = File(...)):
-    file_bytes = file.file.read()
+def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
+    # Punto 12 de revision externa: el texto del CV (nombre, contacto, historial) sale a un proveedor
+    # LLM externo. Sin la versión vigente del aviso aceptada, ni se lee el archivo: 428 y
+    # el proveedor no recibe una sola llamada. La UI guarda la aceptación aparte de la
+    # retención (localStorage vs. retain_cv del scheduler): son decisiones distintas.
+    if llm_consent != config.CV_CONSENT_VERSION:
+        raise HTTPException(
+            428,
+            "falta aceptar el aviso de envío del CV a proveedores LLM externos "
+            f"(versión {config.CV_CONSENT_VERSION}). No se envió nada: acepta el aviso "
+            "en la interfaz antes de subir el archivo.",
+        )
+    # Lectura acotada: el middleware ya cortó los cuerpos que declaran o cruzan el tope;
+    # esto cubre el resto (limite+1 distingue "justo en el tope" de "lo excede") y evita
+    # el read() sin argumento, que trae el archivo entero a memoria.
+    tope = config.CV_MAX_UPLOAD_BYTES
+    file_bytes = file.file.read(tope + 1)
+    if len(file_bytes) > tope:
+        raise HTTPException(413, _mensaje_cv_grande(tope))
     try:
         raw_text = extract_cv_text(file.filename, file_bytes)
     except Exception as exc:
@@ -806,8 +896,9 @@ def upload_cv(file: UploadFile = File(...)):
     if not raw_text.strip():
         raise HTTPException(
             422,
-            "no se pudo extraer texto del CV (¿PDF escaneado, vacío o parser "
-            "faltante?) — revisá el log del server; no se activó ningún perfil",
+            "no se pudo extraer texto del CV (¿PDF escaneado, vacío, parser "
+            "faltante o por encima del límite de páginas/tiempo?) — revisá el log del "
+            "server; no se activó ningún perfil",
         )
     # Hallazgo #5: raise_on_failure=True — si toda la cadena LLM falla, la API
     # grita 503; jamás activa un perfil genérico haciéndose pasar por real.
@@ -815,14 +906,20 @@ def upload_cv(file: UploadFile = File(...)):
         profile = generate_ephemeral_profile(raw_text, raise_on_failure=True)
     except RuntimeError as exc:
         raise HTTPException(503, f"el análisis del CV falló en toda la cadena LLM: {exc}")
-    app.state.profile = profile
-    # Privacidad: el CV crudo no se persiste — solo el perfil en memoria
+    with app.state.state_lock:
+        app.state.profile = profile
+        # Punto 11: el perfil nuevo llega también al scheduler (antes solo al siguiente
+        # PUT /api/config). A disco solo va si el usuario activó la retención.
+        app.state.sched.set_profile(profile)
+    # Privacidad: el CV crudo no se persiste — solo el perfil (en memoria; en disco solo
+    # con retain_cv)
     return {"profile": profile}
 
 
 @app.delete("/api/cv")
 def clear_cv():
-    app.state.profile = None
+    # Punto 11: descartar limpia API + scheduler + archivo retenido, no solo la API.
+    clear_profile()
     return {"profile": None}
 
 
@@ -859,7 +956,10 @@ def reset_session():
             raise HTTPException(409, str(exc))
         app.state.current_config = None
         app.state.audit_report = None
-        app.state.profile = None
+        # Punto 11: Reset descarta también el perfil del scheduler y el archivo retenido,
+        # y devuelve la retención a su default (privacidad: no retener).
+        clear_profile()
+        app.state.sched.retain_cv = False
         app.state.godmode = {"custom_xpath": None, "custom_css": None}
         app.state.pending_schedule = None
         if app.state.sched.enabled:
@@ -886,6 +986,9 @@ def _scheduler_state(sched: SchedulerService) -> dict:
         "next_run": sched.get_next_run_time() if sched.enabled else None,
         "last_run": sched.get_last_run_summary(),
         "has_config": app.state.current_config is not None,
+        # La UI muestra la preferencia REAL: el toggle nacia en False en cada carga y el
+        # primer PUT siguiente (p. ej. apagar el cron) la pisaba sin que nadie lo pidiera.
+        "retain_cv": sched.retain_cv,
     }
     if pending is not None:
         # El estado refleja lo que el usuario programó, aunque aún no corra
@@ -909,7 +1012,10 @@ def _apply_pending_schedule() -> None:
     # F8: si el scheduler cargó un perfil retenido en su boot, no pisarlo
     profile = app.state.profile or sched.profile
     if pending["mode"] == "interval":
-        sched.enable(pending["interval_hours"], cfg, profile, app.state.db)
+        sched.enable(
+            pending["interval_hours"], cfg, profile, app.state.db,
+            retain_profile=pending["retain_cv"],
+        )
     else:
         sched.enable_cron(
             pending["cron_days_str"], pending["cron_hour"], cfg,
@@ -939,10 +1045,22 @@ def update_scheduler(body: SchedulerUpdate):
     days_str = ",".join(d for d in body.cron_days if d in valid) or "tue"
 
     with app.state.state_lock:  # NEW #4: mutación de scheduler atómica
+        # El perfil vivo de la API es el que el cron debe retener; sin esto set_retain(True)
+        # guardaba un sched.profile viejo (o nada) en vez del CV de esta sesión.
+        if app.state.profile is not None:
+            sched.profile = app.state.profile
+
         if not body.enabled:
             app.state.pending_schedule = None
             if sched.enabled:
                 sched.disable()
+            if body.retain_cv:
+                sched.set_retain(True)  # apagar el cron reteniendo = pausar, no descartar
+            elif sched.retain_cv:
+                # Había un perfil retenido y el usuario pide no retener: es la única
+                # petición de descarte que llega por este endpoint (revision externa punto 11).
+                clear_profile()
+                sched.retain_cv = False
             _persist_state()  # F8
             return _scheduler_state(sched)
 
@@ -957,11 +1075,17 @@ def update_scheduler(body: SchedulerUpdate):
                 "cron_minute": body.cron_minute,
                 "retain_cv": body.retain_cv,
             }
+            # La preferencia rige desde ya, no desde que el cron se active: un CV subido
+            # mientras el cron está armado tiene que respetarla.
+            sched.set_retain(body.retain_cv)
             _persist_state()  # F8
             return _scheduler_state(sched)
 
         if body.mode == "interval":
-            sched.enable(body.interval_hours, cfg, app.state.profile, app.state.db)
+            sched.enable(
+                body.interval_hours, cfg, app.state.profile, app.state.db,
+                retain_profile=body.retain_cv,
+            )
         else:
             sched.enable_cron(
                 days_str, body.cron_hour, cfg, app.state.profile, app.state.db,
