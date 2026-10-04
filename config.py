@@ -115,6 +115,29 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v7")
 
 
+# ── , Fase 10: aprender de las postulaciones (aprendizaje.py) ──
+# Construido e INACTIVO. Con 3 postulaciones con resultado, un rechazo de una empresa
+# bajaria cada aviso futuro de esa empresa por un solo dato: ruido con forma de feature.
+# Debajo de LEARN_MIN_RESULTADOS el ajuste es cero, las razones no cambian y la version
+# del score sigue siendo SCORE_VERSION; el log y la metrica `aprendizaje_resultados`
+# dicen "aprendizaje inactivo: N de 15".
+#
+# Activo, el ajuste va DESPUES de score_job (matcher.aplicar_aprendizaje) y la version
+# pasa a ser SCORE_VERSION + "+ap.<huella de las reglas que mueven puntos>": un puntaje
+# con aprendizaje no se compara con uno sin el. Ver .
+#
+# GEMA_APRENDIZAJE=0 es la palanca de rollback: apaga el ajuste aunque haya datos, y la
+# version vuelve a ser SCORE_VERSION a secas.
+LEARN_HABILITADO: bool = os.getenv("GEMA_APRENDIZAJE", "1").strip().lower() not in (
+    "0", "false", "no", "off")
+LEARN_MIN_RESULTADOS: int = 15          # postulaciones con resultado para activar
+LEARN_DESCARTES_PARA_CONFIRMAR: int = 2  # un rechazo solo no mueve; el segundo si
+LEARN_PUNTOS_ENTREVISTA: int = 4        # por cada entrevista (screening/tecnica/final)
+LEARN_PUNTOS_OFERTA: int = 6            # por cada oferta (oferta/aceptado)
+LEARN_PUNTOS_DESCARTE: int = 3          # por cada rechazo, solo si estan confirmados
+LEARN_TOPE: int = 10                    # el ajuste total de un aviso nunca pasa de ±10
+
+
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────
 # Los cinco Tier 4 de la corrida del 2026-09-04 tenian salario NUMERICO -- GBP 75k-90k,
 # EUR 72k-82k, EUR 95k-115k -- y caian a revision manual porque el parser solo entendia

@@ -866,6 +866,16 @@ def application_stats(dimension: str = "tier_al_aplicar"):
         raise HTTPException(400, str(exc))
 
 
+@app.get("/api/aprendizaje")
+def learning_state():
+    """, Fase 10: qué aprendió GEMA de las postulaciones y si ya mueve
+    puntajes. Inactivo dice cuántas faltan («aprendizaje inactivo: N de 15») y lista
+    igual las reglas con los puntos que aportarían el día que se active."""
+    import aprendizaje
+    modelo = aprendizaje.cargar(app.state.db)
+    return modelo.estado(config.SCORE_VERSION)
+
+
 @app.post("/api/cv")
 def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
     # Punto 12 de revision externa: el texto del CV (nombre, contacto, historial) sale a un proveedor

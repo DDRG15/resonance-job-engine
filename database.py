@@ -1141,7 +1141,8 @@ class GemaDatabase:
         salida.sort(key=lambda d: d["dias_restantes"])
         return salida[:limit]
 
-    def update_tiers_batch(self, filas: list[tuple]) -> int:
+    def update_tiers_batch(self, filas: list[tuple],
+                           version: Optional[str] = None) -> int:
         """
         Backfillea tier, score y razonamiento para muchos avisos en UNA transacción.
 
@@ -1156,10 +1157,16 @@ class GemaDatabase:
         `filas` son tuplas `(url, tier, match_score, salary_raw, tiered)` — la misma
         forma que `update_tier`, para que no haya dos maneras de decir lo mismo.
         Devuelve cuántas se escribieron.
+
+        `version` (Fase 10 del ): la identidad del score con que se
+        puntuaron estas filas. `None` es `SCORE_VERSION`, que es lo que pasa siempre
+        mientras el aprendizaje esté inactivo. `bucket_jobs` la pasa solo cuando el
+        aprendizaje movió la escala (`v7+ap.<huella>`).
         """
         if not filas:
             return 0
-        version = getattr(config, "SCORE_VERSION", None)
+        if version is None:
+            version = getattr(config, "SCORE_VERSION", None)
         params = []
         for url, tier, score, salary_raw, tiered in filas:
             params.append((
@@ -1730,6 +1737,60 @@ class GemaDatabase:
         salida.sort(key=lambda d: (-d["tasa"], -d["postulaciones"]))
         return salida
 
+    # =========================================================================
+    # , Fase 10 — aprender de las postulaciones
+    # =========================================================================
+
+    def postulaciones_con_estados(self) -> list[dict]:
+        """
+        Cada postulación con título, empresa y TODOS los estados por los que pasó.
+
+        Es lo único que `aprendizaje.construir` necesita. El conjunto `estados` sale
+        de `application_events` más el `status` actual: el histórico dice que hubo una
+        entrevista aunque hoy figure `rechazado`, y sumar el status cubre una fila
+        cuyo evento de alta se hubiera perdido. Mismo criterio que `conversion_por`.
+
+        Sin columnas nuevas: título y empresa ya se copian del registry al aplicar.
+        """
+        with _get_connection(self.db_path) as conn:
+            apps = conn.execute(
+                "SELECT app_id, title, company, source_domain, status "
+                "FROM applications").fetchall()
+            eventos = conn.execute(
+                "SELECT app_id, hasta FROM application_events").fetchall()
+
+        alcanzados: dict[str, set] = {}
+        for e in eventos:
+            alcanzados.setdefault(e["app_id"], set()).add(e["hasta"])
+        return [
+            {"app_id": a["app_id"], "title": a["title"], "company": a["company"],
+             "source_domain": a["source_domain"], "status": a["status"],
+             "estados": sorted(alcanzados.get(a["app_id"], set()) | {a["status"]})}
+            for a in apps
+        ]
+
+    def version_vigente(self) -> str:
+        """
+        La versión con la que se escribe y se cuenta el registry hoy.
+
+        `SCORE_VERSION` mientras el aprendizaje esté inactivo, que es hoy y hasta las
+        15 postulaciones con resultado. Activo y con reglas que mueven puntos:
+        `SCORE_VERSION+ap.<huella>`. El dashboard, el atajo de `hashes_puntuados` y
+        `tools/repuntuar_registry.py` tienen que hablar la misma escala que escribe
+        `bucket_jobs`; si no, el día que se active el aprendizaje el tablero mostraría
+        cero avisos en la escala vigente.
+
+        Nunca lanza: si el aprendizaje no se puede leer, la versión es la base.
+        """
+        base = getattr(config, "SCORE_VERSION", None)
+        try:
+            import aprendizaje   # diferido: aprendizaje no depende de database
+            return aprendizaje.cargar(self).version(base) or base
+        except Exception as exc:   # noqa: BLE001
+            logger.warning("[APRENDIZAJE] version vigente no calculable (%s): uso %s",
+                           exc, base)
+            return base
+
     def filas_fuera_de_version(self, version: str) -> list[dict]:
         """
         Las filas del registry que NO estan puntuadas con `version`: lo que hay que
@@ -1752,6 +1813,9 @@ class GemaDatabase:
                 "WHERE score_version IS NULL OR score_version <> ?", (version,)).fetchall()]
 
     def get_registry_stats(self) -> dict:
+        # Fase 10 (): la escala que escribe bucket_jobs. Es SCORE_VERSION
+        # mientras el aprendizaje este inactivo; activo, SCORE_VERSION+ap.<huella>.
+        vigente = self.version_vigente()
         with _get_connection(self.db_path) as conn:
             total = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry"
@@ -1763,12 +1827,12 @@ class GemaDatabase:
             by_tier = conn.execute(
                 "SELECT tier, COUNT(*) as cnt FROM seen_jobs_registry "
                 "WHERE tier IS NOT NULL AND score_version = ? GROUP BY tier",
-                (config.SCORE_VERSION,),
+                (vigente,),
             ).fetchall()
             fuera = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry WHERE tier IS NOT NULL "
                 "AND (score_version IS NULL OR score_version <> ?)",
-                (config.SCORE_VERSION,),
+                (vigente,),
             ).fetchone()[0]
             recent_24h = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry WHERE scraped_at >= ?",
@@ -1779,7 +1843,7 @@ class GemaDatabase:
             "total_seen": total,
             "recent_24h": recent_24h,
             "by_tier": {row["tier"]: row["cnt"] for row in by_tier},
-            "score_version": config.SCORE_VERSION,
+            "score_version": vigente,
             "fuera_de_escala": fuera,
         }
 
@@ -1789,17 +1853,18 @@ class GemaDatabase:
         Devuelve distribución por tier, por fuente, y volumen por día (14d)
         para que la UI dibuje el board de estadísticas del registry.
         """
+        vigente = self.version_vigente()   # Fase 10: misma escala que get_registry_stats
         with _get_connection(self.db_path) as conn:
             # Misma regla que get_registry_stats: una sola escala.
             by_tier = conn.execute(
                 "SELECT tier, COUNT(*) AS cnt FROM seen_jobs_registry "
                 "WHERE tier IS NOT NULL AND score_version = ? GROUP BY tier",
-                (config.SCORE_VERSION,),
+                (vigente,),
             ).fetchall()
             fuera = conn.execute(
                 "SELECT COUNT(*) FROM seen_jobs_registry WHERE tier IS NOT NULL "
                 "AND (score_version IS NULL OR score_version <> ?)",
-                (config.SCORE_VERSION,),
+                (vigente,),
             ).fetchone()[0]
             by_source = conn.execute(
                 "SELECT source_domain, COUNT(*) AS cnt FROM seen_jobs_registry "
@@ -1815,7 +1880,7 @@ class GemaDatabase:
             ).fetchall()
         return {
             "by_tier": {r["tier"]: r["cnt"] for r in by_tier},
-            "score_version": config.SCORE_VERSION,
+            "score_version": vigente,
             "fuera_de_escala": fuera,
             "by_source": [{"source": r["source_domain"], "count": r["cnt"]} for r in by_source],
             "by_day": [{"day": r["day"], "count": r["cnt"]} for r in by_day],

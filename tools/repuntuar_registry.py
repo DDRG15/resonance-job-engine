@@ -169,7 +169,11 @@ def main(argv=None) -> int:
             print("  para volver atras: cerrar la API y copiar ese archivo sobre la base.")
 
     db = GemaDatabase()
-    version = config.SCORE_VERSION
+    # Fase 10 (): la escala que escribe bucket_jobs. SCORE_VERSION mientras
+    # el aprendizaje este inactivo; activo, SCORE_VERSION+ap.<huella>. Con la base sola,
+    # la herramienta re-puntuaria a "v7" filas que bucket_jobs etiqueta "v7+ap.<huella>"
+    # y nunca terminaria de llevar el registry a una escala.
+    version = db.version_vigente()
 
     filas = db.filas_fuera_de_version(version)
     antes = Counter(f["score_version"] or "sin version" for f in filas)

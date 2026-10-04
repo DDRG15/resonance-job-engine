@@ -21,6 +21,7 @@ import re
 import unicodedata
 from typing import Optional
 
+import aprendizaje as aprendizaje_mod
 import config
 import metrics
 import requisitos as requisitos_mod
@@ -699,6 +700,38 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     )
 
 
+def aplicar_aprendizaje(tiered: TieredJob,
+                        modelo: "aprendizaje_mod.ModeloAprendizaje") -> TieredJob:
+    """
+    , Fase 10: el ajuste por postulaciones, DESPUÉS del puntaje base.
+
+    Va afuera de `score_job` a propósito. `score_job` es función del aviso, la búsqueda
+    y el CV; el aprendizaje depende además del historial de el usuario, que cambia con cada
+    rechazo. Meterlo en las dimensiones haría que `test_score_version_congelada` dependa
+    de una base, y que la misma entrada dé dos puntajes distintos según el día.
+
+    Inactivo (o sin rasgo aprendido para este aviso): devuelve el MISMO objeto, sin
+    copiar. Cero efecto no es "casi cero": es el mismo puntaje y las mismas razones.
+
+    Activo: suma el delta (ya con tope ±10) al puntaje, lo recorta a 0–115 como
+    `score_job`, recalcula el tier con los umbrales de siempre y deja cada razón con el
+    prefijo «Aprendizaje:», a favor en `match_reasons` y en contra en `miss_reasons`.
+    El Tier 4 centinela (-1) no se toca: no fue puntuado.
+    """
+    if modelo is None or not modelo.activo or tiered.match_score < 0:
+        return tiered
+    ajuste = modelo.ajuste(tiered.job.title, tiered.job.company)
+    if ajuste.vacio:
+        return tiered
+    nuevo = max(0, min(115, tiered.match_score + ajuste.delta))
+    return tiered.model_copy(update={
+        "match_score": nuevo,
+        "tier": _assign_tier(nuevo),
+        "match_reasons": list(tiered.match_reasons) + list(ajuste.a_favor),
+        "miss_reasons": list(tiered.miss_reasons) + list(ajuste.en_contra),
+    })
+
+
 def score_job_inline(job: JobResult, search_config: SearchConfig) -> str:
     """
     Lightweight tier classification for use inside the scraper's hot path.
@@ -722,6 +755,7 @@ def bucket_jobs(
     db=None,
     profile: Optional[dict] = None,
     repuntuar_todo: bool = False,
+    aprendizaje: Optional["aprendizaje_mod.ModeloAprendizaje"] = None,
 ) -> tuple[list[TieredJob], list[TieredJob], list[TieredJob], list[TieredJob]]:
     """
     Scores and buckets all jobs into four tiers. Returns (t1, t2, t3, t4).
@@ -735,6 +769,11 @@ def bucket_jobs(
     Note: score_job_inline() is the lightweight fast-path used during live
     scraping for real-time webhook triggers. bucket_jobs() is the post-scrape
     full pass that populates all display data.
+
+    , Fase 10: `aprendizaje` es el modelo de las postulaciones. Si no
+    viene, se lee de `db` (`aprendizaje.cargar`); sin `db`, no hay historial y no se
+    ajusta nada. Inactivo —menos de 15 postulaciones con resultado— todo lo de abajo
+    corre exactamente como antes: misma versión, mismos puntajes, mismas razones.
     """
     tier1, tier2, tier3, tier4 = [], [], [], []
     filtered_off_topic = 0
@@ -754,10 +793,24 @@ def bucket_jobs(
     # y corre siempre. La excepcion es deliberada y esta declarada en el plan.
     from database import GemaDatabase   # import diferido: evita el ciclo
 
+    # ── , Fase 10: aprendizaje de las postulaciones ─────────────
+    # La version efectiva decide que se saltea y con que etiqueta se persiste. Inactivo
+    # es SCORE_VERSION a secas; activo con reglas, SCORE_VERSION+ap.<huella>, asi que
+    # cada regla nueva re-puntua lo que vuelve a pasar en vez de mezclar dos escalas.
+    modelo = aprendizaje if aprendizaje is not None else aprendizaje_mod.cargar(db)
+    version_base = getattr(config, "SCORE_VERSION", None)
+    version_efectiva = modelo.version(version_base)
+    logger.info("[BUCKET] %s | escala %s", modelo.mensaje(), version_efectiva)
+    metrics.emit("aprendizaje_resultados", modelo.resultados,
+                 activo=int(modelo.activo), umbral=modelo.umbral)
+    if modelo.error and db is not None:
+        metrics.emit("aprendizaje_historial_ilegible", 1, error=modelo.error)
+    ajustados_aprendizaje = 0
+
     ya_puntuados: set = set()
     if db is not None and not repuntuar_todo:
         try:
-            ya_puntuados = db.hashes_puntuados(version=getattr(config, "SCORE_VERSION", None))
+            ya_puntuados = db.hashes_puntuados(version=version_efectiva)
         except Exception as exc:
             # Que el atajo falle no puede impedir la corrida: se degrada a
             # re-puntuar todo, que es el comportamiento anterior.
@@ -805,6 +858,12 @@ def bucket_jobs(
             continue
 
         tiered = score_job(job, search_config, profile=profile)
+        # Fase 10: el ajuste va DESPUES del puntaje base y ANTES de decidir el tier
+        # de la lista. Inactivo devuelve el mismo objeto.
+        ajustado = aplicar_aprendizaje(tiered, modelo)
+        if ajustado is not tiered and ajustado.match_score != tiered.match_score:
+            ajustados_aprendizaje += 1
+        tiered = ajustado
 
         # Fase 3: un veto FAIL saca del shortlist, NO del registro. El aviso se
         # persiste con su tier y su puntaje reales —abajo, en update_tier— pero no
@@ -851,7 +910,11 @@ def bucket_jobs(
 
     if db and pendientes:
         try:
-            db.update_tiers_batch(pendientes)
+            if version_efectiva == version_base:
+                # Inactivo: la llamada de siempre, sin argumentos nuevos.
+                db.update_tiers_batch(pendientes)
+            else:
+                db.update_tiers_batch(pendientes, version=version_efectiva)
         except Exception as exc:
             # El scrape ya guardo los avisos; perder el backfill del tier degrada la
             # vista, no la data. Se reporta y se sigue.
@@ -860,8 +923,13 @@ def bucket_jobs(
 
     if saltados_ya_puntuados:
         logger.info("[BUCKET] %d avisos ya puntuados con %s — salteados",
-                    saltados_ya_puntuados, getattr(config, "SCORE_VERSION", "?"))
+                    saltados_ya_puntuados, version_efectiva or "?")
         metrics.emit("jobs_ya_puntuados", saltados_ya_puntuados)
+    if modelo.activo:
+        # Fase 10: cuantos avisos de esta corrida cambiaron de puntaje por el historial.
+        # Activo y en cero corrida tras corrida = las reglas no matchean nada de lo que
+        # entra (empresas que ya no publican, familias de titulo que no se repiten).
+        metrics.emit("aprendizaje_ajustados", ajustados_aprendizaje)
 
     # , Fase 6: cuantos avisos de esta corrida se puntuaron sin el eje de
     # salario porque lo publicaron en texto, y cuantos se llevaron a anual desde un
