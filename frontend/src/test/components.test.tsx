@@ -255,3 +255,31 @@ describe('SchedulerPanel (cron B4 — no-negociable)', () => {
     expect(screen.getByText(/Programado — se activa al confirmar/)).toBeInTheDocument()
   })
 })
+
+describe('JobDetail — requisitos (Fase 7)', () => {
+  const REQS: TieredJobDto['requisitos'] = [
+    { requisito: 'Python', estado: 'match', peso: 'requerido', evidencia: 'Python 3+ years' },
+    { requisito: 'Kafka', estado: 'missing', peso: 'deseable', evidencia: 'Kafka is a plus' },
+  ]
+
+  it('muestra cobertura, estado y la frase de la descripción como evidencia', async () => {
+    const { default: JobDetail } = await import('../components/JobDetail')
+    render(<JobDetail tj={makeJob({}, { requisitos: REQS, cobertura_requisitos: 0.857 })} />)
+    expect(screen.getByText(/tu CV cubre el 86%/)).toBeInTheDocument()
+    expect(screen.getByText('✓ en tu CV')).toBeInTheDocument()
+    expect(screen.getByText('✗ falta')).toBeInTheDocument()
+    expect(screen.getByText('«Kafka is a plus»')).toBeInTheDocument()
+  })
+
+  it('con menos de 3 requisitos dice que no entran al puntaje', async () => {
+    const { default: JobDetail } = await import('../components/JobDetail')
+    render(<JobDetail tj={makeJob({}, { requisitos: REQS, cobertura_requisitos: null })} />)
+    expect(screen.getByText(/no entran al puntaje/)).toBeInTheDocument()
+  })
+
+  it('sin requisitos (fila vieja o sin descripción) no hay tabla', async () => {
+    const { default: JobDetail } = await import('../components/JobDetail')
+    const { container } = render(<JobDetail tj={makeJob()} />)
+    expect(container.querySelector('.req-table')).toBeNull()
+  })
+})

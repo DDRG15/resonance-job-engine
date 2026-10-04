@@ -16,6 +16,14 @@ function scoreClass(score: number): string {
   return 's3'
 }
 
+// Fase 7: estado de cada requisito frente al CV. "implicito" lo propone la capa LLM
+// (apagada por defecto) y no cuenta para la cobertura: se muestra para que se vea.
+const ESTADO_REQ: Record<string, string> = {
+  match: '✓ en tu CV',
+  missing: '✗ falta',
+  implicito: '· implícito',
+}
+
 /**
  * Panel de detalle del aviso seleccionado — la mitad derecha de la vista split.
  *
@@ -133,6 +141,34 @@ export default function JobDetail({ tj }: Props) {
           {tj.miss_reasons.map((r, i) => (
             <div className="bad" key={`bad-${i}`}>✗ {r}</div>
           ))}
+        </div>
+      )}
+
+      {/* Fase 7: los requisitos que nombra la descripción, con la frase que lo prueba.
+          La evidencia es siempre una cita de la descripción, nunca del CV. */}
+      {(tj.requisitos?.length ?? 0) > 0 && (
+        <div className="detail-reqs">
+          <div className="detail-sub">
+            Requisitos del aviso
+            {tj.cobertura_requisitos != null
+              ? ` — tu CV cubre el ${Math.round(tj.cobertura_requisitos * 100)}%`
+              : ' — menos de 3: no entran al puntaje'}
+          </div>
+          <table className="req-table">
+            <thead>
+              <tr><th>Requisito</th><th>Estado</th><th>Peso</th><th>Evidencia</th></tr>
+            </thead>
+            <tbody>
+              {(tj.requisitos ?? []).map((r) => (
+                <tr key={r.requisito} className={`req-${r.estado}`}>
+                  <td>{r.requisito}</td>
+                  <td>{ESTADO_REQ[r.estado] ?? r.estado}</td>
+                  <td>{r.peso}</td>
+                  <td className="req-evidencia">«{r.evidencia}»</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

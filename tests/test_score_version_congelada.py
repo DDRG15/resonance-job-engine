@@ -20,7 +20,7 @@ import config
 import matcher
 from models import JobResult
 
-VERSION_CONGELADA = "v6"
+VERSION_CONGELADA = "v7"
 
 TITULOS = {
     ("Backend Engineer", ("backend engineer",)): 50,
@@ -121,3 +121,39 @@ def test_salario_en_texto_se_puntua_y_se_marca():
                                              min_salary=90000))
     real = (tj.tier, tj.salario_no_confirmado)
     assert tj.match_score >= 0 and real[1] is True and real[0] != "Tier 4",         _mensaje("salario en texto", "puntuado y marcado", real)
+
+
+# v7 (Fase 7): el eje de requisitos. Mismo aviso, mismo perfil, con y sin descripcion.
+# Sin descripcion el puntaje es el de v6: el eje no participa y no mueve nada.
+_PERFIL_V7 = {"core_skills": ["Python", "FastAPI", "PostgreSQL", "Docker"]}
+_DESC_V7 = "Requirements\nPython\nFastAPI\nPostgreSQL\nNice to have\nKafka"
+
+
+def _job_v7(descripcion=None):
+    return JobResult(title="Software Engineer", company="Acme", url="https://x.com/7",
+                     source_domain="himalayas.app", location_raw="Worldwide",
+                     descripcion=descripcion)
+
+
+@pytest.mark.parametrize("descripcion,score,cobertura", [
+    (None, 50, None),
+    (_DESC_V7, 62, 3 / 3.5),       # 3 requeridos cubiertos + Kafka deseable sin cubrir
+])
+def test_eje_de_requisitos(descripcion, score, cobertura):
+    from models import SearchConfig
+    tj = matcher.score_job(_job_v7(descripcion),
+                           SearchConfig(target_titles=["backend engineer"]), _PERFIL_V7)
+    real = (tj.match_score, tj.cobertura_requisitos)
+    assert real[0] == score and (
+        real[1] is None if cobertura is None else real[1] == pytest.approx(cobertura)
+    ), _mensaje("eje de requisitos", (score, cobertura), real)
+
+
+def test_la_señal_de_deseable_no_cruza_el_punto():
+    """El bug anotado en el estado del 01-10: la ventana fija cruzaba la oracion."""
+    import requisitos
+    pesos = {r.requisito: r.peso for r in requisitos.extraer(
+        "Kubernetes is required. Nice to have: Kafka.", _PERFIL_V7)}
+    real = (pesos.get("Kubernetes"), pesos.get("Kafka"))
+    assert real == ("requerido", "deseable"), _mensaje("peso por oracion",
+                                                       ("requerido", "deseable"), real)

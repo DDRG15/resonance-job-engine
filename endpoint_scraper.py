@@ -250,6 +250,71 @@ _ETIQUETAS_INLINE = re.compile(
     re.IGNORECASE,
 )
 
+# Etiquetas de bloque: en `texto_con_lineas` cada una corta la linea.
+_ETIQUETAS_BLOQUE = re.compile(
+    r"</?(?:p|div|br|li|ul|ol|h[1-6]|tr|table|section|article|header|footer|blockquote|"
+    r"pre|dl|dt|dd|hr)(?:\s[^>]*)?/?>",
+    re.IGNORECASE,
+)
+
+
+def texto_con_lineas(bruto: Optional[str]) -> str:
+    """
+    Como `texto_de_html`, pero cada bloque (p, li, h1-h6, br...) queda en su propia linea.
+
+    , Fase 7. `texto_de_html` colapsa todo a una linea, y para el salario
+    esta bien. Para los requisitos no: el aviso dice que algo es deseable poniendolo
+    debajo de un titulo ("Nice to have") y una linea por item, y sin los saltos el titulo
+    y sus items se funden con la oracion de al lado (ver `requisitos._peso`). Mismo
+    desescapado iterativo y mismo trato de las etiquetas inline que `texto_de_html`.
+    """
+    t = bruto or ""
+    for _ in range(3):
+        n = html.unescape(t)
+        if n == t:
+            break
+        t = n
+    # Una etiqueta abierta al final (`<p class="fi`): el campo llego cortado. `_ETIQUETAS`
+    # solo saca etiquetas cerradas, y sin esto el "<p cla..." quedaba como texto.
+    t = re.sub(r"<[^>]*$", "", t)
+    t = _ETIQUETAS_INLINE.sub("", t)
+    t = _ETIQUETAS_BLOQUE.sub("\n", t)
+    t = _ETIQUETAS.sub(" ", t)
+    lineas = (re.sub(r"[^\S\n]+", " ", linea).strip() for linea in t.split("\n"))
+    return "\n".join(linea for linea in lineas if linea)
+
+
+def _descripcion_de(valor: Any) -> str:
+    """
+    El texto de un campo de descripcion: HTML o texto plano, o la lista de secciones de
+    Lever (`lists`: `[{"text": "Requirements", "content": "<li>...</li>"}]`), donde el
+    `text` es el titulo de la seccion y tiene que quedar en su propia linea.
+    """
+    if valor is None:
+        return ""
+    if isinstance(valor, dict):
+        partes = [texto_con_lineas(str(valor.get("text") or "")),
+                  texto_con_lineas(str(valor.get("content") or ""))]
+        return "\n".join(p for p in partes if p)
+    if isinstance(valor, (list, tuple)):
+        return "\n".join(p for p in (_descripcion_de(v) for v in valor) if p)
+    return texto_con_lineas(str(valor))
+
+
+def _descripcion(fila: dict, fm: dict) -> Optional[str]:
+    """
+    `fm["description"]` es una ruta o una lista de rutas: Lever reparte el aviso entre la
+    intro (`description`), las secciones (`lists`) y el cierre (`additional`), y los
+    requisitos viven en las secciones. El tope lo aplica `JobResult`.
+    """
+    rutas = fm.get("description")
+    if not rutas:
+        return None
+    if isinstance(rutas, str):
+        rutas = (rutas,)
+    texto = "\n".join(p for p in (_descripcion_de(_por_path(fila, r)) for r in rutas) if p)
+    return texto or None
+
 
 def _salario_de_descripcion(fila: dict, campo: str) -> Optional[str]:
     """
@@ -576,6 +641,7 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
         source_domain=dominio,
         scraped_at=datetime.now(timezone.utc),
         deadline=fecha_limite or None,
+        descripcion=_descripcion(fila, fm),
     )
 
 

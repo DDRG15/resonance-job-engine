@@ -182,6 +182,9 @@ def main(argv=None) -> int:
                 url=f["url"], salary_raw=f["salary_raw"], location_raw=f["location_raw"],
                 source_domain=f["source_domain"] or "", deadline=f["deadline"],
                 scraped_at=_a_fecha(f["scraped_at"]),
+                # Fase 7: sin la descripcion el re-puntaje bajaria a v7 sin el eje de
+                # requisitos y no coincidiria con el puntaje de la corrida en vivo.
+                descripcion=f.get("descripcion"),
             ))
         except Exception:
             # Una fila vieja que ya no pasa la validacion del modelo no se inventa:

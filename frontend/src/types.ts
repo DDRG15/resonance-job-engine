@@ -139,6 +139,20 @@ export interface TieredJobDto {
   // Plan 30-09, Fase 6 (D3): el aviso publico salario en texto ("Competitive") y se
   // puntuo sin el eje de salario. Opcional: filas de antes de v6 no lo traen.
   salario_no_confirmado?: boolean
+  // Plan 30-09, Fase 7: requisitos que nombra la descripcion y cuanto los cubre el CV.
+  // Opcionales: filas de antes de v7 no los traen. `cobertura_requisitos` null = el eje
+  // no participo (sin descripcion, sin CV o menos de 3 requisitos).
+  requisitos?: RequisitoDto[]
+  cobertura_requisitos?: number | null
+}
+
+export interface RequisitoDto {
+  requisito: string
+  // "implicito" lo propone la capa LLM (apagada por defecto) y no cuenta para la cobertura.
+  estado: 'match' | 'missing' | 'implicito'
+  peso: 'requerido' | 'deseable'
+  // Cita literal de la descripcion del aviso; nunca del CV.
+  evidencia: string
 }
 
 export interface SummaryDto {

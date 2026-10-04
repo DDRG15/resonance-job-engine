@@ -70,6 +70,8 @@ PLATAFORMAS: dict[str, Plataforma] = {
             # Viene como clave en cada aviso. No siempre tiene valor -- depende de si
             # la empresa la cargo -- pero cuando lo tiene es una fecha real.
             "deadline": "application_deadline",
+            # Fase 7: la misma descripcion de la que sale el salario (doble escapada).
+            "description": "content",
         },
         salario_en_descripcion="content",
     ),
@@ -86,6 +88,11 @@ PLATAFORMAS: dict[str, Plataforma] = {
             "title": "text",
             "url": "hostedUrl",
             "location": "categories.location",
+            # Fase 7, verificado contra spotify el 2026-10-03: la intro va en
+            # `description`, los requisitos en `lists` (secciones `{text, content}`:
+            # "What You'll Do", "Who You Are") y el cierre en `additional`. Sin `lists` la
+            # descripcion pierde justo la parte que lee el match por requisitos.
+            "description": ("description", "lists", "additional"),
         },
         crawl_delay_s=1.0,
         concurrencia=1,
@@ -109,6 +116,9 @@ PLATAFORMAS: dict[str, Plataforma] = {
             "url": "jobUrl",
             "location": "location",
             "salary_raw": "compensation.compensationTierSummary",
+            # Fase 7, verificado contra supabase el 2026-10-03. El HTML y no
+            # `descriptionPlain`: los titulos de seccion quedan en su propia linea.
+            "description": "descriptionHtml",
         },
     ),
 }

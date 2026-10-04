@@ -101,6 +101,8 @@ ENDPOINTS: dict[str, dict] = {
             "salary_max": "maxSalary",
             "salary_currency": "currency",
             "salary_period": "salaryPeriod",
+            # Fase 7: HTML, mediana 3.585 caracteres limpios (anexo de la Fase 0).
+            "description": "description",
         },
     },
 
@@ -120,6 +122,7 @@ ENDPOINTS: dict[str, dict] = {
             "url": "url",
             "location": "candidate_required_location",
             "salary_raw": "salary",
+            "description": "description",     # Fase 7: HTML, mediana 3.611
         },
     },
 
@@ -144,6 +147,7 @@ ENDPOINTS: dict[str, dict] = {
             "salary_max": "salaryMax",
             "salary_currency": "salaryCurrency",
             "salary_period": "salaryPeriod",
+            "description": "jobDescription",  # Fase 7: HTML
         },
     },
 
@@ -161,6 +165,7 @@ ENDPOINTS: dict[str, dict] = {
             "company": "company_name",
             "url": "url",
             "location": "location",
+            "description": "description",     # Fase 7: HTML
         },
     },
 }

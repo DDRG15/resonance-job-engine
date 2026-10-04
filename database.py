@@ -558,6 +558,14 @@ class GemaDatabase:
                 ("deadline",   "ALTER TABLE seen_jobs_registry ADD COLUMN deadline TEXT"),
                 ("expired_at", "ALTER TABLE seen_jobs_registry ADD COLUMN expired_at TEXT"),
 
+                # ── , Fase 7: la descripcion del aviso ──
+                # Sin guardarla, re-puntuar el registry (tools/repuntuar_registry.py) no
+                # veria los requisitos y bajaria a v7 sin el eje: el score de la corrida y
+                # el del registry dirian cosas distintas del mismo aviso. Texto limpio con
+                # tope de 12.000 (models.DESCRIPCION_MAX_CHARS), nunca HTML. Las filas
+                # viejas quedan en NULL: se puntuan sin el eje, como un aviso sin salario.
+                ("descripcion", "ALTER TABLE seen_jobs_registry ADD COLUMN descripcion TEXT"),
+
                 # ── revision externa 2026-09-30, punto 9: runs huerfanos ──
                 # Cuando el servidor muere a mitad de una corrida, su fila queda en
                 # `running` para siempre. Al arrancar se reconcilian a `interrupted`:
@@ -802,12 +810,13 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             conn.execute(
                 """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (job_hash, url, title, company, source_domain, scraped_at, location_raw,
+                    salary_raw, descripcion)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     job_hash, job.url, job.title, job.company,
                     job.source_domain, job.scraped_at.isoformat(), job.location_raw,
-                    job.salary_raw,
+                    job.salary_raw, getattr(job, "descripcion", None),
                 ),
             )
 
@@ -820,6 +829,7 @@ class GemaDatabase:
                 j.source_domain, j.scraped_at.isoformat(),
                 j.location_raw, j.salary_raw,
                 getattr(j, "deadline", None),
+                getattr(j, "descripcion", None),
             )
             for j in jobs
         ]
@@ -827,8 +837,8 @@ class GemaDatabase:
             conn.executemany(
                 """INSERT OR IGNORE INTO seen_jobs_registry
                    (job_hash, url, title, company, source_domain, scraped_at,
-                    location_raw, salary_raw, deadline)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    location_raw, salary_raw, deadline, descripcion)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
         logger.info("Batch-registered %d jobs.", len(records))
@@ -860,11 +870,15 @@ class GemaDatabase:
         lang_v  = getattr(tiered, "language_verdict", None)
         lang_n  = getattr(tiered, "language_note", None)
         version = getattr(config, "SCORE_VERSION", None) if tiered is not None else None
+        # Fase 7: un aviso visto antes de la columna, que vuelve a entrar ahora con
+        # descripcion, la completa. COALESCE: nunca se pisa con NULL.
+        descripcion = getattr(getattr(tiered, "job", None), "descripcion", None)
 
         with _get_connection(self.db_path) as conn:
             conn.execute(
                 "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
                 "salary_raw=COALESCE(?, salary_raw), "
+                "descripcion=COALESCE(?, descripcion), "
                 # COALESCE en los campos nuevos por la misma razón que en salary_raw:
                 # un re-procesamiento sin `tiered` no puede borrar lo que una corrida
                 # anterior sí averiguó.
@@ -876,7 +890,7 @@ class GemaDatabase:
                 "language_note=COALESCE(?, language_note), "
                 "score_version=COALESCE(?, score_version) "
                 "WHERE job_hash=?",
-                (tier, match_score, salary_raw, razones, faltas,
+                (tier, match_score, salary_raw, descripcion, razones, faltas,
                  loc_v, loc_n, lang_v, lang_n, version, self.compute_hash(url)),
             )
 
@@ -1150,6 +1164,7 @@ class GemaDatabase:
         for url, tier, score, salary_raw, tiered in filas:
             params.append((
                 tier, score, salary_raw,
+                getattr(getattr(tiered, "job", None), "descripcion", None),   # Fase 7
                 _json_o_none(getattr(tiered, "match_reasons", None)),
                 _json_o_none(getattr(tiered, "miss_reasons", None)),
                 getattr(tiered, "location_verdict", None),
@@ -1163,6 +1178,7 @@ class GemaDatabase:
             conn.executemany(
                 "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
                 "salary_raw=COALESCE(?, salary_raw), "
+                "descripcion=COALESCE(?, descripcion), "
                 "match_reasons=COALESCE(?, match_reasons), "
                 "miss_reasons=COALESCE(?, miss_reasons), "
                 "location_verdict=COALESCE(?, location_verdict), "
@@ -1725,13 +1741,13 @@ class GemaDatabase:
         nunca llegan a bucket_jobs. Solo se puntuaron con v3 los 657 nuevos.
 
         Trae exactamente los campos que lee el matcher —titulo, empresa, url, salario,
-        ubicacion, board— asi que re-puntuar desde aca da el mismo resultado que
-        puntuar el aviso en vivo.
+        ubicacion, board y, desde la Fase 7, descripcion— asi que re-puntuar desde aca
+        da el mismo resultado que puntuar el aviso en vivo.
         """
         with _get_connection(self.db_path) as conn:
             return [dict(r) for r in conn.execute(
                 "SELECT url, title, company, salary_raw, location_raw, source_domain, "
-                "       deadline, scraped_at, score_version "
+                "       deadline, scraped_at, score_version, descripcion "
                 "FROM seen_jobs_registry "
                 "WHERE score_version IS NULL OR score_version <> ?", (version,)).fetchall()]
 

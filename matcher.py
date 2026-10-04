@@ -9,6 +9,7 @@ Scoring weights (renormalized over the dimensions that have data):
     Salary meets minimum : 25 points
     Must-include present : 15 points max
     Must-exclude absent  : 10 points (penalty applied if found)
+    Requisitos coverage  : weight 25 (Fase 7, only when the source sends a description)
 
 Salary in prose ('Competitive', 'DOE') no longer bypasses scoring to Tier 4
 (, Fase 6, D3): the salary dimension drops out, the rest is
@@ -22,6 +23,7 @@ from typing import Optional
 
 import config
 import metrics
+import requisitos as requisitos_mod
 from models import JobResult, SearchConfig, TieredJob, salario_anualizado
 
 logger = logging.getLogger(__name__)
@@ -556,6 +558,8 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
         Salary gate    : 0–25
         Must-include   : 0–15
         Exclusion bonus: -10 to +10
+        Requisitos     : weight 0.25, CV coverage of the description's requirements
+                         (Fase 7, v7) — only with description, CV and 3+ requirements
     """
     # ── Location scoring (single call — result reused for both hard-block check
     #    and the mathematical delta to avoid calling the pure function twice) ──
@@ -607,6 +611,27 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     all_match.extend(tm + sm + im + em + km + lm)
     all_miss.extend(tn + sn + in_ + en + kn + ln)
 
+    # ── , Fase 7: requisitos de la descripcion ──────────────────
+    # `_score_skill_overlap` busca las skills del CV en titulo + empresa + salario: un
+    # aviso cuya descripcion pide Python y FastAPI no sumaba nada si el titulo no los
+    # nombraba. Cuando la fuente trae descripcion, se leen sus requisitos (requisitos.py,
+    # deterministico) y su cobertura por el CV es un eje mas. Sin descripcion, sin CV o
+    # con menos de 3 requisitos el eje no participa y el resto se renormaliza: es el
+    # mismo algoritmo con un dato faltante, como un aviso sin salario.
+    hay_cv = bool(profile and (profile.get("core_skills") or []))
+    reqs = requisitos_mod.extraer(job.descripcion, profile, empresa=job.company) if hay_cv else []
+    cobertura_req = requisitos_mod.cobertura(reqs, profile) if reqs else None
+    if cobertura_req is not None:
+        evaluados = [r for r in reqs if r.estado in ("match", "missing")]
+        cubiertos = sum(1 for r in evaluados if r.estado == "match")
+        all_match.append(f"Requisitos cubiertos: {cubiertos} de {len(evaluados)} "
+                         f"({cobertura_req:.0%}, deseables a mitad de peso)")
+        faltan = [r.requisito for r in evaluados
+                  if r.estado == "missing" and r.peso == "requerido"]
+        if faltan:
+            resto = f" y {len(faltan) - 6} mas" if len(faltan) > 6 else ""
+            all_miss.append("Requisitos sin cubrir: " + ", ".join(faltan[:6]) + resto)
+
     # El eje de salario solo participa si hay ambas puntas: un mínimo pedido y un
     # sueldo publicado que se pueda leer. Sin filtro, `_score_salary` daba 25 de 25
     # a todo el mundo; sin sueldo publicado, daba 12 fijos. Las dos son constantes
@@ -631,11 +656,16 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     # Los pesos conservan la proporción vieja (50/25/15/10). Lo que cambia es la
     # renormalización, no el criterio — mezclar las dos cosas volvería imposible
     # atribuir cualquier corrimiento de puntajes.
+    #
+    # Fase 7 (v7): "requisitos" pesa 0,25, lo mismo que el salario. Con los dos ejes
+    # presentes el titulo sigue siendo el mayor (0,50 de 1,25); sin descripcion el eje
+    # no aplica y el resultado es identico al de v6.
     dimensiones = [
-        ("titulo",   0.50, title_score,           50, True),
-        ("salario",  0.25, salary_score,          25, salary_aplica),
-        ("incluye",  0.15, include_score,         15, bool(search_config.must_include)),
-        ("excluye",  0.10, excl_delta + 10,       20, bool(search_config.must_exclude)),
+        ("titulo",     0.50, title_score,           50, True),
+        ("salario",    0.25, salary_score,          25, salary_aplica),
+        ("incluye",    0.15, include_score,         15, bool(search_config.must_include)),
+        ("excluye",    0.10, excl_delta + 10,       20, bool(search_config.must_exclude)),
+        ("requisitos", 0.25, (cobertura_req or 0.0) * 100, 100, cobertura_req is not None),
     ]
     peso_total = sum(w for _, w, _, _, aplica in dimensiones if aplica)
     if peso_total <= 0:
@@ -664,6 +694,8 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
         miss_reasons=all_miss,
         location_verdict=loc_verdict, location_note=loc_note,
         language_verdict=lang_verdict, language_note=lang_note,
+        requisitos=[r.to_dict() for r in reqs],
+        cobertura_requisitos=cobertura_req,
     )
 
 
@@ -694,11 +726,11 @@ def bucket_jobs(
     """
     Scores and buckets all jobs into four tiers. Returns (t1, t2, t3, t4).
 
-    Tier 4 contains jobs where salary_raw is a non-empty, non-numeric string.
-    They bypass mathematical scoring and must be reviewed manually via Notion.
+    Since v6 (Fase 6, D3) nothing reaches Tier 4 through the salary: prose salaries
+    are scored without the salary dimension and flagged `salario_no_confirmado`.
+    The fourth list is kept for the return contract.
 
-    If db is provided, backfills tier + match_score in the seen_registry
-    for the Streamlit dashboard. Tier 4 jobs are stored with match_score=-1.
+    If db is provided, backfills tier + match_score in the seen_registry.
 
     Note: score_job_inline() is the lightweight fast-path used during live
     scraping for real-time webhook triggers. bucket_jobs() is the post-scrape
@@ -841,6 +873,11 @@ def bucket_jobs(
         metrics.emit("jobs_salario_no_confirmado", no_confirmados)
     if anualizados:
         metrics.emit("jobs_salario_anualizado", anualizados)
+    # Fase 7: cuantos avisos se puntuaron CON el eje de requisitos. Si cae a cero con
+    # fuentes de endpoint activas, una fuente dejo de mandar la descripcion o el CV no
+    # se cargo: el eje se apaga en silencio y el puntaje vuelve a leer solo el titulo.
+    con_requisitos = sum(1 for tj in puntuados if tj.cobertura_requisitos is not None)
+    metrics.emit("requisitos_evaluados", con_requisitos)
 
     logger.info(
         "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | "
