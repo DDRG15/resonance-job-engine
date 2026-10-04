@@ -1,5 +1,6 @@
 """
-ats_scraper.py — traer los tableros de empresa de Greenhouse, Lever y Ashby.
+ats_scraper.py — traer los tableros de empresa de Greenhouse, Lever, Ashby y (Fase 8 del
+) Recruitee, Workable, BambooHR y Personio.
 
 Fase 2 del . Se apoya entero en `endpoint_scraper`: acá no hay HTTP ni
 parseo, solo el armado de URLs por plataforma, la inyección del nombre de empresa que
@@ -19,10 +20,12 @@ from __future__ import annotations
 import asyncio
 import functools
 import logging
+import re
 from typing import Callable, Optional
 
 import ats_registry
 import endpoint_scraper
+import metrics
 from ats_registry import FuenteATS
 from models import JobResult
 
@@ -75,6 +78,9 @@ def traer_fuente(
         crawl_delay_s=plat.crawl_delay_s,
         salario_en_descripcion=plat.salario_en_descripcion,
         defaults={"company": fuente.empresa},
+        url_aviso_template=plat.url_aviso_template.replace("{token}", fuente.token),
+        xml_item=plat.xml_item,
+        seguir_redirecciones=plat.seguir_redirecciones,
         es_relevante=es_relevante,
         log=lambda _m: None,      # el log util es el agregado, no 40 lineas sueltas
     )
@@ -84,7 +90,37 @@ def traer_fuente(
     res.descartados = r.descartados_irrelevantes + r.descartados_invalidos
     res.error = r.error
     res.ms = r.ms
+
+    if r.error:
+        metrics.emit("ats_fuente_error_total", 1, plataforma=fuente.plataforma,
+                     token=fuente.token, motivo=motivo_de_error(r.error))
+    if r.descartados_invalidos:
+        metrics.emit("ats_items_invalidos_total", r.descartados_invalidos,
+                     plataforma=fuente.plataforma, token=fuente.token)
     return res
+
+
+def motivo_de_error(error: str) -> str:
+    """
+    El error de una fuente ATS en una de pocas categorias, para la etiqueta `motivo`.
+
+    Fase 8 del . Cada plataforma dice «esta empresa no existe» de otra
+    forma —Workable y Recruitee con 404, BambooHR con 302, Personio con 307—, medido el
+    2026-10-04. Una alerta por `ats_fuente_error_total{motivo="inexistente"}` agrupa las
+    cuatro; una por texto libre tendria que conocer los cuatro mensajes.
+    """
+    e = error or ""
+    if "esquema_cambiado" in e:
+        return "esquema_cambiado"
+    if e.startswith("parseo"):
+        return "parseo"
+    if "EndpointNoPublico" in e:
+        return "no_publico"
+    if re.search(r"HTTP (404|410|30\d)\b", e):
+        return "inexistente"
+    if re.search(r"HTTP (429|5\d\d)\b", e):
+        return "limitado_o_caido"
+    return "otro"
 
 
 async def traer_todo(
@@ -128,6 +164,8 @@ async def traer_todo(
             fallido = ResultadoATS(f)
             fallido.error = f"{type(r).__name__}: {str(r)[:120]}"
             log(f"[ATS] {fallido.etiqueta} — {fallido.error}")
+            metrics.emit("ats_fuente_error_total", 1, plataforma=f.plataforma,
+                         token=f.token, motivo="excepcion")
             salida.append(fallido)
         else:
             salida.append(r)

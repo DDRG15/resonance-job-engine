@@ -1,0 +1,184 @@
+{
+ "offers": [
+  {
+   "id": 2751915,
+   "title": "Customer Success Manager Benelux - Dutch speaking",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/customer-success-manager-benelux-dutch-speaking-3",
+   "location": "Utrecht, Utrecht, Netherlands",
+   "country": "Netherlands",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2026-09-18 13:27:28 UTC",
+   "salary": {
+    "max": "5250",
+    "min": "3750",
+    "period": "month",
+    "currency": "EUR"
+   },
+   "description": "<p><span style=\"color:#000000\">Channable is a fast-growing B2B SaaS platform driving digital commerce across the globe. By offering a fully integrated solution, we empower marketers, online stores, and digital agencies to manage, scale, and optimize their online activities.</span></p><p style=\"min-height: 1.7em;\"></p><p><span style=\"color:#000000\">As the market leader in the Benelux, we owe our success to an incredible product, a passionate team ánd our customers who love working with us! To keep winning, our Benelux region is split into two specialized teams (Strategic and Growth), working cl",
+   "requirements": "<p style=\"min-height: 1.7em;\"></p><h4><strong><span style=\"color:#000000\">Your role</span></strong></h4><ul><li><p><span style=\"color:#000000\">Portfolio &amp; client management: customer retention, identifying risk, preventing churn, realizing upsell &amp; expansion; including pipeline creation &amp; forecasting;</span></p></li><li><p><span style=\"color:#000000\">Performing kick off meetings, strategic impact reviews, check-ins, demos, and commercially lead meetings. Working strategically with our partners online and onsite;</span></p></li><li><p><span style=\"color:#000000\">Realizing success pl"
+  },
+  {
+   "id": 2694685,
+   "title": "Account Executive - North America",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/account-executive-north-america-1",
+   "location": "Remote job",
+   "country": "United States",
+   "remote": true,
+   "hybrid": false,
+   "close_at": null,
+   "published_at": "2026-08-06 16:09:53 UTC",
+   "salary": {
+    "max": "250000",
+    "min": "200000",
+    "period": "year",
+    "currency": "USD"
+   },
+   "description": "<p><span style=\"color:#000000\">Channable powers product feeds and digital advertising for 14,000+ brands and agencies across 3,500+ channels. We're a market leader entering our next phase of North American growth.&nbsp; We need an AE who knows eCommerce technology, builds real relationships, and wants to own a market, not just a quota.</span></p><p style=\"min-height: 1.7em;\"></p><h4><strong><span style=\"color:#000000\">The opportunity</span></strong></h4><p><span style=\"color:#000000\">Our North American business is growing fast. The team is small, the market is massive, and the company has the ",
+   "requirements": "<p style=\"min-height: 1.7em;\"></p><h4><strong><span style=\"color:#000000\">Who you are</span></strong></h4><ul><li><p><span style=\"color:#000000\">3+ years closing new business in B2B SaaS, ideally in eCommerce technology, feed management, product data, or martech.</span></p></li><li><p><span style=\"color:#000000\">You understand the eCommerce tech stack, including platforms, ERPs, PIMs, marketplaces, advertising channels, and can hold a real conversation about how products get from a back-end system to a customer.</span></p></li><li><p><span style=\"color:#000000\">You've sold to </span><strong><s"
+  },
+  {
+   "id": 2670943,
+   "title": "Team Lead - Platform Team",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/team-lead-platform-team",
+   "location": "Utrecht, Utrecht, Netherlands",
+   "country": "Netherlands",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2026-07-16 10:59:08 UTC",
+   "salary": {
+    "max": "103000",
+    "min": "77000",
+    "period": "year",
+    "currency": "EUR"
+   },
+   "description": "<h4><span style=\"color:#121317\">About the role:</span></h4><p><br><span style=\"color:#222222\">We are looking for a new team lead for one of the teams within our Infra Platform Group. Your mission in this role is to architect and deliver foundational services that empower the product engineering teams building our e-commerce platform.<br></span></p><p style=\"min-height: 1.7em;\"></p><p style=\"text-align:justify;\"><span style=\"color:#222222\">Together with your team, you will be tackling challenging engineering problems, working on high-performing and scalable services written in Haskell and Rust,",
+   "requirements": "<h4><strong><span style=\"color:#121317\">What do we offer?</span></strong></h4><ul><li><p><span style=\"color:#000000\">Gross annual salary ranging from </span><span style=\"color:#121317\">€ 77k-103k, </span><span style=\"color:#000000\">including  8% holiday allowance and based on a 40-hour work week.&nbsp;This salary range reflects our career framework. Your final role level will be determined throughout the recruitment process, based on alignment with this framework.</span></p></li></ul><ul><li><p><span style=\"color:#000000\">Savings for old age: we have a savings scheme for old age, which can acc"
+  },
+  {
+   "id": 2548164,
+   "title": "Python Software Engineer - Product team",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/python-software-engineer-product-team-1",
+   "location": "Utrecht, Utrecht, Netherlands",
+   "country": "Netherlands",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2026-07-28 07:21:13 UTC",
+   "salary": {
+    "max": "5000",
+    "min": "3600",
+    "period": "month",
+    "currency": "EUR"
+   },
+   "description": "<h4><span style=\"color:#121317\">What’s in it for you (to start with):</span></h4><ul><li><p><span style=\"color:#000000\">Gross monthly salary ranging from € 3.600 to € 5.000 based on a 40-hour work week. This salary range reflects our career framework. Your final role level will be determined throughout the recruitment process, based on alignment with this framework.</span></p></li><li><p><span style=\"color:#000000\">8% holiday allowance - 8% of your yearly salary, which is paid together with your May salary.</span></p></li><li><p><span style=\"color:#000000\">Saving for old age - we have a saving",
+   "requirements": "<h4><span style=\"color:#121317\">The team:</span></h4><p><span style=\"color:#121317\">Google team focuses on Google marketing integrations, including Google Merchant Center (GMC), Comparison Shopping Services (CSS), and large-scale advertising tools. The team builds and optimizes features to help customers maximize performance.</span></p><p><span style=\"color:#121317\">The Group comprises specialized sub-teams of back-end and front-end, collaborating directly with QA engineers, Product Managers, and UI/UX designers to deliver value to our customers.</span></p><p><span style=\"color:#000000\">If thi"
+  },
+  {
+   "id": 2622523,
+   "title": "Python Software Engineer -  AI team",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/python-software-engineer-ai-team-1",
+   "location": "Utrecht, Utrecht, Netherlands",
+   "country": "Netherlands",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2026-06-02 10:10:41 UTC",
+   "salary": {
+    "max": "7000",
+    "min": "5000",
+    "period": "month",
+    "currency": "EUR"
+   },
+   "description": "<h4><strong><span style=\"color:#000000\">Your job: </span></strong></h4><p><span style=\"color:#000000\">In this position, you will join our AI team!</span></p><p><span style=\"color:#000000\">The team currently consists of two AI Engineers, a Product Manager, and a Team Lead. We collaborate closely with a dedicated UI/UX Designer, a Frontend Engineer, and a QA Engineer. The team is part of a group with three other teams who also work on the core features of our product, and with whom we also collaborate closely. <br></span></p><p><span style=\"color:#000000\"><br>Our work focuses on building machine",
+   "requirements": "<p><strong><span style=\"color:#000000\">Important note</span></strong><span style=\"color:#000000\">: We understand that studies show women may only apply for roles when they feel they meet 100% of the requirements; therefore, we strongly encourage you to apply even if you don't check every box, as we are looking for passionate individuals with potential and a willingness to grow.<br></span></p><h4></h4><h4 style=\"text-align:start;\"><strong><span style=\"color:#121317\">Who are we?</span></strong></h4><p style=\"text-align:start;\"><span style=\"color:#000000\">Channable was founded in 2014 in the hear"
+  },
+  {
+   "id": 396939,
+   "title": "Open application",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/open-application",
+   "location": "Utrecht, Utrecht, Netherlands",
+   "country": "Netherlands",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2021-09-07 08:26:19 UTC",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "description": "<p>We are always open to receiving applications from people who are a good match to our company culture. Don't see a job that suits you right now? Don't worry, feel free to apply anyway and tell us what you're looking for.&nbsp;Please send us your CV and motivation letter to convince us to invite you for an interview!&nbsp;</p>",
+   "requirements": "<h4><strong><br></strong></h4><h4><strong>Who are we?</strong></h4><p><span style=\"color:#1B1A3A\">Being part of our team means working with diverse and fun people who trust and help you along the way. Channable was founded in 2014 in the heart of Utrecht. We are now a strong team of +320 diverse individuals, more than +40 nationalities, and a brand new and vibrant HQ in Utrecht, serving customers all over the globe. We're also operating from other offices including New York City,&nbsp;Berlin, and Aarhus.</span><br></p><p style=\"min-height: 1.7em;\"></p><p>Joining Channable means you’re looking "
+  },
+  {
+   "id": 1236720,
+   "title": "Open application",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/open-application-berlin",
+   "location": "Berlin, Berlin, Germany",
+   "country": "Germany",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2023-02-23 11:55:00 UTC",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "description": "<p>We are always open to receiving applications from people who are a good match to our company culture. Don't see a job that suits you right now? Don't worry, feel free to apply anyway and tell us what you're looking for.&nbsp;Please send us your CV and motivation letter to convince us to invite you for an interview!&nbsp;</p>",
+   "requirements": "<h4><strong><br></strong></h4><h4><strong>Who are we?</strong></h4><p><span style=\"color:#1B1A3A\">Being part of our team means working with diverse and fun people who trust and help you along the way. Channable was founded in 2014 in the heart of Utrecht. We are now a strong team of +320 diverse individuals, more than +40 nationalities, and a brand new and vibrant HQ in Utrecht, serving customers all over the globe. We're also operating from other offices including New York City,&nbsp;Berlin, and Aarhus.</span><br></p><p style=\"min-height: 1.7em;\"></p><p>Joining Channable means you’re looking "
+  },
+  {
+   "id": 1236725,
+   "title": "Open application",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/open-application-new-york",
+   "location": "New York City, New York, United States",
+   "country": "United States",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2023-02-23 11:57:05 UTC",
+   "salary": {
+    "max": null,
+    "min": null,
+    "period": null,
+    "currency": null
+   },
+   "description": "<p>We are always open to receiving applications from people who are a good match to our company culture. Don't see a job that suits you right now? Don't worry, feel free to apply anyway and tell us what you're looking for.&nbsp;Please send us your CV and motivation letter to convince us to invite you for an interview!&nbsp;</p>",
+   "requirements": "<h4><strong><br></strong></h4><h4><strong>Who are we?</strong></h4><p><span style=\"color:#1B1A3A\">Being part of our team means working with diverse and fun people who trust and help you along the way. Channable was founded in 2014 in the heart of Utrecht. We are now a strong team of +320 diverse individuals, more than +40 nationalities, and a brand new and vibrant HQ in Utrecht, serving customers all over the globe. We're also operating from other offices including New York City,&nbsp;Berlin, and Aarhus.</span><br></p><p style=\"min-height: 1.7em;\"></p><p>Joining Channable means you’re looking "
+  },
+  {
+   "id": 2691305,
+   "title": "Open application",
+   "company_name": "Channable",
+   "careers_url": "https://jobs.channable.com/o/open-application-3",
+   "location": "Aarhus, Midtjylland, Denmark",
+   "country": "Denmark",
+   "remote": false,
+   "hybrid": true,
+   "close_at": null,
+   "published_at": "2026-08-03 10:39:54 UTC",
+   "salary": {
+    "max": "0",
+    "min": "0",
+    "period": "month",
+    "currency": "DKK"
+   },
+   "description": "<p>We are always open to receiving applications from people who are a good match to our company culture. Don't see a job that suits you right now? Don't worry, feel free to apply anyway and tell us what you're looking for.&nbsp;Please send us your CV and motivation letter to convince us to invite you for an interview!&nbsp;</p>",
+   "requirements": "<h4><strong><br>Who are we?</strong></h4><p><span style=\"color:#1B1A3A\">Being part of our team means working with diverse and fun people who trust and help you along the way. Channable was founded in 2014 in the heart of Utrecht. We are now a strong team of +320 diverse individuals, more than +40 nationalities, and a brand new and vibrant HQ in Utrecht, serving customers all over the globe. We're also operating from other offices including New York City,&nbsp;Berlin, and Aarhus.</span><br></p><p style=\"min-height: 1.7em;\"></p><p>Joining Channable means you’re looking for a bit more than just a"
+  }
+ ]
+}

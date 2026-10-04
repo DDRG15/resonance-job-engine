@@ -69,7 +69,8 @@ def _dormir(segundos: float) -> None:
 
 
 def fetch(url: str, *, crawl_delay_s: float = 0.0,
-          sesion: Optional[requests.Session] = None) -> bytes:
+          sesion: Optional[requests.Session] = None,
+          seguir_redirecciones: bool = True) -> bytes:
     """
     Un GET con backoff exponencial en 429 y 5xx. Devuelve el cuerpo crudo.
 
@@ -78,6 +79,12 @@ def fetch(url: str, *, crawl_delay_s: float = 0.0,
 
     `crawl_delay_s` viene del robots.txt del board — api.lever.co declara 1 segundo.
     Es un límite, no una sugerencia.
+
+    `seguir_redirecciones=False` (Fase 8 del ): BambooHR contesta un token
+    inexistente con 302 a www.bamboohr.com y Personio con 307 a personio.com, medido el
+    2026-10-04. Siguiendo la redirección, el error llegaba como "parseo json" sobre la
+    home comercial de la plataforma, y el que lee la traza no tiene forma de saber que
+    la empresa se fue. Sin seguirla, el error dice "HTTP 302 -> https://www.bamboohr.com".
     """
     ses = sesion or requests.Session()
     ses.headers.setdefault("User-Agent", UA)
@@ -85,15 +92,23 @@ def fetch(url: str, *, crawl_delay_s: float = 0.0,
     if crawl_delay_s > 0:
         _dormir(crawl_delay_s)
 
+    # El kwarg va solo cuando cambia el default: las sesiones falsas de los tests
+    # firman `get(url, timeout)` y no tienen por que conocerlo.
+    extra = {} if seguir_redirecciones else {"allow_redirects": False}
+
     ultimo = ""
     for intento in range(1, MAX_REINTENTOS + 1):
-        r = ses.get(url, timeout=TIMEOUT)
+        r = ses.get(url, timeout=TIMEOUT, **extra)
 
         if r.status_code == 200:
             return r.content
 
         if r.status_code in (401, 403):
             raise EndpointNoPublico(f"HTTP {r.status_code} en {url}")
+
+        if 300 <= r.status_code < 400:
+            destino = (getattr(r, "headers", None) or {}).get("Location") or "?"
+            raise EndpointAgotado(f"HTTP {r.status_code} -> {destino} en {url}")
 
         if r.status_code == 429 or r.status_code >= 500:
             ultimo = f"HTTP {r.status_code}"
@@ -198,6 +213,55 @@ def items_de_rss(cuerpo: bytes) -> list[dict]:
     return salida
 
 
+def _nodo_xml(nodo) -> Any:
+    """
+    Un elemento XML a texto, lista o dict, segun su forma.
+
+    Hoja -> su texto (CDATA incluido). Hijos que comparten TODOS la misma etiqueta
+    (`<jobDescriptions><jobDescription>...`) -> lista, aunque sea uno solo: un aviso de
+    Personio con una sola seccion es tan lista como uno con tres. Hijos distintos ->
+    dict con la primera aparicion de cada etiqueta. Es la forma minima que deja a
+    `_por_path` y a `_descripcion_de` leer el XML de Personio igual que leen un JSON.
+    """
+    hijos = list(nodo)
+    if not hijos:
+        return (nodo.text or "").strip()
+    etiquetas = [_sin_ns(h.tag) for h in hijos]
+    if len(set(etiquetas)) == 1:
+        return [_nodo_xml(h) for h in hijos]
+    fila: dict[str, Any] = {}
+    for h, clave in zip(hijos, etiquetas):
+        if clave not in fila:
+            fila[clave] = _nodo_xml(h)
+    return fila
+
+
+def items_de_xml(cuerpo: bytes, item_tag: str) -> list[dict]:
+    """
+    Cada `<item_tag>` de un XML como dict, con los hijos anidados resueltos por
+    `_nodo_xml`.
+
+    Existe por Personio (Fase 8 del ): `/xml` devuelve
+    `<workzag-jobs><position>...` y la descripcion vive en
+    `<jobDescriptions><jobDescription><name/><value>CDATA</value>`. `items_de_rss` solo
+    reconoce `<item>` y `<entry>`, y se queda con el texto de cada hijo: la
+    descripcion, que es un hijo con hijos, llegaba vacia. Medido el 2026-10-04 contra
+    jtl-software-gmbh: 30 posiciones, la descripcion repartida en 3 secciones.
+    """
+    raiz = ElementTree.fromstring(cuerpo)
+    salida: list[dict] = []
+    for nodo in raiz.iter():
+        if _sin_ns(nodo.tag) != item_tag:
+            continue
+        fila: dict[str, Any] = {}
+        for hijo in nodo:
+            clave = _sin_ns(hijo.tag)
+            if clave not in fila:
+                fila[clave] = _nodo_xml(hijo)
+        salida.append(fila)
+    return salida
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Mapeo a JobResult
 # ─────────────────────────────────────────────────────────────────────────────
@@ -289,12 +353,15 @@ def _descripcion_de(valor: Any) -> str:
     El texto de un campo de descripcion: HTML o texto plano, o la lista de secciones de
     Lever (`lists`: `[{"text": "Requirements", "content": "<li>...</li>"}]`), donde el
     `text` es el titulo de la seccion y tiene que quedar en su propia linea.
+
+    Personio (Fase 8) usa la misma forma con otros nombres: `{"name": "Deine Aufgabe",
+    "value": "<ul>...</ul>"}`. Mismo trato: titulo en su linea, despues el cuerpo.
     """
     if valor is None:
         return ""
     if isinstance(valor, dict):
-        partes = [texto_con_lineas(str(valor.get("text") or "")),
-                  texto_con_lineas(str(valor.get("content") or ""))]
+        partes = [texto_con_lineas(str(valor.get("text") or valor.get("name") or "")),
+                  texto_con_lineas(str(valor.get("content") or valor.get("value") or ""))]
         return "\n".join(p for p in partes if p)
     if isinstance(valor, (list, tuple)):
         return "\n".join(p for p in (_descripcion_de(v) for v in valor) if p)
@@ -541,6 +608,56 @@ def _url_del_aviso(valor: str, url_base: str = "") -> str:
     return valor
 
 
+_SEGMENTO_SEGURO = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_MARCADOR = re.compile(r"\{(\w+)\}")
+
+
+def _url_compuesta(fila: dict, plantilla: str) -> str:
+    """
+    `"https://gorillalogic.bamboohr.com/careers/{id}"` + `{"id": "34"}` ->
+    `"https://gorillalogic.bamboohr.com/careers/34"`, o "" si no se puede componer.
+
+    Existe por BambooHR y Personio (Fase 8 del ): sus listados no traen la
+    URL del aviso, solo el `id`. Verificado el 2026-10-04 con un pedido real a cada una:
+    `gorillalogic.bamboohr.com/careers/34` devuelve 200 con `og:url` igual a la URL
+    compuesta, y `jtl-software-gmbh.jobs.personio.de/job/2666138` devuelve 200 con el
+    titulo del aviso. Transformacion con nombre, activada por la plantilla de la
+    plataforma: el mapa mapea, el codigo transforma.
+
+    **Cada valor tiene que ser un segmento de ruta inofensivo** (letras, digitos, `_` y
+    `-`). Un `id` con `/`, `?` o `..` compondria una URL que nadie publico y que
+    `compute_hash` tomaria como identidad del aviso: sin URL real, el aviso se descarta
+    y cuenta como invalido, igual que en `_url_del_aviso`.
+    """
+    if not plantilla:
+        return ""
+    salida = plantilla
+    for campo in set(_MARCADOR.findall(plantilla)):
+        valor = _texto(_por_path(fila, campo))
+        if not _SEGMENTO_SEGURO.fullmatch(valor):
+            return ""
+        salida = salida.replace("{" + campo + "}", valor)
+    return _url_del_aviso(salida)
+
+
+def _ubicacion_compuesta(fila: dict, rutas: tuple) -> str:
+    """
+    Varias rutas de ubicacion unidas con ", ", sin vacios ni repetidos.
+
+    Workable separa `city` y `country`, BambooHR los anida en `atsLocation`. Medido el
+    2026-10-04: huggingface en Workable trae `city="Paris", country="France"`; Gorilla
+    Logic en BambooHR trae `atsLocation.city="San Jose", country="Costa Rica"` en un
+    aviso y nulos en los demas. El pais es lo que lee la politica de ubicacion del
+    matcher, y con una sola ruta habria que elegir entre perder la ciudad o el pais.
+    """
+    partes: list[str] = []
+    for r in rutas:
+        p = _texto(_por_path(fila, r))
+        if p and p not in partes:
+            partes.append(p)
+    return ", ".join(partes)
+
+
 def _con_region(ubicacion: str, region: str) -> str:
     """
     `"Remote"` + `"Europe"` -> `"Remote; Europe"`.
@@ -582,7 +699,8 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
                  salario_en_descripcion: str = "",
                  defaults: Optional[dict] = None,
                  ubicacion_es_lista: bool = False,
-                 region_del_board: str = "") -> Optional[JobResult]:
+                 region_del_board: str = "",
+                 url_aviso_template: str = "") -> Optional[JobResult]:
     """
     Una fila cruda a `JobResult`, o `None` si no se puede sostener.
 
@@ -592,6 +710,10 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
 
     `company` degrada a placeholder y no descarta — esa decisión ya se tomó en la
     Fase 31 (2026-07-11), cuando exigir company nuleaba boards enteros.
+
+    `url_aviso_template` (Fase 8) compone la URL desde campos de la fila cuando la
+    fuente no la publica (BambooHR, Personio). Va despues de `url` y `url_alternativa`:
+    una URL publicada siempre le gana a una compuesta.
     """
     titulo = _texto(_por_path(fila, fm.get("title", "title")))
     if not titulo:
@@ -606,6 +728,8 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     url = _url_del_aviso(_texto(_por_path(fila, fm.get("url", "url"))), url_base)
     if not url and fm.get("url_alternativa"):
         url = _url_del_aviso(_texto(_por_path(fila, fm["url_alternativa"])), url_base)
+    if not url and url_aviso_template:
+        url = _url_compuesta(fila, url_aviso_template)
     if not url:
         return None
 
@@ -618,7 +742,9 @@ def a_job_result(fila: dict, fm: dict, dominio: str,
     empresa = _texto(_por_path(fila, fm["company"])) if fm.get("company") else ""
     empresa = empresa or empresa_del_titulo or _texto(dfl.get("company"))
 
-    if fm.get("location"):
+    if isinstance(fm.get("location"), (list, tuple)):
+        ubicacion = _ubicacion_compuesta(fila, tuple(fm["location"]))
+    elif fm.get("location"):
         crudo = _por_path(fila, fm["location"])
         # `_por_path` devuelve None tanto si el campo falta como si vale null: solo una
         # lista REAL (vacia incluida) es una declaracion de "sin restriccion".
@@ -712,6 +838,9 @@ def scrape_endpoint(
     total_path: str = "",
     ttl_consulta_s: float = 0.0,
     consultas_ts: Optional[dict] = None,
+    url_aviso_template: str = "",
+    xml_item: str = "",
+    seguir_redirecciones: bool = True,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
     sesion: Optional[requests.Session] = None,
@@ -739,6 +868,11 @@ def scrape_endpoint(
     24 h, y lo que devolvería ya está en el registry. `total_path` lee cuántos avisos
     declara la fuente para esa consulta (`totalCount`): 20 de 171 es cobertura parcial,
     no una fuente con 20 avisos.
+
+    Fase 8 del : `response_format="xml"` con `xml_item` lee un XML que no
+    es RSS (Personio, `<position>`); `url_aviso_template` compone la URL del aviso
+    cuando la fuente solo trae el `id`; `seguir_redirecciones=False` deja ver el 302/307
+    con que BambooHR y Personio contestan una empresa inexistente.
     """
     fm = field_map or {}
     t0 = time.perf_counter()
@@ -771,10 +905,11 @@ def scrape_endpoint(
                 f"hace menos de {ttl_consulta_s / 3600:.0f} h y sus avisos ya estan "
                 f"en el registry")
 
-    vistos: set[str] = set()
+    vistos: dict[str, JobResult] = {}
     for url in urls:
         try:
-            cuerpo = fetch(url, crawl_delay_s=crawl_delay_s, sesion=sesion)
+            extra = {} if seguir_redirecciones else {"seguir_redirecciones": False}
+            cuerpo = fetch(url, crawl_delay_s=crawl_delay_s, sesion=sesion, **extra)
         except (EndpointNoPublico, EndpointAgotado) as exc:
             res.error = f"{type(exc).__name__}: {exc}"
             log(f"[ENDPOINT] {dominio} — {res.error}")
@@ -785,8 +920,12 @@ def scrape_endpoint(
             continue
 
         try:
-            filas = (items_de_rss(cuerpo) if response_format == "rss"
-                     else items_de_json(cuerpo, items_path))
+            if response_format == "rss":
+                filas = items_de_rss(cuerpo)
+            elif response_format == "xml":
+                filas = items_de_xml(cuerpo, xml_item)
+            else:
+                filas = items_de_json(cuerpo, items_path)
         except Exception as exc:
             res.error = f"parseo {response_format}: {type(exc).__name__}: {str(exc)[:90]}"
             log(f"[ENDPOINT] {dominio} — {res.error}")
@@ -806,7 +945,8 @@ def scrape_endpoint(
                                salario_en_descripcion=salario_en_descripcion,
                                defaults=defaults,
                                ubicacion_es_lista=ubicacion_es_lista,
-                               region_del_board=region_del_board)
+                               region_del_board=region_del_board,
+                               url_aviso_template=url_aviso_template)
             if job is None:
                 res.descartados_invalidos += 1
                 continue
@@ -814,8 +954,9 @@ def scrape_endpoint(
                 res.descartados_irrelevantes += 1
                 continue
             if job.url in vistos:
+                _fusionar_ubicacion(vistos[job.url], job.location_raw)
                 continue
-            vistos.add(job.url)
+            vistos[job.url] = job
             res.jobs.append(job)
 
         # Ninguna fila de una respuesta no vacía se pudo leer: no es una búsqueda sin
@@ -839,6 +980,34 @@ def scrape_endpoint(
         + (f", {res.descartados_por_filtro} sin {solo_si_campo}" if solo_si_campo else "")
         + ")")
     return res
+
+
+_UBICACION_FUSIONADA_MAX = 400
+
+
+def _fusionar_ubicacion(job: JobResult, otra: Optional[str]) -> None:
+    """
+    Suma a `job` la ubicacion de otra fila con la misma URL, con "; " como separador.
+
+    Existe por Workable (Fase 8 del ): el widget repite el aviso una vez
+    por ubicacion. Medido el 2026-10-04 contra azumo: 57 filas para 10 avisos, cada uno
+    seis veces —Argentina, Chile, Brazil, Colombia, Mexico, Peru...—. La deduplicacion
+    por URL se quedaba con la primera fila, y un aviso abierto en el pais del candidato entraba al
+    registry como "Argentina": el dato que mas le importa a la politica de ubicacion
+    del matcher, perdido por el orden de un arreglo. "; " es el formato de lista que el
+    matcher ya lee desde el 29-09 (builtin.com).
+
+    Una ubicacion repetida no se suma, y el total tiene tope: una fuente que repitiera
+    el aviso en doscientas ciudades no puede inflar el campo sin limite.
+    """
+    if not otra:
+        return
+    actual = job.location_raw or ""
+    if otra in [p.strip() for p in actual.split(";")]:
+        return
+    nueva = f"{actual}; {otra}" if actual else otra
+    if len(nueva) <= _UBICACION_FUSIONADA_MAX:
+        job.location_raw = nueva
 
 
 def _total_declarado(cuerpo: bytes, total_path: str) -> Optional[int]:

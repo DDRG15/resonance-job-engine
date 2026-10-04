@@ -1,0 +1,407 @@
+{
+ "meta": {
+  "totalCount": 20
+ },
+ "result": [
+  {
+   "id": "34",
+   "jobOpeningName": "Java/Vue Software Engineer - AA, Remote: Colombia - Costa Rica, Full Time",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "35",
+   "jobOpeningName": "Senior, DevOps Engineer (AWS), Remote: Colombia - Costa Rica, Full Time, Cloud Engineering ",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "37",
+   "jobOpeningName": "Senior, DevOps Engineer (GCP), Remote: Colombia - Costa Rica, Full Time., Cloud Engineering",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "146",
+   "jobOpeningName": "Technical Engineering Manager - SD, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "160",
+   "jobOpeningName": "Lead/Expert .NET Engineer (AI) - GP, Remote: Colombia - Costa Rica, Fulltime.",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "166",
+   "jobOpeningName": "Senior DevOps Engineer (Azure Cloud) - GP, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": "Costa Rica",
+    "state": null,
+    "province": "San Jose",
+    "city": "San Jose"
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "181",
+   "jobOpeningName": "Technical Engineering Manager - Cloud/Dev Ops, Remote: Colombia - Costa Rica , Fulltime",
+   "departmentId": "18537",
+   "departmentLabel": "Administrative-COL",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "187",
+   "jobOpeningName": "Sales Executive – Healthcare & Life Sciences Digital Engineering, Remote: United States, Fulltime",
+   "departmentId": "18166",
+   "departmentLabel": "Administrative-US",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": "United States",
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "189",
+   "jobOpeningName": "Solution Architect (.NET/C#) - Cloud Enablement, Remote: Colombia - Costa Rica, Fulltime.",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "190",
+   "jobOpeningName": " Senior Data Analitycs/DataOps Engineer - GP, Remote: Colombia - Costa Rica, Fulltime.",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "191",
+   "jobOpeningName": "Data Engineer / FinOps AI Cost & Usage Analytics - GP, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "192",
+   "jobOpeningName": "Senior Google Cloud Infrastructure, Network & Security Engineer (IRE) - AA, Remote: Colombia - Costa Rica , Fulltime.",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "193",
+   "jobOpeningName": "Senior Fullstack Engineer (RoR) - AA, Remote: Colombia - Costa Rica, Fulltime.",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "194",
+   "jobOpeningName": "Senior Fullstack Software Engineer (Python) - AA, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "195",
+   "jobOpeningName": "Senior Fullstack React/Kotlin Engineer - GP, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "196",
+   "jobOpeningName": "Senior Forward Deployed Engineer, AI Platform - GP, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "197",
+   "jobOpeningName": "Senior AI Fullstack Engineer - SD, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "198",
+   "jobOpeningName": "Senior React Native Engineer - GP, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": "18184",
+   "departmentLabel": "Engineering",
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "200",
+   "jobOpeningName": "Senior Cloud Security Engineer - AA, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": null,
+   "departmentLabel": null,
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  },
+  {
+   "id": "201",
+   "jobOpeningName": "Senior Platform DevOps Engineer - AA, Remote: Colombia - Costa Rica, Fulltime",
+   "departmentId": null,
+   "departmentLabel": null,
+   "employmentStatusLabel": "Full time",
+   "employmentType": null,
+   "location": {
+    "city": null,
+    "state": null
+   },
+   "atsLocation": {
+    "country": null,
+    "state": null,
+    "province": null,
+    "city": null
+   },
+   "isRemote": null,
+   "locationType": "1"
+  }
+ ]
+}

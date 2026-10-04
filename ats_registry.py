@@ -15,6 +15,11 @@ lista de empresas donde agregar una es una línea.
 **Todo lo de acá está verificado contra el endpoint real el 2026-09-15**, tokens y
 nombres de campo incluidos. Un token sin verificar es una llamada fallida por corrida:
 eso ya pasó con Cerebras, que el verificador daba por bueno y devolvía 402.
+
+Fase 8 del  (2026-10-04): Recruitee, Workable, BambooHR y Personio,
+verificadas igual —pedido real, robots.txt leído, respuesta del token inexistente
+medida— y con todas sus empresas apagadas hasta que se decida D1. Las empresas nuevas
+se proponen con `tools/descubrir_ats.py`, que nunca escribe este archivo.
 """
 
 from __future__ import annotations
@@ -37,6 +42,17 @@ class Plataforma:
     concurrencia: int = 6
     """Cuántos tokens de esta plataforma se piden a la vez. No es el semáforo de
     Chromium: ahí el recurso escaso son las pestañas, acá es la cortesía con el host."""
+    url_aviso_template: str = ""
+    """Fase 8: plantilla de la URL del aviso para las plataformas cuyo listado no la
+    trae (BambooHR, Personio). `{token}` lo pone `ats_scraper`; el resto de los
+    marcadores (`{id}`) salen de la fila. Vacio = la URL viene en el payload."""
+    xml_item: str = ""
+    """Fase 8: la etiqueta de cada aviso cuando `response_format="xml"` (Personio:
+    `position`)."""
+    seguir_redirecciones: bool = True
+    """Fase 8: False en las plataformas que contestan una empresa inexistente con una
+    redireccion a su home comercial (BambooHR 302, Personio 307). Sin seguirla, el error
+    nombra el codigo y el destino en vez de un "parseo json" sobre HTML."""
 
 
 PLATAFORMAS: dict[str, Plataforma] = {
@@ -121,7 +137,116 @@ PLATAFORMAS: dict[str, Plataforma] = {
             "description": "descriptionHtml",
         },
     ),
+
+    # ── Fase 8 del  ─────────────────────────────────────────────
+    # Las cuatro verificadas el 2026-10-04 con pedidos reales, un pedido por segundo como
+    # mucho (Personio, uno cada 6 s). Ninguna tiene empresas activas: D1 (Tier 1 a 85)
+    # sigue pendiente. Ver `PENDIENTES_D1` y .
+
+    # Recruitee. robots.txt de {t}.recruitee.com redirige al dominio de careers de la
+    # empresa (careers.bunq.com: `Allow: /`). Medido: bunq 17 avisos, channable 9,
+    # hostaway 9; token inexistente -> 404 `{"error":"Not Found"}`.
+    # Es la unica de las cuatro con salario estructurado: `salary{min,max,period,currency}`
+    # con montos como string. Channable publica 5 de 9: EUR/month, USD/year, EUR/year
+    # (y uno en DKK con 0 y 0, que no se compone). bunq y hostaway, 0 de 26.
+    # `close_at` viene como clave en los 35 avisos medidos y nulo en los 35: se mapea
+    # crudo (lo normaliza `_a_fecha` al leer) sin haber visto su formato con valor.
+    # La descripcion se reparte entre `description` (el puesto) y `requirements` (los
+    # requisitos): sin el segundo, el eje de la Fase 7 no tiene que leer.
+    "recruitee": Plataforma(
+        nombre="recruitee",
+        url_template="https://{token}.recruitee.com/api/offers/",
+        items_path="offers",
+        field_map={
+            "title": "title",
+            "company": "company_name",
+            "url": "careers_url",
+            "location": "location",
+            "deadline": "close_at",
+            "salary_min": "salary.min",
+            "salary_max": "salary.max",
+            "salary_period": "salary.period",
+            "salary_currency": "salary.currency",
+            "description": ("description", "requirements"),
+        },
+        seguir_redirecciones=False,
+    ),
+
+    # Workable. robots.txt de apply.workable.com: `Disallow:` vacio, todo permitido.
+    # Medido: huggingface 8 avisos; hotjar 200 con `{"jobs": []}` (cuenta vieja: existe y
+    # no publica); token inexistente -> 404 "Not Found".
+    # `?details=true` agrega `description` a cada aviso EN LA MISMA respuesta (huggingface:
+    # 5.683 bytes sin el flag, 51.644 con el, 8 de 8 descripciones de 1.024 a 7.073
+    # caracteres). El anexo del 30-09 daba a Workable "sin descripcion": era sin el flag.
+    # La empresa viene una vez arriba (`name`), no por aviso: va por `defaults`.
+    # Ciudad y pais vienen separados; el pais es lo que lee la politica de ubicacion.
+    "workable": Plataforma(
+        nombre="workable",
+        url_template="https://apply.workable.com/api/v1/widget/accounts/{token}?details=true",
+        items_path="jobs",
+        field_map={
+            "title": "title",
+            "url": "url",
+            "location": ("city", "country"),
+            "description": "description",
+        },
+        seguir_redirecciones=False,
+    ),
+
+    # BambooHR. robots.txt de {t}.bamboohr.com: solo prohibe /jobs/embed.php y
+    # /jobs/embed2.php. Medido: gorillalogic 20 avisos (18 el 30-09), koombea 2; zapier
+    # 200 con `{"meta":{"totalCount":0},"result":[]}`; token inexistente -> 302 a
+    # https://www.bamboohr.com.
+    # El listado no trae URL ni empresa. La URL se compone desde `id`, verificada:
+    # gorillalogic.bamboohr.com/careers/34 -> 200 con `og:url` igual a la compuesta.
+    # La descripcion vive en /careers/{id}/detail: un pedido por aviso, fuera de esta fase.
+    # La ubicacion estructurada viene casi siempre nula (gorillalogic: 2 de 20 con pais);
+    # el titulo la trae ("Remote: Colombia - Costa Rica") y el matcher lee el titulo.
+    "bamboohr": Plataforma(
+        nombre="bamboohr",
+        url_template="https://{token}.bamboohr.com/careers/list",
+        items_path="result",
+        field_map={
+            "title": "jobOpeningName",
+            "location": ("atsLocation.city", "atsLocation.country"),
+        },
+        url_aviso_template="https://{token}.bamboohr.com/careers/{id}",
+        seguir_redirecciones=False,
+        concurrencia=2,
+    ),
+
+    # Personio. robots.txt de {t}.jobs.personio.de: `Allow: /`. XML, no JSON.
+    # Medido: jtl-software-gmbh 30 posiciones, governikus 10; token inexistente -> 307 a
+    # https://personio.com. El 30-09 el tercer pedido seguido devolvio 429: de ahi 5 s
+    # entre pedidos y de a uno. La URL se compone desde `id`, verificada:
+    # jtl-software-gmbh.jobs.personio.de/job/2666138 -> 200 con el titulo del aviso.
+    # La descripcion son secciones `<jobDescription><name/><value>CDATA</value>`.
+    # `subcompany` es la empresa real del aviso: JTL publica avisos de su filial
+    # Returnless con `subcompany="Returnless / SendDirect B.V."`.
+    "personio": Plataforma(
+        nombre="personio",
+        url_template="https://{token}.jobs.personio.de/xml",
+        response_format="xml",
+        xml_item="position",
+        field_map={
+            "title": "name",
+            "company": "subcompany",
+            "location": "office",
+            "description": "jobDescriptions",
+        },
+        url_aviso_template="https://{token}.jobs.personio.de/job/{id}",
+        seguir_redirecciones=False,
+        crawl_delay_s=5.0,
+        concurrencia=1,
+    ),
 }
+
+
+# Plataformas soportadas y verificadas pero SIN empresas activas, hasta que el usuario decida
+# D1 (subir TIER1_MIN_SCORE a 85 antes de sumar volumen). El test de registro exige que
+# ninguna fuente de estas plataformas este activa: activar una es sacar la plataforma de
+# este conjunto Y cambiar el False de la fuente, dos cambios a proposito.
+PENDIENTES_D1: frozenset[str] = frozenset({"recruitee", "workable", "bamboohr", "personio"})
 
 
 @dataclass(frozen=True)
@@ -191,6 +316,21 @@ FUENTES: list[FuenteATS] = [
     FuenteATS("ashby", "openai",     "OpenAI",     False, "811 avisos"),
     FuenteATS("ashby", "cohere",     "Cohere",     False),
     FuenteATS("ashby", "runway",     "Runway",     False),
+
+    # ── Fase 8: verificadas el 2026-10-04, TODAS apagadas hasta D1 ────────────
+    # El numero es lo que trajo el pedido real de ese dia. Para activar una, ver
+    # «Como se activan» en .
+    FuenteATS("recruitee", "bunq",      "bunq",      False, "D1 pendiente; 17 avisos, Amsterdam hibrido"),
+    FuenteATS("recruitee", "channable", "Channable", False, "D1 pendiente; 9 avisos, 5 con salario"),
+    FuenteATS("recruitee", "hostaway",  "Hostaway",  False, "D1 pendiente; 9 avisos, 9 remotos"),
+    FuenteATS("workable",  "azumo",     "Azumo",     False, "D1 pendiente; 57 avisos remotos LATAM, 5 en el pais del candidato"),
+    FuenteATS("workable",  "huggingface", "Hugging Face", False, "D1 pendiente; 8 avisos"),
+    FuenteATS("bamboohr",  "gorillalogic", "Gorilla Logic", False,
+              "D1 pendiente; 20 avisos, Remote: Colombia - Costa Rica"),
+    FuenteATS("bamboohr",  "koombea",   "Koombea",   False, "D1 pendiente; 2 avisos, Colombia"),
+    FuenteATS("personio",  "jtl-software-gmbh", "JTL-Software", False,
+              "D1 pendiente; 30 avisos, mercado aleman"),
+    FuenteATS("personio",  "governikus", "Governikus", False, "D1 pendiente; 8 avisos, Bremen"),
 ]
 
 
@@ -213,6 +353,10 @@ def dominio_de(plataforma: str) -> str:
         "greenhouse": "boards.greenhouse.io",
         "lever": "jobs.lever.co",
         "ashby": "jobs.ashbyhq.com",
+        "recruitee": "recruitee.com",
+        "workable": "apply.workable.com",
+        "bamboohr": "bamboohr.com",
+        "personio": "jobs.personio.de",
     }.get(plataforma, plataforma)
 
 

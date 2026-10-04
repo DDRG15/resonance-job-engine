@@ -89,9 +89,11 @@ class TestRegistro:
             assert f.empresa.strip(), f"{f.plataforma}:{f.token}"
 
     def test_toda_plataforma_mapea_titulo_y_url(self):
+        """La URL se mapea o se compone (Fase 8: BambooHR y Personio solo traen `id`).
+        Sin ninguna de las dos, todos los avisos se descartan como invalidos."""
         for nombre, p in ats_registry.PLATAFORMAS.items():
             assert p.field_map.get("title"), nombre
-            assert p.field_map.get("url"), nombre
+            assert p.field_map.get("url") or p.url_aviso_template, nombre
 
     def test_lever_respeta_el_crawl_delay_que_declara_su_robots(self):
         """api.lever.co publica `Crawl-delay: 1`. Es un límite, no una sugerencia."""
@@ -100,8 +102,11 @@ class TestRegistro:
         assert lever.concurrencia == 1
 
     def test_hay_al_menos_una_fuente_activa_por_plataforma(self):
+        """Salvo las de la Fase 8 del , apagadas a proposito hasta D1:
+        una plataforma sin fuentes activas fuera de esa lista es codigo muerto."""
         activas = ats_registry.activas()
-        assert {f.plataforma for f in activas} == set(ats_registry.PLATAFORMAS)
+        assert {f.plataforma for f in activas} == \
+            set(ats_registry.PLATAFORMAS) - ats_registry.PENDIENTES_D1
 
     def test_el_dominio_es_la_plataforma_no_la_empresa(self):
         """Agrupar por empresa daría cuarenta filas de una fila cada una. Lo que
