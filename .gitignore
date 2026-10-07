@@ -118,6 +118,9 @@ tools/*
 !tools/probe_endpoints.py
 # , Fase 5: tests/test_embudo.py importa la herramienta.
 !tools/embudo.py
+# , Fase 8: tests/test_descubrir_ats.py importa la herramienta. El agente
+# que la escribio la dejo fuera del repo sin saberlo (hallado el 06-10).
+!tools/descubrir_ats.py
 
 # Job search session results — scraped data with personal context
 
@@ -209,6 +212,13 @@ tests/fixtures/*
 # escrito a mano que dice lo que uno cree que devuelve.
 !tests/fixtures/fuentes/
 !tests/fixtures/fuentes/**
+# Fase 8 del : respuestas reales de las cuatro plataformas ATS nuevas y de
+# las paginas de careers que lee el descubridor. Las de ats/ entraron con `git add -f`;
+# sin esta excepcion, el proximo cambio a una de ellas se pierde en silencio.
+!tests/fixtures/ats/
+!tests/fixtures/ats/**
+!tests/fixtures/descubridor/
+!tests/fixtures/descubridor/**
 
 # Anclado a la raiz. Sin la barra inicial, git lo matchea a CUALQUIER profundidad y se
 # comia docs/LLM_PROVIDERS.md — que si se versiona. La regla original queria mantener
