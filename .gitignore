@@ -121,6 +121,8 @@ tools/*
 # , Fase 8: tests/test_descubrir_ats.py importa la herramienta. El agente
 # que la escribio la dejo fuera del repo sin saberlo (hallado el 06-10).
 !tools/descubrir_ats.py
+# , Fase 11: autoriza y prueba la lectura de alertas de Gmail.
+!tools/autorizar_gmail.py
 
 # Job search session results — scraped data with personal context
 
@@ -219,6 +221,9 @@ tests/fixtures/*
 !tests/fixtures/ats/**
 !tests/fixtures/descubridor/
 !tests/fixtures/descubridor/**
+# Fase 11: alertas de Gmail SINTETICAS (ningun correo real se versiona).
+!tests/fixtures/gmail/
+!tests/fixtures/gmail/**
 
 # Anclado a la raiz. Sin la barra inicial, git lo matchea a CUALQUIER profundidad y se
 # comia docs/LLM_PROVIDERS.md — que si se versiona. La regla original queria mantener

@@ -546,6 +546,35 @@ GOOGLE_CREDENTIALS_PATH: str = os.getenv(
 )
 GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
 
+
+# =============================================================================
+# Integration: alertas de LinkedIn e Indeed desde Gmail (, Fase 11)
+# =============================================================================
+# APAGADA por defecto. Es la unica integracion con credenciales del plan y la unica via
+# legitima a LinkedIn e Indeed: se lee el correo de el usuario con `gmail.readonly`, no se
+# scrapea ningun sitio. Prenderla exige (1) GEMA_GMAIL_ALERTAS=1 y (2) un token emitido
+# por `tools/autorizar_gmail.py`. El token vive en credentials/, que .gitignore y
+# .dockerignore excluyen por `credentials/*.json`.
+GMAIL_ALERTAS_HABILITADO: bool = os.getenv("GEMA_GMAIL_ALERTAS", "0").strip().lower() in (
+    "1", "true", "yes", "si", "on")
+GMAIL_TOKEN_PATH: str = os.getenv("GMAIL_TOKEN_PATH", "credentials/gmail_token.json")
+GMAIL_CLIENT_SECRET_PATH: str = os.getenv(
+    "GMAIL_CLIENT_SECRET_PATH", "credentials/gmail_client_secret.json")
+# Las corridas del cron caen martes, viernes y sabado: el hueco mas largo es de 3 dias
+# (sabado -> martes). 4 deja un dia de margen; lo repetido lo frena `is_seen`.
+GMAIL_ALERTAS_DIAS: int = int(os.getenv("GMAIL_ALERTAS_DIAS", "4"))
+GMAIL_ALERTAS_MAX_MENSAJES: int = int(os.getenv("GMAIL_ALERTAS_MAX_MENSAJES", "60"))
+# Remitentes de las alertas. SIN VERIFICAR contra el buzon real de el usuario: son las
+# direcciones conocidas publicamente. Si una alerta llega desde otra, se agrega aca o en
+# el .env, separadas por coma.
+GMAIL_ALERTAS_REMITENTES: list[str] = [
+    s.strip() for s in os.getenv(
+        "GMAIL_ALERTAS_REMITENTES",
+        "jobalerts-noreply@linkedin.com,jobs-listings@linkedin.com,"
+        "alert@indeed.com,donotreply@jobalert.indeed.com",
+    ).split(",") if s.strip()
+]
+
 # Column order for the historical data warehouse sheet
 SHEETS_COLUMN_ORDER: list[str] = [
     "scraped_at", "title", "company", "salary",

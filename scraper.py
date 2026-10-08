@@ -1186,6 +1186,13 @@ class GemaScraper:
             all_domains = [d for d in all_domains if d not in ats_dominios]
             await self._scrape_ats_sources()
 
+        # ── , Fase 11: alertas de LinkedIn e Indeed desde Gmail ──
+        # No entra por target_domains: no es un sitio que se lea, es el buzon de el usuario.
+        # Apagada por flag; con el flag prendido y sin token, la corrida sigue y el error
+        # queda en el resumen.
+        if config.GMAIL_ALERTAS_HABILITADO:
+            await self._scrape_gmail_alertas()
+
         if not all_domains:
             self._log("[BLITZ] Todos los boards se leyeron por endpoint — sin navegador.")
             return await self._finalizar_run()
@@ -1563,6 +1570,54 @@ class GemaScraper:
                     metrics.emit("ats_jobs", len(r.jobs),
                                  plataforma=r.fuente.plataforma, token=r.fuente.token)
                 metrics.emit("ats_latency_ms", r.ms, plataforma=r.fuente.plataforma)
+        finally:
+            await self._write_q.put(None)
+            await writer_task
+
+    # =========================================================================
+    # Alertas de Gmail — LinkedIn e Indeed (Fase 11 del )
+    # =========================================================================
+
+    async def _scrape_gmail_alertas(self) -> None:
+        """
+        Lee las alertas de Gmail y mete los avisos por el mismo embudo que todo lo demas.
+
+        Propio _db_writer_task, por la misma razon que `_scrape_ats_sources`. La traza de
+        fuentes va por `registrar_endpoint` con dominio `gmail:<proveedor>`: una alerta que
+        traia avisos y hoy trae cero (token vencido, filtro de LinkedIn borrado) queda
+        SOSPECHOSA igual que un endpoint que dejo de responder.
+        """
+        try:
+            import gmail_alertas
+        except Exception as exc:
+            logger.debug("[GMAIL] modulo ausente, se omite: %s", exc)
+            return
+
+        from matcher import title_is_relevant
+
+        def _relevante(titulo: str) -> bool:
+            return title_is_relevant(titulo, self.config.target_titles, self.profile)
+
+        loop = asyncio.get_running_loop()
+        writer_task = asyncio.create_task(self._db_writer_task())
+        try:
+            resultados = await loop.run_in_executor(
+                None, functools.partial(gmail_alertas.traer_alertas,
+                                        es_relevante=_relevante, log=self._log))
+            errores_vistos: set[str] = set()
+            for r in resultados:
+                await fuentes_estado.registrar_endpoint(
+                    self.db, self.summary.run_id, r.etiqueta, r)
+                if r.error:
+                    metrics.emit("gmail_alertas_error_total", 1, proveedor=r.proveedor)
+                    # Sin token, los dos proveedores fallan con el mismo error: una linea.
+                    if r.error not in errores_vistos:
+                        errores_vistos.add(r.error)
+                        self.summary.errors.append(f"gmail: {r.error}")
+                if r.jobs:
+                    await self._ingest_external_jobs(
+                        r.jobs, gmail_alertas.DOMINIO[r.proveedor])
+                metrics.emit("gmail_alertas_jobs", len(r.jobs), proveedor=r.proveedor)
         finally:
             await self._write_q.put(None)
             await writer_task
