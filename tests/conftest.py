@@ -63,25 +63,6 @@ def _permitir_testserver(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _sin_recarga_de_config_en_needs_setup(monkeypatch):
-    """
-    `setup_wizard.needs_setup()` hace `importlib.reload(config)`, y la API lo llama en
-    cada GET /api/status. En la suite eso deshace todo parche de `config` hecho antes:
-    el ALLOWED_HOSTS con `testserver` (el 400 del guard que rompio `test_reset_y_gate`
-    al integrar el 03-10), el CV_PROFILE_PATH temporal de abajo, y GEMA_DB_PATH, que el
-    `.env` de el usuario SI define: despues de un /api/status, cualquier `GemaDatabase()`
-    nuevo apuntaba a la base real. En los tests la recarga se anula.
-
-    Ningun test depende de ella: los de `/api/setup` mockean `_save_keys` y los de
-    `test_setup_wizard.py` ya anulaban `importlib.reload` por su cuenta.
-    """
-    import types
-
-    import setup_wizard
-    monkeypatch.setattr(setup_wizard, "importlib", types.SimpleNamespace(reload=lambda m: m))
-
-
-@pytest.fixture(autouse=True)
 def _aislar_cv_profile(tmp_path, monkeypatch):
     """
     Ningun test lee, crea ni borra el cv_profile.json real.

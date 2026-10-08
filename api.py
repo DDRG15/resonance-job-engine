@@ -57,11 +57,9 @@ from run_manager import RunManager, RunInProgressError
 from scraper import scrape_gate_is_busy
 from scheduler_service import SchedulerService
 from upload_guard import MaxBodySizeMiddleware
-from setup_wizard import needs_setup, _save_keys, _test_groq_key, _test_gemini_key
-
-_LLM_KEY_NAMES = (
-    "GROQ_API_KEY", "GEMINI_API_KEY", "OPENROUTER_API_KEY", "COHERE_API_KEY",
-    "CEREBRAS_API_KEY", "SAMBANOVA_API_KEY", "MISTRAL_API_KEY",
+from setup_wizard import (
+    LLM_KEY_NAMES as _LLM_KEY_NAMES,   # una sola lista: /api/status y el wizard cuentan igual
+    needs_setup, _save_keys, _test_groq_key, _test_gemini_key,
 )
 
 # F8: persistencia de sesión — el cron y la última búsqueda confirmada
