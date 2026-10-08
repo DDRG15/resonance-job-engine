@@ -32,6 +32,15 @@ import config  # noqa: E402
 import gmail_alertas  # noqa: E402
 
 
+#: Google vence el refresh_token a los 7 dias si la app OAuth esta en modo «Testing». Con el
+#: cron de martes/viernes/sabado, la corrida del dia 8 da `invalid_grant` y la fuente queda
+#: en error hasta que alguien re-autorice.
+AVISO_TESTING = (
+    "OJO: si la app OAuth quedo en modo «Testing» en Google Cloud Console, el token vence "
+    "a los 7 dias (invalid_grant). Pasarla a «In production» (tipo Desktop, un solo "
+    "usuario: no pide verificacion) o re-autorizar cada semana.")
+
+
 def autorizar() -> int:
     if not os.path.isfile(config.GMAIL_CLIENT_SECRET_PATH):
         print(f"Falta {config.GMAIL_CLIENT_SECRET_PATH}: crear un cliente OAuth «Desktop app» "
@@ -46,6 +55,7 @@ def autorizar() -> int:
     gmail_alertas._guardar_token(config.GMAIL_TOKEN_PATH, creds.to_json())
     print(f"Token guardado en {config.GMAIL_TOKEN_PATH} (permiso: gmail.readonly).")
     print("Siguiente paso: python tools/autorizar_gmail.py --probar")
+    print(AVISO_TESTING)
     return 0
 
 

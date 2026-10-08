@@ -38,6 +38,7 @@ from typing import Callable, Iterable, Optional
 from urllib.parse import parse_qs, urlsplit
 
 import config
+import metrics
 from models import JobResult
 
 logger = logging.getLogger(__name__)
@@ -79,8 +80,13 @@ def id_de_enlace(proveedor: str, href: str) -> Optional[str]:
     `linkedin.com/jobs/view/...` en el query pasaban con un `in` o un `search` suelto
     (hallado por los tests de la Fase 11, 07-10).
     """
-    partes = urlsplit((href or "").strip())
-    host = (partes.hostname or "").lower()
+    try:
+        partes = urlsplit((href or "").strip())
+        host = (partes.hostname or "").lower()
+    except ValueError:
+        # `http://[unsub` (corchete sin cerrar) hace levantar a urlsplit. Un pie de correo
+        # con un placeholder sin renderizar tumbaba la corrida entera (revision 07-10).
+        return None
     if proveedor == LINKEDIN:
         if not _es_host_de(host, "linkedin.com"):
             return None
@@ -104,7 +110,10 @@ def url_canonica(proveedor: str, href: str, id_aviso: str) -> str:
     """
     if proveedor == LINKEDIN:
         return f"https://www.linkedin.com/jobs/view/{id_aviso}"
-    host = (urlsplit(href).hostname or "").lower() or "www.indeed.com"
+    try:
+        host = (urlsplit(href).hostname or "").lower() or "www.indeed.com"
+    except ValueError:
+        host = "www.indeed.com"
     return f"https://{host}/viewjob?jk={id_aviso}"
 
 
@@ -173,7 +182,9 @@ _RUIDO = re.compile(
     r"responsive employer|empleador receptivo|urgently hiring|contrataci[oó]n urgente|"
     r"be an early applicant|s[eé] de los primeros.*|top applicant|"
     r"\d+ (?:connections?|conexi[oó]n(?:es)?|school alumn[ia]?|alumn[oa]s?).*|"
-    r".*\b(?:applicants?|solicitudes|postulantes)\b.*|"
+    # Anclado al conteo («34 applicants», «Over 200 applicants», «12 solicitudes»): suelto,
+    # se comia una empresa llamada «Applicant Tracking Co» y la ubicacion subia a empresa.
+    r"(?:over |m[aá]s de )?\d[\d,.]*\+? (?:applicants?|solicitudes|postulantes)|"
     r"(?:posted |publicado )?(?:hace|\d+) ?(?:\d+ )?(?:d[ií]as?|horas?|semanas?|days?|hours?|weeks?)(?: ago)?|"
     r"\d(?:[.,]\d)?(?: ?★)?)$",
     re.I,
@@ -359,13 +370,22 @@ def consulta_gmail(remitentes: Iterable[str], dias: int) -> str:
     return f"from:({' OR '.join(remitentes)}) newer_than:{max(1, int(dias))}d"
 
 
-def _html_de_payload(payload: dict) -> str:
-    """El primer `text/html` de un mensaje de la API, decodificado (base64url)."""
+def _html_de_payload(payload: dict, adjunto: Optional[Callable[[str], str]] = None) -> str:
+    """
+    El primer `text/html` de un mensaje de la API, decodificado (base64url).
+
+    Un cuerpo grande no viene en `body.data` sino como `body.attachmentId`, y hay que
+    pedirlo aparte: `adjunto(attachment_id)` devuelve su `data`. Sin eso, una alerta
+    larga se leia como «0 avisos», indistinguible de una alerta vacia.
+    """
     pendientes = [payload or {}]
     while pendientes:
         parte = pendientes.pop(0)
         if parte.get("mimeType") == "text/html":
-            data = (parte.get("body") or {}).get("data") or ""
+            body = parte.get("body") or {}
+            data = body.get("data") or ""
+            if not data and body.get("attachmentId") and adjunto is not None:
+                data = adjunto(body["attachmentId"]) or ""
             if data:
                 crudo = base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
                 return crudo.decode("utf-8", errors="replace")
@@ -420,7 +440,16 @@ def credenciales(token_path: Optional[str] = None):
     creds = Credentials.from_authorized_user_info(info, SCOPES)
     if not creds.valid:
         if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as exc:
+                # El mensaje de la 1 AM: `invalid_grant` a secas no dice que hacer.
+                pista = (" — re-autorizar con `python tools/autorizar_gmail.py`; si la app "
+                         "OAuth esta en modo Testing, el token vence cada 7 dias"
+                         if "invalid_grant" in str(exc) else "")
+                raise GmailNoConfigurado(
+                    f"no se pudo renovar el token ({type(exc).__name__}: "
+                    f"{str(exc)[:120]}){pista}") from exc
             _guardar_token(path, creds.to_json())
         else:
             raise GmailNoConfigurado("token invalido y sin refresh_token: autorizar de nuevo")
@@ -437,6 +466,10 @@ class LectorGmail:
             raise GmailNoConfigurado(f"falta google-api-python-client: {exc}") from exc
         self._svc = build("gmail", "v1", credentials=credenciales(token_path),
                           cache_discovery=False)
+        #: True si quedaron alertas sin leer por el tope de `maximo`. Gmail lista de la
+        #: mas nueva a la mas vieja: lo que se pierde son las viejas, y sin esta marca se
+        #: perdian sin una linea de log.
+        self.truncado = False
 
     def mensajes(self, consulta: str, maximo: int) -> list[Mensaje]:
         msgs = self._svc.users().messages()
@@ -449,11 +482,17 @@ class LectorGmail:
             token = r.get("nextPageToken")
             if not token:
                 break
+        self.truncado = bool(token) and len(ids) >= maximo
         salida = []
         for mid in ids[:maximo]:
             m = msgs.get(userId="me", id=mid, format="full").execute()
             payload = m.get("payload") or {}
-            salida.append(Mensaje(mid, _remitente_de(payload), _html_de_payload(payload)))
+
+            def _adjunto(aid: str, _mid=mid) -> str:
+                return msgs.attachments().get(userId="me", messageId=_mid,
+                                              id=aid).execute().get("data") or ""
+            salida.append(Mensaje(mid, _remitente_de(payload),
+                                  _html_de_payload(payload, _adjunto)))
         return salida
 
 
@@ -521,7 +560,13 @@ def traer_alertas(
             continue
         r = resultados[proveedor]
         r.mensajes += 1
-        for aviso in parsear_alerta(proveedor, m.html):
+        try:
+            avisos = parsear_alerta(proveedor, m.html)
+        except Exception as exc:      # un correo malo no se lleva puestos a los otros 59
+            r.descartados_invalidos += 1
+            log(f"[GMAIL] alerta {m.id} ilegible: {type(exc).__name__}: {str(exc)[:120]}")
+            continue
+        for aviso in avisos:
             r.items_crudos += 1
             if (proveedor, aviso.id_aviso) in vistos:
                 continue
@@ -533,6 +578,11 @@ def traer_alertas(
                 r.jobs.append(a_job_result(aviso))
             except Exception:
                 r.descartados_invalidos += 1
+
+    if getattr(lector, "truncado", False):
+        log(f"[GMAIL] hay mas alertas que el tope de {config.GMAIL_ALERTAS_MAX_MENSAJES}: "
+            f"las mas viejas no se leyeron (subir GMAIL_ALERTAS_MAX_MENSAJES)")
+        metrics.emit("gmail_alertas_truncado", 1)
 
     ms = (time.monotonic() - t0) * 1000
     for r in resultados.values():

@@ -150,3 +150,94 @@ class TestFlag:
     async def test_prendido_llama_a_gmail(self, tmp_db, monkeypatch):
         monkeypatch.setattr(config, "GMAIL_ALERTAS_HABILITADO", True)
         assert await self._correr_run(tmp_db, monkeypatch) is True
+
+
+# =============================================================================
+# Revisión del 07-10 sobre 7678d0f: cada hallazgo, su test
+# =============================================================================
+
+class TestRevision0710:
+
+    _ROTO = ('<a href="http://[unsub">baja</a>'
+             '<a href="https://www.linkedin.com/jobs/view/1234567890">Backend Engineer</a>')
+
+    def test_href_malformado_no_levanta_y_el_aviso_se_lee(self):
+        # HIGH: `urlsplit("http://[unsub")` levanta ValueError y tumbaba run() entero.
+        avisos = gmail_alertas.parsear_alerta("linkedin", self._ROTO)
+        assert [a.titulo for a in avisos] == ["Backend Engineer"]
+
+    def test_una_alerta_que_revienta_no_se_lleva_a_las_otras(self, monkeypatch):
+        real = gmail_alertas.parsear_alerta
+
+        def _parser(proveedor, html):
+            if "REVIENTA" in html:
+                raise RecursionError("anidado de mas")
+            return real(proveedor, html)
+        monkeypatch.setattr(gmail_alertas, "parsear_alerta", _parser)
+        buena = _alerta_linkedin(("4011111111", "Python Developer", "Acme", "Remote"))
+        res = gmail_alertas.traer_alertas(lector=_LectorFalso([
+            Mensaje("m1", "jobalerts-noreply@linkedin.com", "<p>REVIENTA</p>"),
+            Mensaje("m2", "jobalerts-noreply@linkedin.com", buena),
+        ]))
+        li = next(r for r in res if r.proveedor == "linkedin")
+        assert len(li.jobs) == 1 and li.descartados_invalidos == 1 and li.error == ""
+
+    async def test_si_traer_alertas_levanta_la_corrida_sigue(self, tmp_db, monkeypatch):
+        def _explota(**k):
+            raise RuntimeError("boom")
+        monkeypatch.setattr(gmail_alertas, "traer_alertas", _explota)
+        s = _scraper(tmp_db, "run-rev")
+        await s._scrape_gmail_alertas()          # no levanta
+        assert any(e.startswith("gmail: RuntimeError") for e in s.summary.errors)
+
+    @pytest.mark.parametrize("empresa", ["Applicant Tracking Co", "Postulantes SAS"])
+    def test_empresa_con_la_palabra_applicant_no_es_ruido(self, empresa):
+        # MEDIUM: la regex suelta se comía la empresa y la ubicación subía a empresa.
+        html = (f'<table><tr><td><a href="https://www.linkedin.com/jobs/view/4099999999">'
+                f'Staff Engineer</a></td></tr><tr><td><div>{empresa}</div><div>la ciudad del candidato</div>'
+                f'</td></tr></table>')
+        a = gmail_alertas.parsear_alerta("linkedin", html)[0]
+        assert (a.empresa, a.ubicacion) == (empresa, "la ciudad del candidato")
+
+    @pytest.mark.parametrize("linea", ["34 applicants", "Over 200 applicants",
+                                       "12 solicitudes", "Más de 100 postulantes"])
+    def test_el_conteo_de_postulantes_sigue_siendo_ruido(self, linea):
+        assert gmail_alertas._es_ruido(linea)
+
+    def test_cuerpo_grande_por_attachment_id(self):
+        # LOW: un text/html con attachmentId (cuerpo grande) se leía como alerta vacía.
+        import base64
+        data = base64.urlsafe_b64encode("<p>hola ñ</p>".encode()).decode().rstrip("=")
+        payload = {"mimeType": "multipart/alternative", "parts": [
+            {"mimeType": "text/html", "body": {"attachmentId": "abc", "size": 90000}}]}
+        pedidos = []
+        assert gmail_alertas._html_de_payload(
+            payload, lambda aid: pedidos.append(aid) or data) == "<p>hola ñ</p>"
+        assert pedidos == ["abc"]
+        assert gmail_alertas._html_de_payload(payload) == ""      # sin lector de adjuntos
+
+    def test_truncado_por_el_tope_se_avisa(self):
+        # LOW: las alertas más viejas que el tope se perdían sin una línea de log.
+        lector = _LectorFalso([])
+        lector.truncado = True
+        lineas = []
+        gmail_alertas.traer_alertas(lector=lector, log=lineas.append)
+        assert any("tope" in ln for ln in lineas)
+
+    def test_invalid_grant_dice_que_hacer(self, tmp_path, monkeypatch):
+        # MEDIUM: con la app OAuth en Testing el refresh vence a los 7 días.
+        pytest.importorskip("google.oauth2.credentials")
+        from google.oauth2 import credentials as gcred
+
+        class _Vencido:
+            valid, expired, refresh_token = False, True, "r"
+
+            def refresh(self, _req):
+                raise RuntimeError("invalid_grant: Token has been expired or revoked.")
+        monkeypatch.setattr(gcred.Credentials, "from_authorized_user_info",
+                            classmethod(lambda cls, info, scopes=None: _Vencido()))
+        token = tmp_path / "gmail_token.json"
+        token.write_text('{"scopes": ["https://www.googleapis.com/auth/gmail.readonly"]}',
+                         encoding="utf-8")
+        with pytest.raises(gmail_alertas.GmailNoConfigurado, match="autorizar_gmail.*7 dias"):
+            gmail_alertas.credenciales(str(token))

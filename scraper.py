@@ -1618,6 +1618,13 @@ class GemaScraper:
                     await self._ingest_external_jobs(
                         r.jobs, gmail_alertas.DOMINIO[r.proveedor])
                 metrics.emit("gmail_alertas_jobs", len(r.jobs), proveedor=r.proveedor)
+        except Exception as exc:
+            # Gmail corre ANTES del navegador: si una fuente opcional levanta, las
+            # obligatorias no pueden perderse con ella. `traer_alertas` ya no levanta;
+            # esto es la segunda llave (revision del 07-10: un href malformado tumbaba run()).
+            msg = f"gmail: {type(exc).__name__}: {str(exc)[:200]}"
+            self._log(f"[ERROR] {msg}")
+            self.summary.errors.append(msg)
         finally:
             await self._write_q.put(None)
             await writer_task
