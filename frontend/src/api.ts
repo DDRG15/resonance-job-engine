@@ -2,7 +2,7 @@
 
 import { CV_CONSENT_VERSION } from './consent'
 import type {
-  AuditVerdict, CvProfile, FuentesResponse, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
+  ApplicationHistory, AprendizajeEstado, AuditVerdict, CvProfile, FuentesResponse, ParseResponse, RegistryStats, ResultsResponse, SchedulerState,
   SchedulerUpdate, SearchConfigDto, Status, VaultEntry,
 } from './types'
 
@@ -19,6 +19,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const getStatus = () => request<Status>('/api/status')
+
+export const getAprendizaje = () => request<AprendizajeEstado>('/api/aprendizaje')
+
+export const getApplicationHistory = (appId: string) =>
+  request<ApplicationHistory>(`/api/applications/${encodeURIComponent(appId)}/history`)
 
 export const getFuentes = () => request<FuentesResponse>('/api/fuentes')
 

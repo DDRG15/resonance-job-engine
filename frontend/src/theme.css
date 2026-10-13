@@ -687,3 +687,10 @@ details.warn-details .warn-list {
 .conv-row .n { font-family: var(--mono); font-size: 12px; color: var(--text);
   font-variant-numeric: tabular-nums; }
 .conv-row .n em { font-style: normal; color: var(--faint); }
+
+/* Historial de una postulación: línea de tiempo vertical. */
+.app-historial { list-style: none; margin: 6px 0 0; padding: 0 0 0 10px;
+  border-left: 1px solid var(--border); display: grid; gap: 4px; }
+.app-historial li { display: flex; align-items: center; gap: 8px; font-size: 12px;
+  color: var(--muted); flex-wrap: wrap; }
+.app-historial time { font-family: var(--mono); font-size: 11px; color: var(--faint); }

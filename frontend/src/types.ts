@@ -311,3 +311,42 @@ export interface CorrelatorsResponse {
   pendientes: CorrelatorPendiente[]
   total: number
 }
+
+// GET /api/applications/{id}/history (api.py): una fila de application_events.
+export interface ApplicationEvent {
+  id: number
+  app_id: string
+  desde: string | null
+  hasta: string
+  ocurrio_en: string
+  nota: string | null
+}
+
+export interface ApplicationHistory {
+  app_id: string
+  eventos: ApplicationEvent[]
+}
+
+// GET /api/aprendizaje (api.py -> aprendizaje.ModeloAprendizaje.estado). `reglas` lista
+// lo aprendido aunque el modelo este inactivo, con los puntos que aportaria.
+export interface AprendizajeRegla {
+  rasgo: string
+  clave: string
+  entrevistas: number
+  ofertas: number
+  descartes: number
+  puntos: number
+}
+
+export interface AprendizajeEstado {
+  activo: boolean
+  habilitado: boolean
+  resultados: number
+  umbral: number
+  faltan: number
+  tope: number
+  mensaje: string
+  error: string | null
+  score_version: string | null
+  reglas: AprendizajeRegla[]
+}

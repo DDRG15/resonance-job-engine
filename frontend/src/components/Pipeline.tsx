@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { Application, ApplicationsResponse } from '../types'
+import { getAprendizaje, getApplicationHistory } from '../api'
+import type {
+  AprendizajeEstado, Application, ApplicationEvent, ApplicationsResponse,
+} from '../types'
 
 interface Props {
   onClose: () => void
@@ -40,6 +43,110 @@ const CLASE: Record<string, string> = {
  * después. Y la métrica de conversión de abajo es la única que puede decir si el
  * score sirve — hoy el matcher se calibra a ojo.
  */
+const RASGO: Record<string, string> = { empresa: 'empresa', titulo: 'familia de título' }
+
+function puntosTxt(n: number): string {
+  return `${n > 0 ? '+' : ''}${n} pts`
+}
+
+/** Fase 10 — lo que el sistema aprendió. Solo muestra lo que manda el endpoint. */
+function Aprendizaje() {
+  const [est, setEst] = useState<AprendizajeEstado | null>(null)
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    getAprendizaje()
+      .then((d) => {
+        if (!vivo) return
+        if (typeof d?.resultados !== 'number' || typeof d?.umbral !== 'number') {
+          throw new Error('respuesta inesperada')
+        }
+        setEst(d)
+      })
+      .catch((e) => { if (vivo) setFallo(e instanceof Error ? e.message : String(e)) })
+    return () => { vivo = false }
+  }, [])
+
+  if (fallo) {
+    return (
+      <div className="conv" data-testid="aprendizaje">
+        <div className="tier-head"><h4>Aprendizaje</h4></div>
+        <p className="side-note">No se pudo leer el aprendizaje: {fallo}</p>
+      </div>
+    )
+  }
+  if (!est) return null
+
+  return (
+    <div className="conv" data-testid="aprendizaje">
+      <div className="tier-head">
+        <h4>Aprendizaje</h4>
+        <span className={`badge ${est.activo ? 'b1' : 'b4'}`}>
+          {est.activo ? 'Activo' : 'Inactivo'}
+        </span>
+      </div>
+      <p className="side-note">
+        {est.error
+          ? `Inactivo: no se pudo leer el historial (${est.error})`
+          : !est.habilitado
+            ? `Apagado: ${est.resultados} de ${est.umbral} postulaciones con resultado`
+            : est.activo
+              ? `Activo: ${est.resultados} postulaciones con resultado (tope ±${est.tope} pts)`
+              : `Inactivo: ${est.resultados} de ${est.umbral} postulaciones con resultado`}
+        {est.score_version && ` · versión de score ${est.score_version}`}
+      </p>
+      {est.reglas.length > 0 && (
+        <>
+          <p className="side-note">
+            {est.activo
+              ? 'Reglas aprendidas y los puntos que aportan:'
+              : 'Reglas aprendidas hasta ahora, con los puntos que aportarían al activarse:'}
+          </p>
+          {est.reglas.map((r) => (
+            <div className="conv-row" key={`${r.rasgo}:${r.clave}`}>
+              <span className="f">{RASGO[r.rasgo] ?? r.rasgo}: {r.clave}</span>
+              <span className="n">
+                {puntosTxt(r.puntos)}{' '}
+                <em>{r.entrevistas} entrev. · {r.ofertas} ofertas · {r.descartes} descartes</em>
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** Línea de tiempo de una postulación; se pide recién al desplegar. */
+function Historial({ appId }: { appId: string }) {
+  const [eventos, setEventos] = useState<ApplicationEvent[] | null>(null)
+  const [fallo, setFallo] = useState<string | null>(null)
+
+  useEffect(() => {
+    let vivo = true
+    getApplicationHistory(appId)
+      .then((d) => { if (vivo) setEventos(d.eventos ?? []) })
+      .catch((e) => { if (vivo) setFallo(e instanceof Error ? e.message : String(e)) })
+    return () => { vivo = false }
+  }, [appId])
+
+  if (fallo) return <div className="error-banner">No se pudo cargar el historial: {fallo}</div>
+  if (!eventos) return <p className="side-note">Cargando historial…</p>
+  if (eventos.length === 0) return <p className="side-note">Sin movimientos registrados.</p>
+  return (
+    <ol className="app-historial" aria-label="Historial">
+      {eventos.map((ev) => (
+        <li key={ev.id}>
+          <span className={`badge ${CLASE[ev.hasta] ?? ''}`}>{ETIQUETA[ev.hasta] ?? ev.hasta}</span>
+          <time dateTime={ev.ocurrio_en}>{ev.ocurrio_en}</time>
+          {ev.nota && <em> {ev.nota}</em>}
+        </li>
+      ))}
+    </ol>
+  )
+}
+
 export default function Pipeline({ onClose, onChanged }: Props) {
   const [data, setData] = useState<ApplicationsResponse | null>(null)
   // Fase 9: qué postulación se está editando y el borrador de sus dos campos.
@@ -52,6 +159,15 @@ export default function Pipeline({ onClose, onChanged }: Props) {
   const [dimension, setDimension] = useState('tier_al_aplicar')
   const [error, setError] = useState<string | null>(null)
   const [moviendo, setMoviendo] = useState<string | null>(null)
+  const [historiales, setHistoriales] = useState<Set<string>>(new Set())
+
+  function alternarHistorial(id: string) {
+    setHistoriales((prev) => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id); else n.add(id)
+      return n
+    })
+  }
 
   async function cargar() {
     try {
@@ -233,8 +349,16 @@ export default function Pipeline({ onClose, onChanged }: Props) {
                     </div>
                   )
                 )}
+                {historiales.has(a.app_id) && <Historial appId={a.app_id} />}
               </div>
               <div className="app-acciones">
+                <button
+                  className="btn mini"
+                  aria-expanded={historiales.has(a.app_id)}
+                  onClick={() => alternarHistorial(a.app_id)}
+                >
+                  Historial
+                </button>
                 {!terminales.has(a.status) && editando !== a.app_id && (
                   <button
                     className="btn mini"
@@ -293,6 +417,8 @@ export default function Pipeline({ onClose, onChanged }: Props) {
           ))}
         </div>
       )}
+
+      <Aprendizaje />
     </div>
   )
 }
