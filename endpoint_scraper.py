@@ -857,7 +857,7 @@ def scrape_endpoint(
 
     `{pais}` se reemplaza por el país del candidato (`config.PAIS_CANDIDATO`, o `pais`
     si se pasa). Es la decisión D2 del : Himalayas responde qué avisos
-    se pueden trabajar desde el pais del candidato, y esa respuesta es mejor que cualquier regex nuestro
+    se pueden trabajar desde el país del candidato, y esa respuesta es mejor que cualquier regex nuestro
     sobre una lista de 70 países. **Falla cerrado** (auditoría de revision externa, punto 15): sin
     país, o con uno que la política de ubicación del matcher no da por accesible, no se
     pide nada. Pedir `country=` vacío traería el catálogo mundial, y la fuente y el

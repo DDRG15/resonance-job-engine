@@ -293,7 +293,7 @@ def _sin_tildes(texto: str) -> str:
 
     `_LOCATION_ACCESSIBLE` lista los paises sin tilde y `\bperu\b` no matchea
     "perú". Medido el 2026-09-29: un Tier 1 abierto a ~40 paises, uno de LATAM con tilde entre ellos
-    ("Greece; Norway; Perú; ...; Spain; Cyprus; ..."), salia FLAG porque "spain" y
+    ("Greece; Norway; México; ...; Spain; Cyprus; ..."), salia FLAG porque "spain" y
     "cyprus" matcheaban restringido y "perú" no matcheaba accesible. builtin.com
     publica asi, con tilde.
     """
@@ -384,7 +384,7 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     # Soft geo — evaluated on location_raw only (not the blob), so a company name
     # or salary string containing "us"/"eu" can never trigger it. Fires only when
     # the field names a restricted region AND carries no LATAM/open signal.
-    # Sin tildes y con los ISO-3 de LATAM (2026-09-29): "Perú; Canada" o
+    # Sin tildes y con los ISO-3 de LATAM (2026-09-29): "México; Canada" o
     # "Medellin, COL; Remote, OR, USA" nombran un lugar donde el candidato puede trabajar, y
     # antes salian FLAG porque solo se reconocian los paises sin tilde.
     loc = _sin_tildes((getattr(job, "location_raw", None) or "").lower().strip())

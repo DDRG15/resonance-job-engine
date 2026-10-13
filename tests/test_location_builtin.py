@@ -3,7 +3,7 @@ tests/test_location_builtin.py — ubicación de builtin.com (2026-09-28).
 
 La corrida de calibración del 2026-09-17 trajo 108 avisos de builtin con 0% de
 ubicación: el board no tenía selector. Sin `location_raw` el matcher da PASS por
-ausencia de dato, así que un aviso solo para USA pasaba igual que uno abierto a el pais del candidato.
+ausencia de dato, así que un aviso solo para USA pasaba igual que uno abierto a LATAM.
 
 Medido en vivo el 2026-09-28 sobre 50 cards: 15 muestran la sede ("Medellin, COL") y
 35 un conteo ("11 Locations") con la lista real en el atributo `data-bs-title`. Un
