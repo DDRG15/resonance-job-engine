@@ -237,3 +237,19 @@ frontend/dist/
 !frontend/package-lock.json
 !frontend/tsconfig.json
 api_state.json
+
+# Reportes de auditoria: privados, se quedan en el disco de el usuario y no van al repo
+# publico (decision del 2026-10-12, antes del primer push de la rama).
+
+
+# Analisis de revision externa (29-09 y 30-09): privados, no van al repo publico.
+-09-30.md
+
+# Analisis (estudios de fuentes, de otros proyectos, de corridas y de la auditoria de revision externa):
+# privados, no van al repo publico (decision del 2026-10-12).
+-09-30.md
+
+
+
+
+
