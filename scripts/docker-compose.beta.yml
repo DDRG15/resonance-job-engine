@@ -1,7 +1,7 @@
 # =============================================================================
 # docker-compose.beta.yml — GEMA Beta Distribution
 # Used by beta recipients — no build step, uses the pre-packaged image.
-# el usuario: copy this to dist/docker-compose.yml when packaging for a friend.
+# Note: copy this to dist/docker-compose.yml when packaging for a friend.
 # Serves the React UI + FastAPI on http://localhost:8000
 # =============================================================================
 

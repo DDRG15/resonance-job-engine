@@ -129,11 +129,11 @@ def normalizar_proxima_accion(valor) -> Optional[str]:
 
 def hoy_local() -> date:
     """
-    «Hoy» en la zona del cron (`SCHEDULER_TIMEZONE`, la ciudad del candidato por defecto), no en UTC.
+    «Hoy» en la zona del cron (`SCHEDULER_TIMEZONE`, UTC por defecto), no en la hora del servidor.
 
-    La fecha de seguimiento la elige una persona en la ciudad del candidato. Con UTC, entre las 19:00 y la
-    medianoche de la ciudad del candidato «hoy» ya es mañana y una acción para hoy figuraría vencida cinco
-    horas antes de tiempo, justo en la franja en que el usuario revisa la pantalla.
+    La fecha de seguimiento la elige una persona en su zona local. Con otra zona, en las horas
+    previas a la medianoche local «hoy» ya es mañana y una acción para hoy figuraría
+    vencida horas antes de tiempo, justo en la franja en que el usuario revisa la pantalla.
     """
     try:
         return datetime.now(ZoneInfo(config.SCHEDULER_TIMEZONE)).date()
@@ -1233,7 +1233,7 @@ class GemaDatabase:
         with _get_connection(self.db_path) as conn:
             # Ubicacion, salario, fecha de cierre y vencimiento (, Fase 2):
             # los usa el correlator entre fuentes para elegir que copia queda visible, y
-            # `correr()` para no fundir ubicaciones incompatibles para la ciudad del candidato.
+            # `correr()` para no fundir ubicaciones incompatibles para el candidato.
             filas = [dict(r) for r in conn.execute(
                 "SELECT url, title, company, source_domain, scraped_at, location_raw, "
                 "salary_raw, deadline, expired_at "
@@ -1289,7 +1289,7 @@ class GemaDatabase:
     def _reabrir_fusiones_incompatibles(self) -> int:
         """
         Devuelve a AVAILABLE los pares que el SISTEMA acepto solo y que funden dos
-        ubicaciones incompatibles para la ciudad del candidato. , Fase 2.
+        ubicaciones incompatibles para el candidato. , Fase 2.
 
         Medido el 2026-09-30: 5 pares asi en la base real, todos de
         `titulo_empresa_dia`, aceptados antes de que existiera la regla. Uno escondia
@@ -1314,11 +1314,11 @@ class GemaDatabase:
                 (corr.ACCEPTED,)).fetchall()
             cambios = [
                 (corr.AVAILABLE, corr.CONFIANZA_UBICACION_INCOMPATIBLE,
-                 f"{p['motivo'] or ''} — reabierto: ubicaciones distintas para la ciudad del candidato "
+                 f"{p['motivo'] or ''} — reabierto: ubicaciones distintas para el candidato "
                  f"({p['loc_a']!r} vs {p['loc_b']!r})",
                  p["job_hash"], p["hash_duplicado"], corr.ACCEPTED)
                 for p in pares
-                if not corr.compatibles_para_lima(p["loc_a"], p["loc_b"])
+                if not corr.compatibles_para_el_candidato(p["loc_a"], p["loc_b"])
             ]
             if cambios:
                 conn.executemany(
@@ -2044,7 +2044,7 @@ class GemaDatabase:
         Escenario (revision externa 2026-09-30, punto 9): el servidor muere a mitad de un scrape
         —reinicio, OOM, corte de luz—. Los hilos del run son daemon, así que nadie cierra
         la fila: queda `running` para siempre, `/api/results` arranca vacío y nada le
-        dice a el usuario si la última corrida terminó, se cortó o nunca existió.
+        dice al usuario si la última corrida terminó, se cortó o nunca existió.
 
         Decisión: GEMA es un solo proceso (uvicorn --workers 1; el gate de scrape es un
         lock de proceso), así que al arrancar toda fila `running` es huérfana por

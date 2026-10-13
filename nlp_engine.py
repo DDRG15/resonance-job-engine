@@ -1184,7 +1184,7 @@ def _region_from_location(raw_location: str) -> str:
     evaluation — strips city and country entirely.
     """
     s = raw_location.lower()
-    if any(k in s for k in ("peru", "ciudad", "ecuador", "colombia", "panama")):
+    if any(k in s for k in ("peru", "bogota", "ecuador", "colombia", "panama")):
         return "LATAM (UTC-5)"
     if any(k in s for k in ("argentina", "brazil", "brasil", "chile", "uruguay", "paraguay", "bolivia")):
         return "LATAM (UTC-3)"

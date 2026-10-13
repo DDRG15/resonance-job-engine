@@ -674,7 +674,7 @@ def _pdf_sintetico(paginas: int) -> bytes:
 CV_SINTETICO = """Ana Perez Gomez
 Backend Engineer | SRE
 ana.perez+cv@example.com | +57 312 654 321 | (02) 234-5678 | 312654321
-la ubicacion del candidato
+Bogota, Colombia
 
 Experiencia
 2019 - 2023  Senior Backend Engineer en Acme: Python 3.12, FastAPI, PostgreSQL 15.4.

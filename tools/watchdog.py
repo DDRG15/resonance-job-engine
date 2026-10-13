@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-tools/watchdog.py — monitor COMPLETO para el LIVE TEST integral (el usuario, 07-18).
+tools/watchdog.py — monitor COMPLETO para el LIVE TEST integral (07-18).
 
-Principio (corregido a pedido de el usuario): analiza TODO, no se pierde NADA. Cada
+Principio (corregido a pedido del usuario): analiza TODO, no se pierde NADA. Cada
 línea se ingiere y clasifica; lo que no matchea un patrón conocido NO se descarta
 — cae a un catch-all con detección heurística de cualquier cosa que huela a
 problema (error/fail/timeout/403/5xx/drift…), aunque no la hayamos previsto. El

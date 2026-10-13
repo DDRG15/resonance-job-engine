@@ -1,6 +1,6 @@
 """
 tests/test_correlators_entre_fuentes.py — el mismo aviso en dos fuentes, y la regla de
-ubicacion para la ciudad del candidato (, Fase 2).
+ubicacion para el candidato (, Fase 2).
 
 Medido el 2026-09-30 sobre la base real: 97 grupos (titulo, empresa) en mas de una
 fuente sin correlacionar, y 5 pares auto-aceptados que fundian una ubicacion abierta con
@@ -72,13 +72,13 @@ class TestEntreFuentes:
         assert [c.duplicado_url for c in entre] == ["https://himalayas.app/a"]
 
 
-class TestUbicacionParaLima:
+class TestUbicacionParaElCandidato:
     def test_abierta_contra_restringida_no_se_funde_sola(self):
         filas = [_fila("https://a.com/1", "a.com", ubicacion="Europe"),
                  _fila("https://b.com/2", "b.com", ubicacion="Latin America")]
         c = corr.correr(filas)[0]
         assert c.confianza == corr.CONFIANZA_UBICACION_INCOMPATIBLE
-        assert "ubicaciones distintas para la ciudad del candidato" in c.motivo
+        assert "ubicaciones distintas para el candidato" in c.motivo
 
     def test_vale_tambien_dentro_de_un_board(self):
         """El caso medido: titulo_empresa_dia fundia 'Europe' con 'Latin America'."""
@@ -89,13 +89,13 @@ class TestUbicacionParaLima:
         assert c.confianza < 0.90
 
     def test_desconocida_no_bloquea(self):
-        assert corr.compatibles_para_lima("", "Europe")
-        assert corr.compatibles_para_lima(None, "Worldwide")
+        assert corr.compatibles_para_el_candidato("", "Europe")
+        assert corr.compatibles_para_el_candidato(None, "Worldwide")
 
     def test_misma_clase_es_compatible(self):
-        assert corr.compatibles_para_lima("EMEA", "Home based - EMEA")
-        assert corr.compatibles_para_lima("Anywhere", "Home based - Worldwide")
-        assert corr.compatibles_para_lima("North America, Latin America",
+        assert corr.compatibles_para_el_candidato("EMEA", "Home based - EMEA")
+        assert corr.compatibles_para_el_candidato("Anywhere", "Home based - Worldwide")
+        assert corr.compatibles_para_el_candidato("North America, Latin America",
                                           "Home Based - Americas")
 
     def test_un_par_de_baja_confianza_queda_igual(self):

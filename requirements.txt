@@ -59,6 +59,17 @@ notion-client==2.2.1
 gspread==6.1.2
 google-auth==2.52.0
 
+# ── Imports directos que antes llegaban solo como transitivos (2026-10-12) ───
+# El codigo los importa por su nombre; si el paquete que los arrastra los suelta, una
+# instalacion limpia se rompe sin aviso. Versiones = las instaladas y probadas (suite
+# completa 2263 passed). Quien los traia: lxml <- python-docx/camoufox,
+# google-api-python-client <- google-generativeai, google-auth-oauthlib <- gspread,
+# PyYAML <- langchain-core/camoufox.
+lxml==6.1.2                      # gmail_alertas.parsear_alerta (HTML de las alertas)
+google-api-python-client==2.200.0  # gmail_alertas.LectorGmail (Gmail API, solo lectura)
+google-auth-oauthlib==1.4.1      # tools/autorizar_gmail.py (OAuth de escritorio)
+PyYAML==6.0.3                    # run_scrape_now.py (user_profile.yaml)
+
 # ── HTTP Client ──────────────────────────────────────────────────────────────
 requests==2.33.0       # Discord webhook delivery — bumped from 2.32.3, fixes GHSA-9hjg + GHSA-gc5v (AUDIT #2)
 

@@ -69,8 +69,8 @@ class TestCableado:
 
     async def test_los_avisos_entran_al_registry_con_su_dominio_real(self, tmp_db, lector):
         lector([Mensaje("m1", "LinkedIn <jobalerts-noreply@linkedin.com>", _alerta_linkedin(
-            ("4011111111", "Senior Python Engineer", "Acme", "la ubicacion del candidato (Remote)"),
-            ("4022222222", "Chef de cocina", "Restaurante", "la ubicacion del candidato"),
+            ("4011111111", "Senior Python Engineer", "Acme", "Bogota, Colombia (Remote)"),
+            ("4022222222", "Chef de cocina", "Restaurante", "Bogota, Colombia"),
         ))])
         s = _scraper(tmp_db, "run-g1")
         await s._scrape_gmail_alertas()
@@ -78,13 +78,13 @@ class TestCableado:
         assert [j.url for j in s._all_jobs] == ["https://www.linkedin.com/jobs/view/4011111111"]
         job = s._all_jobs[0]
         assert (job.source_domain, job.company, job.location_raw) == \
-               ("linkedin.com", "Acme", "la ubicacion del candidato (Remote)")
+               ("linkedin.com", "Acme", "Bogota, Colombia (Remote)")
         assert tmp_db.is_seen(job.url, 0)[0]
 
     async def test_cada_proveedor_deja_su_traza(self, tmp_db, lector):
         lector([Mensaje("m1", "jobalerts-noreply@linkedin.com", _alerta_linkedin(
             ("4011111111", "Senior Python Engineer", "Acme", "Remote"),
-            ("4022222222", "Chef de cocina", "Restaurante", "la ciudad del candidato"),
+            ("4022222222", "Chef de cocina", "Restaurante", "Bogota"),
         ))])
         await _scraper(tmp_db, "run-g2")._scrape_gmail_alertas()
 
@@ -194,10 +194,10 @@ class TestRevision0710:
     def test_empresa_con_la_palabra_applicant_no_es_ruido(self, empresa):
         # MEDIUM: la regex suelta se comía la empresa y la ubicación subía a empresa.
         html = (f'<table><tr><td><a href="https://www.linkedin.com/jobs/view/4099999999">'
-                f'Staff Engineer</a></td></tr><tr><td><div>{empresa}</div><div>la ciudad del candidato</div>'
+                f'Staff Engineer</a></td></tr><tr><td><div>{empresa}</div><div>Bogota</div>'
                 f'</td></tr></table>')
         a = gmail_alertas.parsear_alerta("linkedin", html)[0]
-        assert (a.empresa, a.ubicacion) == (empresa, "la ciudad del candidato")
+        assert (a.empresa, a.ubicacion) == (empresa, "Bogota")
 
     @pytest.mark.parametrize("linea", ["34 applicants", "Over 200 applicants",
                                        "12 solicitudes", "Más de 100 postulantes"])

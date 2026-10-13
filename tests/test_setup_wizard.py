@@ -6,7 +6,7 @@ Lo que se fija:
 1. `needs_setup()` cuenta las SIETE keys de la cadena LLM. Contaba cuatro, y a quien
    tenía solo Mistral (primario de `parse`), Cerebras o SambaNova le pedía el wizard.
 2. Ninguna de las dos funciones recarga `config`. La recarga pisaba con el .env todo
-   valor ya cargado en el proceso, y el .env de el usuario define GEMA_DB_PATH: después de un
+   valor ya cargado en el proceso, y el .env del usuario define GEMA_DB_PATH: después de un
    GET /api/status, un `GemaDatabase()` nuevo apuntaba a la base real (hallazgo 03-10).
    El conftest lo tapaba en la suite; desde el 08-10 el parche no existe y estos tests
    son la garantía.

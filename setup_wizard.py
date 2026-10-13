@@ -12,7 +12,7 @@ funciones headless — arrastraba streamlit entero para arrancar.
 SIN `importlib.reload(config)` (2026-10-08). `needs_setup()` lo hacia en cada
 GET /api/status, y re-ejecutar config.py relee el .env con override=True: cualquier
 valor de `config` ya cargado en el proceso se pisaba con el del disco. En la suite eso
-deshacia los parches de los tests, y como el .env de el usuario define GEMA_DB_PATH, despues
+deshacia los parches de los tests, y como el .env del usuario define GEMA_DB_PATH, despues
 de un /api/status un `GemaDatabase()` nuevo apuntaba a la base REAL (hallazgo del
 03-10, neutralizado hasta hoy con un parche en conftest). Y la recarga ni siquiera daba
 lo que prometia: nlp_engine copia las keys al importarse (`_PROVIDERS`, el cliente de

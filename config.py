@@ -156,11 +156,11 @@ TASAS_MAX_DIAS: int = int(os.getenv("TASAS_MAX_DIAS", "90"))
 
 
 # ── , Fase 1: el pais desde donde trabaja el candidato ──────────
-# Decision D2: Himalayas filtra por pais EN LA FUENTE (`country=<PAIS_CANDIDATO>`). La pregunta
-# "¿se puede trabajar desde el pais del candidato?" la responde quien publica la lista de paises, no un
-# regex nuestro sobre esa lista. Medido el 2026-09-30: con `country=<PAIS_CANDIDATO>` la API
+# Decision D2: Himalayas filtra por pais EN LA FUENTE (`country=<pais>`). La pregunta
+# "¿se puede trabajar desde este pais?" la responde quien publica la lista de paises, no un
+# regex nuestro sobre esa lista. Medido el 2026-09-30: con `country=<pais>` la API
 # incluye los avisos sin restriccion (`locationRestrictions: []`) y los que nombran a
-# el pais del candidato entre sus paises. Va en ingles porque es el valor que la API acepta.
+# ese pais entre sus paises. Va en ingles porque es el valor que la API acepta.
 PAIS_CANDIDATO: str = os.getenv("PAIS_CANDIDATO", "")
 
 
@@ -282,8 +282,8 @@ DRIFT_SNAPSHOT_SUCCESS_SAMPLE: int = int(os.getenv("DRIFT_SNAPSHOT_SUCCESS_SAMPL
 # =============================================================================
 # Scheduler / cron (B4)
 # =============================================================================
-# Jobs are usually posted Sat–Mon → Tuesday is a good scrape day (el usuario).
-SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE", "UTC")   # la ciudad del candidato = UTC-5
+# Jobs are usually posted Sat–Mon → Tuesday is a good scrape day .
+SCHEDULER_TIMEZONE: str = os.getenv("SCHEDULER_TIMEZONE", "UTC")   # IANA, p.ej. "America/Bogota"
 SCHEDULER_CRON_DAYS: str = os.getenv("SCHEDULER_CRON_DAYS", "tue,fri,sat")  # day_of_week
 SCHEDULER_CRON_HOUR: int = int(os.getenv("SCHEDULER_CRON_HOUR", "9"))       # local hour
 # CV profile retention for unattended cron. Stores ONLY the ephemeral profile
@@ -293,7 +293,7 @@ CV_PROFILE_PATH: str = os.getenv("CV_PROFILE_PATH", "cv_profile.json")
 # --- Subida y parseo del CV (revision externa 2026-09-30, punto 12) -----------------------------
 # El CV sale a un proveedor LLM externo y entra por un endpoint sin autenticacion: cada
 # tope de abajo existe porque sin el, un archivo hostil (o un PDF patologico) cuesta CPU,
-# memoria o una llamada de pago, y quien paga es la maquina de el usuario.
+# memoria o una llamada de pago, y quien paga es la maquina del usuario.
 
 # Tope de bytes del upload. Un CV de texto pesa 50-500 KB; uno diseñado con foto, 1-2 MB.
 # 5 MiB cubre el segundo con holgura y deja fuera todo lo que ya no es un CV. Se aplica
@@ -430,7 +430,7 @@ ALLOWED_HOSTS: list[str] = parse_allowed_hosts(
 
 # ── Origins permitidos para metodos que mutan estado ─────────────────────────
 #
-# El Host no alcanza. Una pagina de `evil.example` abierta en el navegador de el usuario puede
+# El Host no alcanza. Una pagina de `evil.example` abierta en el navegador del usuario puede
 # mandar un `<form method=POST action="http://localhost:8000/api/reset">` y el navegador
 # lo envia con `Host: localhost:8000` —el Host es el del destino, que es legitimo—. No hay
 # preflight de CORS para un formulario simple, asi que CORS no lo frena: CORS decide si la
@@ -551,7 +551,7 @@ GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
 # Integration: alertas de LinkedIn e Indeed desde Gmail (, Fase 11)
 # =============================================================================
 # APAGADA por defecto. Es la unica integracion con credenciales del plan y la unica via
-# legitima a LinkedIn e Indeed: se lee el correo de el usuario con `gmail.readonly`, no se
+# legitima a LinkedIn e Indeed: se lee el correo del usuario con `gmail.readonly`, no se
 # scrapea ningun sitio. Prenderla exige (1) GEMA_GMAIL_ALERTAS=1 y (2) un token emitido
 # por `tools/autorizar_gmail.py`. El token vive en credentials/, que .gitignore y
 # .dockerignore excluyen por `credentials/*.json`.
@@ -564,7 +564,7 @@ GMAIL_CLIENT_SECRET_PATH: str = os.getenv(
 # (sabado -> martes). 4 deja un dia de margen; lo repetido lo frena `is_seen`.
 GMAIL_ALERTAS_DIAS: int = int(os.getenv("GMAIL_ALERTAS_DIAS", "4"))
 GMAIL_ALERTAS_MAX_MENSAJES: int = int(os.getenv("GMAIL_ALERTAS_MAX_MENSAJES", "60"))
-# Remitentes de las alertas. SIN VERIFICAR contra el buzon real de el usuario: son las
+# Remitentes de las alertas. SIN VERIFICAR contra el buzon real del usuario: son las
 # direcciones conocidas publicamente. Si una alerta llega desde otra, se agrega aca o en
 # el .env, separadas por coma.
 GMAIL_ALERTAS_REMITENTES: list[str] = [

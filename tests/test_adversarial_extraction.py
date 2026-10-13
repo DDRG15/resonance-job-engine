@@ -1,7 +1,7 @@
 """
 tests/test_adversarial_extraction.py — throw the craziest corrupt/ambiguous/
 broken/mis-written data at the Phase 27.5/29 surfaces and assert they DEGRADE
-GRACEFULLY (never raise, never emit garbage past the guards). el usuario's rule:
+GRACEFULLY (never raise, never emit garbage past the guards). the user's rule:
 integrations break on the ugly inputs, so hit them with the ugly inputs.
 """
 

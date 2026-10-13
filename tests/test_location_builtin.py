@@ -5,7 +5,7 @@ La corrida de calibración del 2026-09-17 trajo 108 avisos de builtin con 0% de
 ubicación: el board no tenía selector. Sin `location_raw` el matcher da PASS por
 ausencia de dato, así que un aviso solo para USA pasaba igual que uno abierto a el pais del candidato.
 
-Medido en vivo el 2026-09-28 sobre 50 cards: 15 muestran la sede ("la ciudad del candidato, PER") y
+Medido en vivo el 2026-09-28 sobre 50 cards: 15 muestran la sede ("Medellin, COL") y
 35 un conteo ("11 Locations") con la lista real en el atributo `data-bs-title`. Un
 selector de texto solo habría guardado el conteo en el 70% de los avisos — un dato
 que no nombra ningún país y que el matcher vuelve a leer como "sin señal".
@@ -58,7 +58,7 @@ LISTA_RESEND = (
 CONTEO = re.compile(r"\d+\s+Locations?", re.IGNORECASE)
 
 T_NETBOX = "Senior Site Reliability Engineer, NetBox Delivery"
-T_LIMA = "Senior Software Engineer (Python/Flask+React) - Remote, Latin America"
+T_LATAM = "Senior Software Engineer (Python/Flask+React) - Remote, Latin America"
 T_RESEND = "Software Engineer, Backend"
 
 
@@ -86,7 +86,7 @@ class TestUbicacionesDeTooltip:
         assert ubicaciones_de_tooltip(dup) == "Chile; Perú"
 
     def test_texto_sin_etiquetas_se_conserva(self):
-        assert ubicaciones_de_tooltip("la ciudad del candidato, PER") == "la ciudad del candidato, PER"
+        assert ubicaciones_de_tooltip("Medellin, COL") == "Medellin, COL"
 
 
 # =============================================================================
@@ -163,7 +163,7 @@ def extraidos(tmp_path, monkeypatch):
 
 class TestCaminoReal:
     def test_los_tres_cards_se_extraen(self, extraidos):
-        assert set(extraidos["con_flag"]) == {T_NETBOX, T_LIMA, T_RESEND}
+        assert set(extraidos["con_flag"]) == {T_NETBOX, T_LATAM, T_RESEND}
 
     def test_ubicacion_en_todos_y_ninguna_es_un_conteo(self, extraidos):
         for titulo, job in extraidos["con_flag"].items():
@@ -175,7 +175,7 @@ class TestCaminoReal:
         assert extraidos["con_flag"][T_RESEND].location_raw == LISTA_RESEND
 
     def test_una_sede_conserva_el_texto_visible(self, extraidos):
-        assert extraidos["con_flag"][T_LIMA].location_raw == "la ciudad del candidato, PER"
+        assert extraidos["con_flag"][T_LATAM].location_raw == "Medellin, COL"
 
     def test_sin_el_flag_el_selector_solo_ve_el_conteo(self, extraidos):
         # Por qué existe el flag: el selector apunta al elemento correcto, pero
@@ -183,13 +183,13 @@ class TestCaminoReal:
         sin = extraidos["sin_flag"]
         assert sin[T_NETBOX].location_raw == "12 Locations"
         assert sin[T_RESEND].location_raw == "14 Locations"
-        assert sin[T_LIMA].location_raw == "la ciudad del candidato, PER"
+        assert sin[T_LATAM].location_raw == "Medellin, COL"
 
     def test_titulo_y_url_no_cambian(self, extraidos):
         urls = {t: j.url for t, j in extraidos["con_flag"].items()}
         assert urls == {
             T_NETBOX: "https://builtin.com/job/senior-site-reliability-engineer-netbox-delivery/11407311",
-            T_LIMA: "https://builtin.com/job/senior-software-engineer-flask-react-remote-latin-america/10569999",
+            T_LATAM: "https://builtin.com/job/senior-software-engineer-flask-react-remote-latin-america/10569999",
             T_RESEND: "https://builtin.com/job/software-engineer-backend/11256944",
         }
         for j in extraidos["con_flag"].values():
@@ -202,7 +202,7 @@ class TestCaminoReal:
         empresas = {t: j.company for t, j in extraidos["con_flag"].items()}
         assert empresas == {
             T_NETBOX: "NetBox Labs",
-            T_LIMA: "Bluelight Consulting",
+            T_LATAM: "Bluelight Consulting",
             T_RESEND: "Resend",
         }
 
@@ -237,7 +237,7 @@ CARDS_REALES = r"""<!-- https://builtin.com/jobs/remote?search=python · card 0 
         <div class="col-12 col-lg-5 bounded-attribute-section d-flex align-items-start align-items-lg-center fs-md flex-column flex-lg-row"><div class="d-flex flex-grow-1 gap-lg"><div class="d-flex flex-column gap-0 fill-even"><div class="d-flex align-items-start gap-sm position-relative"><span x-show="!showSavedTag" class="fs-xs fw-bold bg-gray-01 font-Montserrat text-gray-03 rounded-1 py-xs px-sm"><i class="fa-regular fa-clock fs-xs text-gray-03 d-inline-block me-sm d-lg-none d-xl-inline-block" aria-hidden="true"></i>Reposted 2 Days Ago</span><span x-show="showSavedTag === true" class="fs-xs fw-bold font-Montserrat rounded-1 py-xs px-sm text-soft-pink-02 bg-soft-pink-01" style="display: none;"><i class="fa-solid fa-heart fs-xs d-inline-block me-sm text-soft-pink-02" aria-hidden="true"></i>Saved
                             </span></div><div class="d-flex gap-md"><div class="d-flex align-items-start gap-sm"><div class="d-flex justify-content-center align-items-center h-lg min-w-md"><i class="fa-regular fa-house-building fs-xs text-pretty-blue" aria-hidden="true"></i></div>
                                 <span class="font-barlow text-gray-04">In-Office or Remote</span></div></div><div class="d-flex align-items-start gap-sm"><div class="d-flex justify-content-center align-items-center h-lg min-w-md"><i class="fa-regular fa-location-dot fs-xs text-pretty-blue" aria-hidden="true"></i></div>
-                            <div><span class="font-barlow text-gray-04">la ciudad del candidato, PER</span></div></div></div><div class="d-none d-xl-block fill-even"><div class="d-flex align-items-start gap-sm"><div class="d-flex justify-content-center align-items-center h-lg min-w-md"><i class="fa-regular fa-trophy fs-xs text-pretty-blue" aria-hidden="true"></i></div>
+                            <div><span class="font-barlow text-gray-04">Medellin, COL</span></div></div></div><div class="d-none d-xl-block fill-even"><div class="d-flex align-items-start gap-sm"><div class="d-flex justify-content-center align-items-center h-lg min-w-md"><i class="fa-regular fa-trophy fs-xs text-pretty-blue" aria-hidden="true"></i></div>
                                 <span class="font-barlow text-gray-04">Senior level</span></div></div></div></div>
         <div class="position-relative"><div class="position-absolute z-1 double-arrow-container"><button type="button" id="job-dropdown-button" data-id="job-dropdown-button" aria-label="Collapse Button" data-bs-toggle="collapse" data-bs-target="#drop-data-10569999" class="btn btn-link text-decoration-none d-flex justify-content-end h-2xl w-2xl align-items-center justify-content-center mt-xs collapsed fs-xl"><i data-id="job-dropdown-button" class="fa-solid fa-angles-down text-midnight d-none" aria-hidden="true"></i>
                     <i data-id="job-dropdown-button" class="fa-solid fa-angles-up text-pretty-blue d-block" aria-hidden="true"></i></button></div></div></div>

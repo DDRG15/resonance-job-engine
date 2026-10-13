@@ -282,7 +282,7 @@ def _por_titulo_empresa_entre_fuentes(filas: list[dict]) -> list[Candidato]:
     Confianza 0,92: la fecha de scrapeo no discrimina entre fuentes —es cuando GEMA vio
     el aviso en cada una, no cuando se publico—. Lo que si puede separar dos avisos
     distintos con el mismo titulo, la region, lo controla `correr()` para todos los
-    correlators: dos ubicaciones incompatibles para la ciudad del candidato nunca se funden solas.
+    correlators: dos ubicaciones incompatibles para el candidato nunca se funden solas.
     """
     ats = _dominios_ats()
     grupos: dict[tuple, list[dict]] = {}
@@ -308,7 +308,7 @@ def _por_titulo_empresa_entre_fuentes(filas: list[dict]) -> list[Candidato]:
     return salida
 
 
-# ── Compatibilidad de ubicacion para la ciudad del candidato ────────────────────────────────────
+# ── Compatibilidad de ubicacion para el candidato ────────────────────────────────────
 
 def _clase_ubicacion(loc: Optional[str]) -> str:
     """
@@ -333,9 +333,9 @@ def _clase_ubicacion(loc: Optional[str]) -> str:
     return "desconocida"
 
 
-def compatibles_para_lima(loc_a: Optional[str], loc_b: Optional[str]) -> bool:
+def compatibles_para_el_candidato(loc_a: Optional[str], loc_b: Optional[str]) -> bool:
     """
-    Dos avisos se pueden fundir solos si, para alguien en la ciudad del candidato, son indistinguibles.
+    Dos avisos se pueden fundir solos si, para el candidato, son indistinguibles.
 
     Medido el 2026-09-30 sobre la base real: **5 pares auto-aceptados por
     `titulo_empresa_dia` fundian una ubicacion abierta con una restringida**. El peor:
@@ -358,12 +358,12 @@ CONFIANZA_UBICACION_INCOMPATIBLE = 0.70
 def _limitar_por_ubicacion(cand: Candidato, por_url: dict[str, dict]) -> Candidato:
     a, b = por_url.get(cand.canonico_url, {}), por_url.get(cand.duplicado_url, {})
     loc_a, loc_b = a.get("location_raw"), b.get("location_raw")
-    if compatibles_para_lima(loc_a, loc_b) or cand.confianza <= CONFIANZA_UBICACION_INCOMPATIBLE:
+    if compatibles_para_el_candidato(loc_a, loc_b) or cand.confianza <= CONFIANZA_UBICACION_INCOMPATIBLE:
         return cand
     return Candidato(
         cand.canonico_url, cand.duplicado_url, cand.correlator,
         CONFIANZA_UBICACION_INCOMPATIBLE,
-        f"{cand.motivo} — ubicaciones distintas para la ciudad del candidato ({loc_a!r} vs {loc_b!r}): "
+        f"{cand.motivo} — ubicaciones distintas para el candidato ({loc_a!r} vs {loc_b!r}): "
         f"no se funde solo")
 
 
@@ -408,7 +408,7 @@ def correr(filas: Iterable[dict]) -> list[Candidato]:
     ese desempate, cuál queda registrado dependería del orden de iteración.
 
     Todo candidato pasa por `_limitar_por_ubicacion`: ningún correlator, viejo o
-    nuevo, funde solo dos avisos que para la ciudad del candidato no son indistinguibles.
+    nuevo, funde solo dos avisos que para el candidato no son indistinguibles.
     """
     filas = [f for f in filas if f.get("url")]
     por_url = {f["url"]: f for f in filas}

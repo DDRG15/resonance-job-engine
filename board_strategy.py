@@ -143,13 +143,13 @@ class BoardStrategy(BaseModel):
     solo_si_campo: str = ""
     """Path de un campo booleano: solo entran las filas donde es verdadero. Arbeitnow
     trae `remote`: 19 de 326 avisos (medido 2026-09-30). Lo presencial en Berlin no es
-    un aviso para la ciudad del candidato, es ruido. Filtro con nombre, no una regla en el `field_map`."""
+    un aviso para otro país, es ruido. Filtro con nombre, no una regla en el `field_map`."""
 
     region_del_board: str = ""
     """Region a la que pertenecen TODOS los avisos del board, que el campo de ubicacion
     no dice. Arbeitnow es europeo (.com/.co.uk/.fr/.ch) y publica "Remote" a secas en
     10 de 19 remotos: remoto dentro de Europa. Sin este contexto el matcher leia
-    "Remote" como neutral y lo daba por accesible desde la ciudad del candidato. Se agrega al final de la
+    "Remote" como neutral y lo daba por accesible desde el país del candidato. Se agrega al final de la
     ubicacion ("Remote; Europe"), asi que una ubicacion abierta explicita
     ("Worldwide") sigue ganando."""
 

@@ -36,7 +36,7 @@ class NotionClient:
 
     # Estado del TOKEN, distinto de "hay una key en el .env". Hasta el 2026-09-30
     # `/api/status` mostraba Notion activo con solo que la key existiera: el token de
-    # el usuario estaba vencido y la tarjeta decía que todo andaba. Cuatro estados, y
+    # del usuario estaba vencido y la tarjeta decía que todo andaba. Cuatro estados, y
     # "no verificado" NO es "inválido": sin red o con timeout no se sabe, y declarar
     # roto algo que quizá anda es el mismo error en el sentido opuesto.
     ESTADO_APAGADO = "apagado"              # sin key: la integración no está configurada

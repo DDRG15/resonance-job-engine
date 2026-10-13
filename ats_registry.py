@@ -323,7 +323,7 @@ FUENTES: list[FuenteATS] = [
     FuenteATS("recruitee", "bunq",      "bunq",      False, "D1 pendiente; 17 avisos, Amsterdam hibrido"),
     FuenteATS("recruitee", "channable", "Channable", False, "D1 pendiente; 9 avisos, 5 con salario"),
     FuenteATS("recruitee", "hostaway",  "Hostaway",  False, "D1 pendiente; 9 avisos, 9 remotos"),
-    FuenteATS("workable",  "azumo",     "Azumo",     False, "D1 pendiente; 57 avisos remotos LATAM, 5 en el pais del candidato"),
+    FuenteATS("workable",  "azumo",     "Azumo",     False, "D1 pendiente; 57 avisos remotos LATAM"),
     FuenteATS("workable",  "huggingface", "Hugging Face", False, "D1 pendiente; 8 avisos"),
     FuenteATS("bamboohr",  "gorillalogic", "Gorilla Logic", False,
               "D1 pendiente; 20 avisos, Remote: Colombia - Costa Rica"),

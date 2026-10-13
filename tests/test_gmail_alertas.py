@@ -62,7 +62,7 @@ class TestIdDeEnlace:
             == "9f8e7d6c5b4a3921"
 
     @pytest.mark.parametrize("href", [
-        "https://co.indeed.com/jobs?q=backend&l=la ciudad del candidato",     # busqueda: sin jk
+        "https://co.indeed.com/jobs?q=backend&l=Bogota",     # busqueda: sin jk
         "https://co.indeed.com/rc/clk?jk=nohex",           # jk que no es hex
         "https://co.indeed.com/rc/clk?jk=abc",             # jk demasiado corto
         "https://example.com/rc/clk?jk=1a2b3c4d5e6f7a8b",  # otro host
@@ -165,16 +165,16 @@ class TestParsearLinkedinUno:
 
     def test_empresa_y_ubicacion_en_lineas_separadas_sin_ruido(self):
         a = parsear_alerta(LINKEDIN, _html("linkedin_alerta_uno.html"))[0]
-        assert a.ubicacion == "la ubicacion del candidato�"
+        assert a.ubicacion == "Bogota, Colombia"
         for ruido in ("Contratando activamente", "Solicitud sencilla", "Ver empleo"):
             assert ruido not in (a.titulo, a.empresa, a.ubicacion)
 
     def test_correo_corto_de_un_aviso_no_toma_el_encabezado_como_empresa(self):
         html = ('<html><body><h2>Tu alerta</h2><table><tr><td>'
                 '<a href="https://www.linkedin.com/comm/jobs/view/3987654321/">Dev Backend</a>'
-                '<div>Acme</div><div>la ciudad del candidato</div></td></tr></table></body></html>')
+                '<div>Acme</div><div>Bogota</div></td></tr></table></body></html>')
         a = parsear_alerta(LINKEDIN, html)[0]
-        assert (a.empresa, a.ubicacion) == ("Acme", "la ciudad del candidato")
+        assert (a.empresa, a.ubicacion) == ("Acme", "Bogota")
 
 
 class TestParsearIndeed:
@@ -188,7 +188,7 @@ class TestParsearIndeed:
         assert ids == ["1a2b3c4d5e6f7a8b", "9f8e7d6c5b4a3921", "0a1b2c3d4e5f6071"]
         assert len(set(ids)) == len(ids)
 
-    def test_url_conserva_pe_indeed_y_no_el_rastreo(self, avisos):
+    def test_url_conserva_co_indeed_y_no_el_rastreo(self, avisos):
         assert avisos[0].url == "https://co.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b"
         assert all(a.url.startswith("https://co.indeed.com/viewjob?jk=") for a in avisos)
         assert all("qd=" not in a.url and "from=" not in a.url for a in avisos)
@@ -197,12 +197,12 @@ class TestParsearIndeed:
         assert [(a.titulo, a.empresa) for a in avisos] == [
             ("Desarrollador Backend Python", "Banco Andino"),
             ("Ingeniero de Software Senior", "Telecom Pacifico"),
-            ("Analista QA Automatizacion", "Retail Andes Holding"),
+            ("Analista QA Automatizacion", "Retail Colombia Holding"),
         ]
 
     def test_el_rating_no_es_ubicacion_ni_empresa(self, avisos):
         for a in avisos:
-            assert a.ubicacion == "la ciudad del candidato, la ciudad del candidato"
+            assert a.ubicacion == "Bogota, Bogota"
             assert a.empresa not in ("4.1", "3.8", "4.4")
 
     def test_salario_en_soles(self, avisos):
@@ -256,7 +256,7 @@ class TestAJobResult:
         assert j.title == "Desarrollador Backend Python"
         assert j.company == "Banco Andino"
         assert j.url == "https://co.indeed.com/viewjob?jk=1a2b3c4d5e6f7a8b"
-        assert j.location_raw == "la ciudad del candidato, la ciudad del candidato"
+        assert j.location_raw == "Bogota, Bogota"
         assert j.salary_raw == "$ 8.000.000 - $ 10.000.000 al mes"
         assert j.source_domain == "indeed.com"
 
@@ -323,7 +323,7 @@ def _b64url_sin_padding(texto: str) -> str:
 
 
 class TestHtmlDePayload:
-    HTML = "<p>Ingeniero Backend ñandú → ¿la ciudad del candidato? >>> ???</p>"
+    HTML = "<p>Ingeniero Backend ñandú → ¿Cali? >>> ???</p>"
 
     def test_multipart_anidado_base64url_sin_padding(self):
         codificado = _b64url_sin_padding(self.HTML)
@@ -513,7 +513,7 @@ class TestFlagApagadoPorDefecto:
     Cada caso importa `config` en un SUBPROCESO, con `dotenv.load_dotenv` anulado.
 
     Dentro del proceso de la suite no se puede: `importlib.reload(config)` deshace los
-    parches de los demas tests, y `GEMA_DB_PATH` del `.env` de el usuario apunta a la base real
+    parches de los demas tests, y `GEMA_DB_PATH` del `.env` del usuario apunta a la base real
     (hallazgo del 03-10). Y sin anular `load_dotenv`, el `.env` (override=True) decidiria
     el valor en vez de la variable de entorno del caso.
     """

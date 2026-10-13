@@ -12,7 +12,7 @@ export default function Header({ status }: { status: Status | null }) {
     <div className="topbar">
       <div className="greet">
         <h2>
-          {greeting()}, <em>el usuario</em>
+          {greeting()}
         </h2>
         <p>
           Motor determinístico a 0 tokens: APIs públicas, ATS (Greenhouse, Lever,

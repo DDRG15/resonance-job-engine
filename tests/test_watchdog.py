@@ -1,5 +1,5 @@
 """
-tests/test_watchdog.py — monitor del live test (el usuario, 07-18).
+tests/test_watchdog.py — monitor del live test (07-18).
 
 Foco: el principio de NO PÉRDIDA. Toda línea se cuenta y reconcilia; lo que no
 matchea patrón conocido NO se descarta (cae a unclassified con heurística de

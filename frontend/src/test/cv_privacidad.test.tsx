@@ -13,7 +13,7 @@ import { ToastProvider } from '../toast'
 import type { SchedulerState } from '../types'
 import { CV_CONSENT_VERSION } from '../consent'
 
-const PERFIL = { role: 'Backend Engineer', core_skills: ['python'], location: 'LATAM (UTC-5)' }
+const PERFIL = { role: 'Backend Engineer', core_skills: ['python'], location: 'LATAM' }
 
 function montar(opts: { profile?: typeof PERFIL | null; retained?: boolean } = {}) {
   return render(

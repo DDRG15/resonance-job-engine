@@ -8,7 +8,7 @@ interface Props {
   onParsed: (result: ParseResponse) => void
 }
 
-// F10 (idea de el usuario, live test 07-10): generar el prompt desde el perfil del
+// F10 (live test 07-10): generar el prompt desde el perfil del
 // CV — un clic, y el humano lo revisa/edita antes de parsear. Human-in-the-
 // loop intacto: el botón solo PRE-LLENA el textarea, jamás dispara la
 // búsqueda solo.

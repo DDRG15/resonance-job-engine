@@ -49,7 +49,7 @@ class TestTextoConLineas:
 
 class TestDescripcionDeLaFuente:
     @pytest.mark.parametrize("archivo,dominio,clave", [
-        ("himalayas_search_peru.json", "himalayas.app", "jobs"),
+        ("himalayas_search_pais.json", "himalayas.app", "jobs"),
         ("remotive.json", "remotive.com", "jobs"),
         ("jobicy.json", "jobicy.com", "jobs"),
         ("arbeitnow.json", "arbeitnow.com", "data"),

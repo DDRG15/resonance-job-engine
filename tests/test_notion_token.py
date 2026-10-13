@@ -1,7 +1,7 @@
 """
 tests/test_notion_token.py — el indicador de Notion dice la verdad (Fase 4, ).
 
-Escenario: el token de Notion de el usuario estaba vencido y `/api/status` mostraba la
+Escenario: el token de Notion del usuario estaba vencido y `/api/status` mostraba la
 integración activa porque la key existía en el .env. El primer síntoma real era un 401 en
 medio de una corrida. Estos tests fijan que el token se valida UNA vez al arrancar, con
 una sola consulta, y que cada resultado se reporta como lo que es:

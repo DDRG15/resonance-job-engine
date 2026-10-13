@@ -114,7 +114,7 @@ class TestRemotive:
         f = next(f for f in self.FILAS if f.get("salary"))
         assert es.a_job_result(f, fm, "remotive.com").salary_raw == f["salary"]
 
-    def test_lista_con_peru_pasa_para_lima(self):
+    def test_lista_con_peru_pasa_para_el_candidato(self):
         assert _veredicto("USA, Canada, Argentina, Mexico, Peru") == "PASS"
 
 
@@ -196,7 +196,7 @@ class TestArbeitnow:
         assert "Remote; Europe" in ubic
         assert all("Europe" in u for u in ubic)
 
-    def test_remote_europeo_no_pasa_para_lima(self):
+    def test_remote_europeo_no_pasa_para_el_candidato(self):
         """El falso positivo que la region corrige: el matcher lee "Remote" a secas
         como neutral, y neutral es PASS. Con la region del board, es FLAG."""
         assert _veredicto("Remote; Europe") == "FLAG"

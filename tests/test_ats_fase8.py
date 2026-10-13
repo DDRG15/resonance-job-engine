@@ -230,7 +230,7 @@ class TestWorkable:
 
     def test_un_aviso_repetido_por_pais_es_un_aviso_con_todos_sus_paises(self, servir):
         """El widget repite el aviso una vez por ubicacion: 13 filas, 3 avisos. Antes de
-        fusionar, el aviso abierto en el pais del candidato quedaba como "Argentina"."""
+        fusionar, un aviso abierto en varios paises quedaba solo como "Argentina"."""
         r, _ = self._traer(servir)
         assert (r.items_crudos, len(r.jobs)) == (13, 3)
         por_codigo = {j.url.rsplit("/", 1)[-1]: j for j in r.jobs}

@@ -115,7 +115,7 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
  *     ancho fijo que casi nunca tiene contenido es ruido: el salario pasa al
  *     detalle, donde aparece solo si existe.
  *  2. La ubicación no se mostraba en ninguna parte, y con 15 de 17 boards sin
- *     selector de ubicación es el campo que decide si un Tier 1 sirve desde la ciudad del candidato.
+ *     selector de ubicación es el campo que decide si un Tier 1 sirve desde el país del candidato.
  *  3. Las cards apilaban las cuatro secciones de tier en vertical, así que ver el
  *     puesto 40 exigía scrollear cuatro encabezados. La tabla virtualizada muestra
  *     ~25 de una y ordena por cualquier columna.

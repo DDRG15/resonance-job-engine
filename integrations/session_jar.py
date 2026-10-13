@@ -1,5 +1,5 @@
 """
-session_jar.py — Cookie Jar auto-persistente (idea de el usuario, 2026-07-18).
+session_jar.py — Cookie Jar auto-persistente (2026-07-18).
 
 Distinto del CookieVault (cookies de login manuales, exportadas de Chrome). El
 SessionJar es AUTOMÁTICO: captura las cookies del navegador DESPUÉS de un scrape

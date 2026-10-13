@@ -1187,7 +1187,7 @@ class GemaScraper:
             await self._scrape_ats_sources()
 
         # ── , Fase 11: alertas de LinkedIn e Indeed desde Gmail ──
-        # No entra por target_domains: no es un sitio que se lea, es el buzon de el usuario.
+        # No entra por target_domains: no es un sitio que se lea, es el buzon del usuario.
         # Apagada por flag; con el flag prendido y sin token, la corrida sigue y el error
         # queda en el resumen.
         if config.GMAIL_ALERTAS_HABILITADO:
@@ -1275,7 +1275,7 @@ class GemaScraper:
             for pattern in _BLOCKED:
                 await context.route(pattern, lambda r, _p=pattern: r.abort())
 
-            # Cookie jar auto-persistente (idea de el usuario 07-18): reusar el
+            # Cookie jar auto-persistente (07-18): reusar el
             # clearance anti-bot (cf_clearance…) capturado en corridas previas —
             # SIN credenciales. Se inyecta ANTES del vault manual para que el
             # vault (login autoritativo) gane si hay colisión. Al final del run
@@ -2392,7 +2392,7 @@ class GemaScraper:
             if location and sel.ubicacion_en_tooltip:
                 # builtin: el texto visible puede ser un conteo ("11 Locations")
                 # y la lista está en data-bs-title del mismo span. Un card de
-                # una sola sede no tiene tooltip y conserva su texto ("la ciudad del candidato, PER").
+                # una sola sede no tiene tooltip y conserva su texto ("Medellin, COL").
                 lista = ubicaciones_de_tooltip(
                     await _try_chain_attr(card, sel.location, attr="data-bs-title")
                 )

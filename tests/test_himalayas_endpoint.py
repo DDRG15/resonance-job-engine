@@ -2,9 +2,9 @@
 tests/test_himalayas_endpoint.py — Himalayas por API (, Fase 1).
 
 Cero red. El cuerpo es una respuesta REAL de `/jobs/api/search` capturada el 2026-09-30
-(`tests/fixtures/fuentes/himalayas_search_peru.json`), con las descripciones recortadas
-a 600 caracteres. Tres avisos de `q=python developer&country=<PAIS_CANDIDATO>` y tres de
-`country=<PAIS_CANDIDATO>` elegidos por lo que ejercitan: una lista de 73 paises con el pais del candidato, una lista
+(`tests/fixtures/fuentes/himalayas_search_pais.json`), con las descripciones recortadas
+a 600 caracteres. Tres avisos de `q=python developer&country=<pais>` y tres de
+`country=<pais>` elegidos por lo que ejercitan: una lista de 73 paises con el pais del candidato, una lista
 vacia, un salario anual en USD, uno mensual, uno por hora y uno anual en EUR.
 """
 
@@ -18,7 +18,7 @@ import endpoint_scraper as es
 from database import GemaDatabase
 from models import SearchConfig, salario_anual_usd
 
-FIXTURE = Path(__file__).parent / "fixtures" / "fuentes" / "himalayas_search_peru.json"
+FIXTURE = Path(__file__).parent / "fixtures" / "fuentes" / "himalayas_search_pais.json"
 CRUDO = FIXTURE.read_bytes()
 FILAS = json.loads(CRUDO)["jobs"]
 CFG = endpoint_registry.ENDPOINTS["himalayas.app"]
@@ -179,10 +179,10 @@ class TestConsulta:
 
     def test_pais_desde_config(self, monkeypatch):
         import config
-        monkeypatch.setattr(config, "PAIS_CANDIDATO", "")
+        monkeypatch.setattr(config, "PAIS_CANDIDATO", "Colombia")
         ses, res = self._correr()
         assert ses.pedidos == [
-            "https://himalayas.app/jobs/api/search?q=python%20developer&country=<PAIS_CANDIDATO>"]
+            "https://himalayas.app/jobs/api/search?q=python%20developer&country=Colombia"]
         assert len(res.jobs) == len(FILAS)
 
     def test_pais_explicito_gana(self):
@@ -199,8 +199,8 @@ class TestConsulta:
         assert any("no se consulta" in l for l in lineas)
 
     def test_pais_que_el_matcher_no_da_por_accesible_falla_cerrado(self):
-        """El matcher puntua ubicacion para la ciudad del candidato. Filtrar la fuente por Alemania y
-        puntuar para la ciudad del candidato seria responder dos preguntas distintas."""
+        """El matcher puntua ubicacion para el candidato. Filtrar la fuente por Alemania y
+        puntuar para el candidato seria responder dos preguntas distintas."""
         ses, res = self._correr(pais="Germany")
         assert ses.pedidos == []
         assert "Germany" in res.error
@@ -219,7 +219,7 @@ class TestConsulta:
 
 
 class TestTTLPorConsulta:
-    URL = "https://himalayas.app/jobs/api/search?q=python%20developer&country=<PAIS_CANDIDATO>"
+    URL = "https://himalayas.app/jobs/api/search?q=python%20developer&country=Colombia"
 
     def _correr(self, consultas_ts):
         import time
@@ -294,7 +294,7 @@ class TestFormaDocumentada:
         assert GemaDatabase._a_fecha(_job(self.FILA).deadline) == "2026-10-22"
 
     def test_misma_conclusion_que_con_strings(self):
-        """Strings u objetos: el mismo veredicto para la ciudad del candidato."""
+        """Strings u objetos: el mismo veredicto para el candidato."""
         from matcher import score_job
         con_objetos = _job(self.FILA)
         con_strings = _job(dict(self.FILA, locationRestrictions=["Peru", "Mexico"]))
@@ -319,10 +319,10 @@ class TestUrlDelAviso:
 # Lo que el matcher hace con eso
 # ─────────────────────────────────────────────────────────────────────────────
 
-class TestUbicacionParaLima:
+class TestUbicacionParaElCandidato:
     """El objetivo de la fase es Tier 1 con ubicacion que pasa: la lista de 73
     paises nombra a Estados Unidos y a media Europa, y tiene que pasar igual porque
-    tambien nombra a el pais del candidato."""
+    tambien nombra al pais del candidato."""
 
     @pytest.mark.parametrize("pred", [
         lambda f: len(f["locationRestrictions"]) > 10,

@@ -203,7 +203,7 @@ async def lifespan(app: FastAPI):
             "[RECONCILE] fallo la reconciliacion de runs huerfanos: %s", exc)
     # Fase 4 (2026-09-30): el token de Notion se valida UNA vez al arrancar y el
     # resultado se cachea en el cliente. `/api/status` decía "Notion activo" con solo
-    # que la key existiera, y el token de el usuario estaba vencido: la tarjeta mentía y el
+    # que la key existiera, y el token del usuario estaba vencido: la tarjeta mentía y el
     # primer síntoma real era un 401 en medio de una corrida. Va a un hilo para no
     # bloquear el event loop; el arranque espera, como máximo, NOTION_VERIFY_TIMEOUT_MS.
     # Un fallo de la verificación nunca tumba el arranque: queda "no verificado".
@@ -1111,7 +1111,7 @@ def update_scheduler(body: SchedulerUpdate):
 @app.get("/api/status")
 def status():
     # FIX 5 live-test 07-18: la tarjeta decía "17 boards · 15 stale" contando
-    # los REGISTRADOS — engañoso (queja de el usuario). Se scrapean solo los activos;
+    # los REGISTRADOS — engañoso (queja del usuario). Se scrapean solo los activos;
     # el stale se calcula SOLO sobre ellos (un retirado stale no alarma a nadie).
     active = set(selectors_registry.active_domains())
     stale = [

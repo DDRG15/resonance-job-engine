@@ -30,10 +30,10 @@ TITULOS = {
 }
 
 # (location_raw, veredicto). Los formatos son los reales de los boards: builtin publica
-# "la ciudad del candidato, PER" y listas con paises con tilde; jobspresso "United States, Canada".
+# "Medellin, COL" y listas con paises con tilde; jobspresso "United States, Canada".
 UBICACIONES = [
     ("Perú; Canada", "PASS"),
-    ("la ciudad del candidato, PER; Remote, OR, USA", "PASS"),
+    ("Medellin, COL; Remote, OR, USA", "PASS"),
     ("Greece; Norway; Perú; Spain; Cyprus", "PASS"),
     ("Mexico City, Ciudad De México, MEX", "PASS"),
     ("Bogotá, Distrito Capital, COL; United States", "PASS"),

@@ -260,7 +260,7 @@ export interface Application {
   // YYYY-MM-DD). La pareja se edita junta pero cada mitad se puede dejar vacía.
   follow_up_at: string | null
   next_action: string | null
-  // La calcula el BACKEND (fecha anterior a hoy en la ciudad del candidato y postulación abierta). El
+  // La calcula el BACKEND (fecha anterior a hoy en la zona horaria del usuario y postulación abierta). El
   // front no la recalcula: si el badge, la fila y el reporte de Discord usaran tres
   // relojes, mostrarían tres números distintos para la misma pregunta.
   vencida?: boolean

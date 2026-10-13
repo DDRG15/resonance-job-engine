@@ -1,5 +1,5 @@
 """
-aprendizaje.py — lo que las postulaciones de el usuario le enseñan al ranking.
+aprendizaje.py — lo que las postulaciones del usuario le enseñan al ranking.
 
 , Fase 10. Diseño de Bert, reimplementado. Construido e INACTIVO: hasta
 que haya `config.LEARN_MIN_RESULTADOS` postulaciones con resultado no mueve ningún
@@ -69,7 +69,7 @@ def resultado_de(estados: Iterable[str]) -> Optional[str]:
 
     Cada postulación aporta UN resultado, el más lejano: una oferta no suma además como
     entrevista. `sin_respuesta` y `retirado` sin haber pasado de `postulado` no son
-    resultado: no dicen nada del aviso, solo del volumen de candidatos o de el usuario.
+    resultado: no dicen nada del aviso, solo del volumen de candidatos o del usuario.
     """
     alcanzados = set(estados)
     if alcanzados & _ESTADOS_OFERTA:

@@ -1,5 +1,5 @@
 """
-tests/test_session_jar.py — cookie jar auto-persistente (el usuario, 2026-07-18).
+tests/test_session_jar.py — cookie jar auto-persistente (2026-07-18).
 
 Verifica la lógica que NO necesita browser vivo: persistencia por dominio,
 agrupado correcto de cookies, round-trip capture→inject, fail-safe. La

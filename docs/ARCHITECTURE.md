@@ -288,7 +288,7 @@ Cada postulación lleva una **próxima acción** (`next_action` + `follow_up_at`
 "vencida" vive en un solo lugar, `database.esta_vencida`: fecha anterior a hoy y
 postulación no cerrada. La lista, el badge del sidebar y el reporte de Discord la llaman a
 la misma función. Escenario: con tres criterios, el badge dice 3, la pantalla muestra 2 y
-Discord lista 4. "Hoy" se calcula en `SCHEDULER_TIMEZONE` (la ciudad del candidato), no en UTC, porque en UTC
+Discord lista 4. "Hoy" se calcula en `SCHEDULER_TIMEZONE` (configurada), no en UTC, porque en UTC
 la alarma se adelanta cinco horas.
 
 ---

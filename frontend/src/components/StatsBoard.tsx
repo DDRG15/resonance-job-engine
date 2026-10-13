@@ -22,7 +22,7 @@ const TIER_INK: Record<string, string> = {
   'Tier 3': 'var(--t3-ink)', 'Tier 4': 'var(--t4-ink)',
 }
 
-// F19 (pedido de el usuario, 07-10): board visual de estadísticas alimentado por
+// F19 (07-10): board visual de estadísticas alimentado por
 // la DB (endpoint /api/registry/dashboard, 0 tokens). Charts SVG inline con la
 // paleta de tiers validada CVD — sin librería de charts (Recharts queda para
 // una versión futura si crece; hoy 3 gráficos simples no la justifican).

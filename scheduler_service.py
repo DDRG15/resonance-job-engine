@@ -41,7 +41,7 @@ _JOB_ID = "gema_auto_scrape"
 
 class SchedulerService:
     def __init__(self) -> None:
-        # Timezone matters for cron ("run Tuesday" in which zone). Default la ciudad del candidato.
+        # Timezone matters for cron ("run Tuesday" in which zone). Default UTC (configurable via SCHEDULER_TIMEZONE).
         try:
             self._scheduler = BackgroundScheduler(
                 job_defaults={"misfire_grace_time": 300},  # tolerate 5-min late fires

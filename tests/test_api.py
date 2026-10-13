@@ -436,7 +436,7 @@ class TestCV:
         )
         r = client.post(
             "/api/cv",
-            files={"file": ("cv.txt", b"el usuario - Python Backend Developer", "text/plain")},
+            files={"file": ("cv.txt", b"Carlos - Python Backend Developer", "text/plain")},
             data=_CONSENT,
         )
         assert r.status_code == 200
@@ -459,7 +459,7 @@ class TestCV:
             raise RuntimeError("toda la cadena LLM falló")
         monkeypatch.setattr(api_module, "generate_ephemeral_profile", _all_dead)
         r = client.post(
-            "/api/cv", files={"file": ("cv.txt", b"el usuario - Python Dev", "text/plain")},
+            "/api/cv", files={"file": ("cv.txt", b"Carlos - Python Dev", "text/plain")},
             data=_CONSENT,
         )
         assert r.status_code == 503

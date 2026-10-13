@@ -49,7 +49,7 @@ class TestScoreLocation:
 
     def test_soft_restricted_plain_usa(self):
         # AUDIT #2: bare "USA" in location_raw is now soft-restricted (-10) for a
-        # la ciudad del candidato dev. Before, it scored neutral — that was the bug: US-locked jobs
+        # LATAM-based dev. Before, it scored neutral — that was the bug: US-locked jobs
         # scored as if open and flooded Tier 1.
         score, _, miss = _score_location(_job(location="USA"))
         assert score == -10
@@ -210,7 +210,7 @@ class TestSoftGeoLocation:
     job descriptions, not in the card-level location field GEMA scrapes. Boards
     expose location_raw as a bare country/region ("USA", "Portugal", "Anywhere").
     Soft-geo (-10) makes those bare values actually nudge US/UK/EU-locked jobs
-    down for a la ciudad del candidato dev, while LATAM and global values stay accessible.
+    down for a LATAM-based dev, while LATAM and global values stay accessible.
     """
 
     def test_bare_usa_soft_restricted(self):
@@ -236,11 +236,11 @@ class TestSoftGeoLocation:
         assert _score_location(_job(location="Australia"))[0] == -10
 
     def test_brazil_is_accessible_neutral(self):
-        # LATAM — same region, no work-auth barrier for la ciudad del candidato
+        # LATAM — same region, no work-auth barrier for the candidate
         assert _score_location(_job(location="Brazil"))[0] == 0
 
     def test_peru_is_accessible_neutral(self):
-        assert _score_location(_job(location="la ubicacion del candidato"))[0] == 0
+        assert _score_location(_job(location="Bogota, Colombia"))[0] == 0
 
     def test_latam_keyword_accessible(self):
         assert _score_location(_job(location="Remote - LATAM"))[0] == 0

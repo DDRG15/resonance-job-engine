@@ -64,7 +64,7 @@ ENDPOINTS: dict[str, dict] = {
     },
 
     # , Fase 1. Medido el 2026-09-30 ():
-    # `country=<PAIS_CANDIDATO>` sin `q` = 2.902 avisos; con `q=python developer` = 171. Traer el
+    # `country=<pais>` sin `q` = 2.902 avisos; con `q=python developer` = 171. Traer el
     # feed entero son 145 paginas de 20, asi que va una consulta por titulo, pagina 1.
     # Por CSS este board chocaba contra un 403 en cada rama: 6 filas en el registry
     # desde mayo. La API responde 200 sin key.
@@ -111,7 +111,7 @@ ENDPOINTS: dict[str, dict] = {
     # Terminos: "more than 2x per minute will be blocked", y como mucho 4 veces por dia:
     # feed fijo, un pedido, y `intervalo_minimo_s` de 6 h entre corridas.
     # `candidate_required_location` es texto libre ("Worldwide", "USA, Canada,
-    # Argentina, Mexico, Peru"); `salary` tambien, en 10 de 16. Sin fecha de cierre.
+    # Argentina, Mexico, Chile"); `salary` tambien, en 10 de 16. Sin fecha de cierre.
     "remotive.com": {
         "endpoint_template": "https://remotive.com/api/remote-jobs",
         "response_format": "json",

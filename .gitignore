@@ -90,7 +90,7 @@ desktop.ini
 
 # Owner-context session briefs
 
-LEEME_*.md
+
 
 # Phase implementation reports (any phase number, any suffix)
 PHASE_*.md
@@ -238,7 +238,7 @@ frontend/dist/
 !frontend/tsconfig.json
 api_state.json
 
-# Reportes de auditoria: privados, se quedan en el disco de el usuario y no van al repo
+# Reportes de auditoria: privados, se quedan en el disco local y no van al repo
 # publico (decision del 2026-10-12, antes del primer push de la rama).
 
 
@@ -248,6 +248,14 @@ api_state.json
 # Analisis (estudios de fuentes, de otros proyectos, de corridas y de la auditoria de revision externa):
 # privados, no van al repo publico (decision del 2026-10-12).
 -09-30.md
+
+
+
+
+
+
+# registro personal (estados, reportes de sesion, registros, guia de publicacion):
+# nombran al autor y su ubicacion. Se quedan en disco, no van al repo publico (2026-10-12).
 
 
 

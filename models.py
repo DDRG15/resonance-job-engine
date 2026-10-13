@@ -684,7 +684,7 @@ class ExtractedJob(BaseModel):
     location_strictness: Optional[str] = Field(
         default=None,
         description=(
-            "How accessible this job is for the user in la ubicacion del candidato. "
+            "How accessible this job is for the user (candidate). "
             "Strict: requires US presence/citizenship — user cannot apply. "
             "Flexible: timezone/hours-based but contractors may qualify. "
             "Match: global, LATAM, or no restriction — user is a fit."
@@ -694,7 +694,7 @@ class ExtractedJob(BaseModel):
         default=None,
         description=(
             "1-2 sentences explaining why this job works or conflicts for "
-            "someone in la ubicacion del candidato (EST/UTC-5). Quote the relevant phrase."
+            "the candidate (location and timezone as configured). Quote the relevant phrase."
         )
     )
 

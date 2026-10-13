@@ -68,7 +68,7 @@ def _aislar_cv_profile(tmp_path, monkeypatch):
     Ningun test lee, crea ni borra el cv_profile.json real.
 
     CV_PROFILE_PATH es relativo ("cv_profile.json"): sin esto resuelve contra el cwd, que
-    para quien corre la suite desde la raiz del repo es el archivo de el usuario. Hasta el
+    para quien corre la suite desde la raiz del repo es el archivo del usuario. Hasta el
     punto 11 de revision externa (2026-09-30) el riesgo era latente: enable_cron(retain=False)
     llama a _discard_profile y cualquier test de la API que activara el cron borraba el
     perfil retenido de verdad. Con clear_profile() (DELETE /api/cv, Reset) hay tres

@@ -11,7 +11,7 @@ el scoring se calibra a ojo y el corpus de evaluación sigue con dos casos sint�
 Este módulo es solo el dominio: los estados, qué transición es legal y por qué. La
 persistencia vive en `database.py` y los endpoints en `api.py`. Separarlo permite probar
 las reglas sin una base de datos de por medio, que es lo que hace que estas reglas se
-puedan cambiar sin miedo cuando el uso real de el usuario las contradiga.
+puedan cambiar sin miedo cuando el uso real del usuario las contradiga.
 """
 
 from __future__ import annotations

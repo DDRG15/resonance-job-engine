@@ -83,7 +83,7 @@ original codename, GEMA: environment variables are prefixed `GEMA_` and the regi
 | Variable | What it does |
 |---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `COHERE_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY` | LLM providers, all free tier. Any one is enough. With none, scraping and scoring still run, but parsing a free-text search or a CV does not. |
-| `PAIS_CANDIDATO` | Your country (empty by default). Drives the location policy: a role that requires US work authorization is not a match for someone in la ciudad del candidato, no matter how good the title is. |
+| `PAIS_CANDIDATO` | Your country (required for the location policy; empty by default, e.g. `Colombia`). Drives the location policy: a role that requires US work authorization is not a match for someone based in Bogota, no matter how good the title is. |
 | `DISCORD_WEBHOOK_URL` | Run report, overdue follow-ups and Tier 1 alerts |
 | `NOTION_API_KEY`, `NOTION_DATABASE_ID` | Push results to a Notion database |
 | `GOOGLE_CREDENTIALS_PATH`, `GOOGLE_SHEET_ID` | Append results to a Google Sheet |

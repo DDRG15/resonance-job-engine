@@ -542,17 +542,17 @@ def _partir_prefijo_empresa(titulo: str) -> tuple[str, str]:
 
 def _ubicacion_de_lista(valor: Any) -> str:
     """
-    `["Argentina", "Peru", "Spain"]` -> `"Argentina; Peru; Spain"`, y `[]` -> `"Worldwide"`.
+    `["Argentina", "Chile", "Spain"]` -> `"Argentina; Chile; Spain"`, y `[]` -> `"Worldwide"`.
 
     Existe por Himalayas: `locationRestrictions` es la lista de paises desde los que se
     puede trabajar el puesto, a veces de 70 elementos. `_texto` unia una lista con
-    espacios, y "United States United Kingdom Peru" no se puede partir de vuelta. Con
-    "; " queda en el mismo formato que ya publica builtin.com ("Greece; Norway; Peru;
+    espacios, y "United States United Kingdom Chile" no se puede partir de vuelta. Con
+    "; " queda en el mismo formato que ya publica builtin.com ("Greece; Norway; Chile;
     ..."), que el matcher lee desde el 29-09.
 
     **La lista vacia significa "sin restriccion"**, no "sin dato": es la semantica de
     un campo que se llama *restrictions*, y en la muestra del 30-09 el segundo aviso de
-    `country=<PAIS_CANDIDATO>` vino con `[]` —Himalayas lo devuelve para el pais del candidato porque no excluye a
+    `country=<pais>` vino con `[]` —Himalayas lo devuelve para ese pais porque no excluye a
     nadie—. Traducirla a "Worldwide" es decir lo que la fuente dijo. Dejarla vacia
     mandaria el aviso a "el board no la expone", que es falso.
 
@@ -569,8 +569,8 @@ def _ubicacion_de_lista(valor: Any) -> str:
 
 def _nombre_de_pais(v: Any) -> Any:
     """
-    Un pais como string ("Peru") o como objeto (`{"alpha2": "PE", "name": "Peru",
-    "slug": "peru"}`) al nombre que el matcher sabe leer.
+    Un pais como string ("Chile") o como objeto (`{"alpha2": "CL", "name": "Chile",
+    "slug": "chile"}`) al nombre que el matcher sabe leer.
 
     La respuesta real del 2026-09-30 trae strings; el diccionario de datos y el OpenAPI
     oficiales de Himalayas documentan objetos (auditoria de revision externa, punto 15). Si la API
@@ -666,7 +666,7 @@ def _con_region(ubicacion: str, region: str) -> str:
     nombra. Arbeitnow, medido el 2026-09-30: de 19 remotos, 10 dicen "Remote" a secas,
     2 "Remote job", 1 "Homeoffice", 1 "Poste à distance". Es remoto dentro de Europa,
     por derecho laboral y porque el board es europeo. El matcher leia "Remote" como
-    neutral —ni abierto ni restringido— y eso es PASS desde la ciudad del candidato: un falso positivo.
+    neutral —ni abierto ni restringido— y eso es PASS desde el país del candidato: un falso positivo.
 
     Se agrega al final, no se reemplaza. "Remote (Worldwide); Europe" sigue siendo
     abierto porque el matcher mira primero si la ubicacion es accesible; lo que cambia
@@ -991,8 +991,8 @@ def _fusionar_ubicacion(job: JobResult, otra: Optional[str]) -> None:
 
     Existe por Workable (Fase 8 del ): el widget repite el aviso una vez
     por ubicacion. Medido el 2026-10-04 contra azumo: 57 filas para 10 avisos, cada uno
-    seis veces —Argentina, Chile, Brazil, Colombia, Mexico, Peru...—. La deduplicacion
-    por URL se quedaba con la primera fila, y un aviso abierto en el pais del candidato entraba al
+    seis veces —Argentina, Chile, Brazil, Colombia, Mexico, Uruguay...—. La deduplicacion
+    por URL se quedaba con la primera fila, y un aviso abierto en Uruguay entraba al
     registry como "Argentina": el dato que mas le importa a la politica de ubicacion
     del matcher, perdido por el orden de un arreglo. "; " es el formato de lista que el
     matcher ya lee desde el 29-09 (builtin.com).
@@ -1024,7 +1024,7 @@ def _pais_no_utilizable(pais: str) -> str:
     """
     "" si `pais` sirve para filtrar la fuente; si no, por qué.
 
-    La política de ubicación del matcher está escrita para la ciudad del candidato: da por accesibles
+    La política de ubicación del matcher está escrita para LATAM: da por accesibles
     LATAM y lo mundial. Un país que esa política no reconoce como accesible haría que
     la fuente filtre por una pregunta y el matcher puntúe con otra.
     """

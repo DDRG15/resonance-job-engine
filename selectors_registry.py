@@ -486,7 +486,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         ],
         # La ubicacion vive en `.bottom-information span` ("Remote anywhere",
         # "Remote (US only)"...). Estaba en 0%: es la restriccion que decide el
-        # veredicto desde la ciudad del candidato, y el card la mostraba sin que nadie la leyera.
+        # veredicto desde el país del candidato, y el card la mostraba sin que nadie la leyera.
         location = [
             "div.bottom-information span",
         ],
@@ -495,7 +495,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # ── Builtin ───────────────────────────────────────────────────────────────
     # React SPA, tech-focused US board. Filters to remote listings.
     # Verified 2026-05-30: div[data-id] works (25 cards), a[href*='/job/'] confirmed.
-    # Has LATAM-specific remote listings — high signal for el usuario.
+    # Has LATAM-specific remote listings — high signal for the user.
     "builtin.com": DomainSelectors(
         domain               = "builtin.com",
         search_url_template  = "https://builtin.com/jobs/remote?search={title}",
@@ -541,7 +541,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         # Ubicación medida 2026-09-28 sobre 50 cards reales ("python", "backend"):
         # la corrida del 09-17 trajo 108 avisos con 0% de ubicación porque no había
         # selector. El span junto al ícono fa-location-dot trae la sede en 15
-        # ("la ciudad del candidato, PER") y un conteo en 35 ("11 Locations", lista en data-bs-title).
+        # ("Medellin, COL") y un conteo en 35 ("11 Locations", lista en data-bs-title).
         # El segundo selector es el aria-label semántico del caso multi-sede: si
         # Font Awesome renombra el ícono, el 70% multi-sede sigue saliendo.
         location = [
@@ -720,7 +720,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         ],
         # La ubicacion estaba en 0% con el dato en el card: `.job_listing-location`
         # trae "United States, Canada", "United States (EST Time Zone)"... Justo
-        # las restricciones que el veredicto desde la ciudad del candidato necesita ver.
+        # las restricciones que el veredicto desde el país del candidato necesita ver.
         location = [
             ".job_listing-location a.google_map_link",
             ".job_listing-location",

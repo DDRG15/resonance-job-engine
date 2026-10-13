@@ -166,7 +166,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
           />
           <span className="slider-val">
             {String(hour).padStart(2, '0')}:{String(minute).padStart(2, '0')} — hora
-            local (la ciudad del candidato), precisión de minutos
+            configurada, precisión de minutos
           </span>
         </>
       )}

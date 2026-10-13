@@ -1,4 +1,4 @@
-' F16 — GEMA standalone (el usuario, 2026-07-10): doble clic y listo.
+' F16 — GEMA standalone (2026-07-10): doble clic y listo.
 ' Levanta el server FastAPI OCULTO (sin ventana de consola) si no está
 ' corriendo, espera a que responda y abre la UI en el navegador.
 ' El cron (F8) se restaura solo al boot del server — GEMA queda autónomo
@@ -36,7 +36,7 @@ If Not up Then
     Next
 End If
 
-' F16 v2 (el usuario): ventana de APLICACIÓN, no pestaña de navegador.
+' F16 v2: ventana de APLICACIÓN, no pestaña de navegador.
 ' El modo --app abre una ventana standalone sin barra de URL ni pestañas,
 ' con su propia entrada en la barra de tareas. Edge viene con Windows;
 ' Chrome como alternativa; navegador normal como último recurso.

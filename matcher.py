@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 # El SRP genérico de un board devuelve TODOS sus cards; GEMA scrapeaba y
 # puntuaba File Clerk / Crypto Trader / Virtual Assistant junto con los
 # relevantes. No eran alucinaciones (URLs reales) pero eran ruido: se
-# colaban a Tier 3 y ensuciaban los resultados (queja de el usuario).
+# colaban a Tier 3 y ensuciaban los resultados (queja del usuario).
 # Fix conservador: un job se descarta SOLO si su título no comparte NINGÚN
 # token significativo con NINGÚN target_title NI skill del perfil. Un job
 # borderline (comparte aunque sea 1 token real) SIEMPRE se conserva.
@@ -259,7 +259,7 @@ def _score_skill_overlap(
     return score, match_reasons, miss_reasons
 
 
-# ── Location policy for el usuario (la ubicacion del candidato — TUNABLE ─────────────────────────
+# ── Location policy for the candidate (LATAM-based) — TUNABLE ─────────────────────────
 # Accessible (no penalty): global/anywhere + LATAM — same region/timezone, no
 # work-authorization barrier. Soft-restricted (-10): a named foreign region that
 # requires work authorization he does not hold. -10 is gentle by design — it
@@ -278,7 +278,7 @@ _LOCATION_ACCESSIBLE = re.compile(
     re.IGNORECASE,
 )
 # Codigos ISO-3 de LATAM, solo cuando CIERRAN un elemento de la lista: es el formato
-# de builtin.com ("la ciudad del candidato, PER", "Bogota, Distrito Capital, COL; Mexico City, ..., MEX").
+# de builtin.com ("Medellin, COL", "Bogota, Distrito Capital, COL; Mexico City, ..., MEX").
 # Anclados a ", CODE" antes de ';' o fin de texto porque sueltos no son seguros:
 # "per" aparece en "$100 per hour" y "pan", "col", "ven" en demasiadas palabras.
 _LATAM_ISO3 = re.compile(
@@ -292,7 +292,7 @@ def _sin_tildes(texto: str) -> str:
     "Perú" -> "Peru", "México" -> "Mexico", "Bogotá" -> "Bogota".
 
     `_LOCATION_ACCESSIBLE` lista los paises sin tilde y `\bperu\b` no matchea
-    "perú". Medido el 2026-09-29: un Tier 1 abierto a ~40 paises, el pais del candidato entre ellos
+    "perú". Medido el 2026-09-29: un Tier 1 abierto a ~40 paises, uno de LATAM con tilde entre ellos
     ("Greece; Norway; Perú; ...; Spain; Cyprus; ..."), salia FLAG porque "spain" y
     "cyprus" matcheaban restringido y "perú" no matcheaba accesible. builtin.com
     publica asi, con tilde.
@@ -318,14 +318,14 @@ _LOCATION_SOFT_RESTRICTED = re.compile(
 
 def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     """
-    Location accessibility filter for el usuario in la ubicacion del candidato.
+    Location accessibility filter for a LATAM-based candidate.
 
     Hard block  (-50): Security clearance / citizenship required → forces Tier 3.
     Restricted  (-20): Explicit region-lock phrase (US only, EU only) anywhere
                        in the listing text.
     Open        (+10): Worldwide / anywhere / all time zones phrase.
     Soft geo    (-10): location_raw names a foreign region requiring work
-                       authorization el usuario lacks (US/UK/EU country/Canada/AU),
+                       authorization the candidate lacks (US/UK/EU country/Canada/AU),
                        and does not also signal openness or a LATAM location.
     Neutral     (  0): No location signal, or an unrecognised/LATAM location.
 
@@ -370,7 +370,7 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     # al puntaje, se traduce a veredicto. Ver `_location_verdict`.
 
     # RESTRICTED before OPEN (AUDIT #4): a binding region-lock must dominate an
-    # aspirational "worldwide team" phrase in the same listing. For a la ciudad del candidato dev,
+    # aspirational "worldwide team" phrase in the same listing. For a LATAM-based dev,
     # "Worldwide team, but you must be authorized to work in the US" is a US lock,
     # not an open role.
     for signal in RESTRICTED:
@@ -385,11 +385,11 @@ def _score_location(job: JobResult) -> tuple[int, list[str], list[str]]:
     # or salary string containing "us"/"eu" can never trigger it. Fires only when
     # the field names a restricted region AND carries no LATAM/open signal.
     # Sin tildes y con los ISO-3 de LATAM (2026-09-29): "Perú; Canada" o
-    # "la ciudad del candidato, PER; Remote, OR, USA" nombran un lugar donde el usuario puede trabajar, y
-    # antes salian FLAG porque solo se reconocia "peru" sin tilde.
+    # "Medellin, COL; Remote, OR, USA" nombran un lugar donde el candidato puede trabajar, y
+    # antes salian FLAG porque solo se reconocian los paises sin tilde.
     loc = _sin_tildes((getattr(job, "location_raw", None) or "").lower().strip())
     if loc and not _es_accesible(loc) and _LOCATION_SOFT_RESTRICTED.search(loc):
-        return -10, [], [f"Location soft-restricted for la ciudad del candidato: '{job.location_raw}'"]
+        return -10, [], [f"Location soft-restricted for the candidate's location: '{job.location_raw}'"]
 
     return 0, [], []
 
@@ -706,7 +706,7 @@ def aplicar_aprendizaje(tiered: TieredJob,
     , Fase 10: el ajuste por postulaciones, DESPUÉS del puntaje base.
 
     Va afuera de `score_job` a propósito. `score_job` es función del aviso, la búsqueda
-    y el CV; el aprendizaje depende además del historial de el usuario, que cambia con cada
+    y el CV; el aprendizaje depende además del historial del usuario, que cambia con cada
     rechazo. Meterlo en las dimensiones haría que `test_score_version_congelada` dependa
     de una base, y que la misma entrada dé dos puntajes distintos según el día.
 
