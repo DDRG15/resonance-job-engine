@@ -264,7 +264,7 @@ docs/                   architecture, observability, LLM providers, eval, roadma
 ## Tests
 
 ```bash
-python -m pytest -q                       # ~2,250 tests, ~25-50 min on a 2-core laptop
+python -m pytest -q                       # 2,263 tests, ~30 min on a 2-core laptop
 cd frontend && npx vitest run && npx tsc --noEmit -p .
 ```
 
