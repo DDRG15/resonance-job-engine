@@ -167,7 +167,7 @@ export default function DbViewer({ onClose }: Props) {
         <span className="phase">crudo · ordenable · buscable</span>
       </div>
       <p>
-        Todo lo que GEMA recopiló, incluidas las corridas automáticas del
+        Todo lo que Resonance recopiló, incluidas las corridas automáticas del
         scheduler. Clic en una columna para ordenar.
       </p>
       <div className="actions" style={{ marginTop: 0, marginBottom: 12, flexWrap: 'wrap' }}>

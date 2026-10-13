@@ -44,7 +44,7 @@ export default function SetupWizard({ onDone }: Props) {
   return (
     <div className="wizard-wrap">
       <h2>
-        Welcome to <em>GEMA</em>
+        Welcome to <em>Resonance</em>
       </h2>
       <p>Configuración inicial — toma unos 2 minutos.</p>
 
@@ -85,7 +85,7 @@ export default function SetupWizard({ onDone }: Props) {
         className="btn primary" disabled={busy} onClick={() => void handleSave()}
         style={{ width: '100%', marginTop: 8 }}
       >
-        {busy ? 'Verificando y guardando…' : 'Guardar y lanzar GEMA →'}
+        {busy ? 'Verificando y guardando…' : 'Guardar y lanzar Resonance →'}
       </button>
     </div>
   )

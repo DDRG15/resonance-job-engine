@@ -250,7 +250,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="GEMA API", version="2.1-b6", lifespan=lifespan)
+app = FastAPI(title="Resonance API", version="2.1-b6", lifespan=lifespan)
 
 def _mensaje_cv_grande(tope: int) -> str:
     limite = f"{tope // (1024 * 1024)} MB" if tope >= 1024 * 1024 else f"{tope // 1024} KB"

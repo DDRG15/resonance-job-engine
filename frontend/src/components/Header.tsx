@@ -15,17 +15,18 @@ export default function Header({ status }: { status: Status | null }) {
           {greeting()}, <em>el usuario</em>
         </h2>
         <p>
-          Pipeline de descubrimiento de trabajos — extracción CSS a 0 tokens,
-          LLM solo como fallback.
+          Motor determinístico a 0 tokens: APIs públicas, ATS (Greenhouse, Lever,
+          Ashby) y boards por navegador. El LLM solo interpreta tu búsqueda y
+          actúa de fallback.
         </p>
       </div>
       {status && (
         <div className="live-card">
           <div className="lbl">
-            Live status{' '}
+            Estado en vivo{' '}
             {status.nominal ? (
               <span className="pill-ok">
-                <span className="dot" /> Nominal
+                <span className="dot" /> Todo en orden
               </span>
             ) : (
               <span className="pill-warn">

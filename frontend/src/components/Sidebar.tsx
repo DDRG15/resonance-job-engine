@@ -88,20 +88,20 @@ export default function Sidebar({
       <div className="brand">
         <div className="brand-gem">◆</div>
         <h1>
-          GEMA<small>Control Panel</small>
+          Resonance<small>Control Panel</small>
         </h1>
       </div>
 
       {status &&
         (status.warnings.length === 0 ? (
           <span className="pill-ok">
-            <span className="dot" /> All systems nominal
+            <span className="dot" /> Todo en orden
           </span>
         ) : (
           <details className="warn-details">
             <summary>
               <span className="pill-warn">
-                <span className="dot" /> {status.warnings.length} warning(s) — ver detalle
+                <span className="dot" /> {status.warnings.length} aviso(s) — ver detalle
               </span>
             </summary>
             <div className="warn-list">
@@ -184,7 +184,7 @@ export default function Sidebar({
       )}
 
       <div className="side-sec">
-        <span className="side-label">Search Vault</span>
+        <span className="side-label">Vault de búsquedas</span>
         {vault.length === 0 && (
           <span className="side-note">
             Vacío — guardá una búsqueda desde el Command Center.

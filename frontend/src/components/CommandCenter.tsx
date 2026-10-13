@@ -65,7 +65,7 @@ export default function CommandCenter({ profile, onParsed }: Props) {
         <h3>Command Center</h3>
         <span className="phase">Fase 1</span>
       </div>
-      <p>Describí tu trabajo ideal en lenguaje natural. GEMA se encarga del resto.</p>
+      <p>Describí tu trabajo ideal en lenguaje natural. Resonance se encarga del resto.</p>
       <textarea
         className="prompt-input"
         value={prompt}
@@ -78,7 +78,7 @@ export default function CommandCenter({ profile, onParsed }: Props) {
           disabled={busy || !prompt.trim()}
           onClick={handleParse}
         >
-          {busy ? 'Contactando LLM…' : 'Parse with AI'}
+          {busy ? 'Interpretando…' : 'Interpretar con IA'}
         </button>
         {profile && (
           <button

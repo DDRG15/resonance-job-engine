@@ -60,7 +60,7 @@ export default function ReviewPanel({ onClose, onChanged }: Props) {
         </span>
       </div>
       <p>
-        Jobs con puesto y empresa reales pero URL que GEMA no pudo verificar. Corregí
+        Jobs con puesto y empresa reales pero URL que Resonance no pudo verificar. Corregí
         la URL (usá la pista del listado) o descartalos si no son rescatables.
       </p>
       <div className="actions" style={{ marginTop: 0, marginBottom: 12 }}>
@@ -75,7 +75,7 @@ export default function ReviewPanel({ onClose, onChanged }: Props) {
         <div className="empty-state">
           <span className="glyph">✓</span>
           <b>Pila vacía</b>
-          Nada pendiente de revisión — GEMA no perdió jobs rescatables.
+          Nada pendiente de revisión — Resonance no perdió jobs rescatables.
         </div>
       )}
 

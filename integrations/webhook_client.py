@@ -81,7 +81,7 @@ def _build_discord_first_hit(tiered_job: TieredJob) -> dict:
     job = tiered_job.job
     salary_str = job.salary_raw or "Not published"
     return {
-        "username": "GEMA Scout",
+        "username": "Resonance Scout",
         "avatar_url": "https://cdn.jsdelivr.net/npm/twemoji@latest/assets/72x72/1f48e.png",
         "embeds": [{
             "title": f"🟢 Tier 1 Match Found — {job.title}",
@@ -93,7 +93,7 @@ def _build_discord_first_hit(tiered_job: TieredJob) -> dict:
                 {"name": "Match Score",  "value": f"{tiered_job.match_score}%", "inline": True},
                 {"name": "Source",       "value": job.source_domain,        "inline": True},
             ],
-            "footer": {"text": "GEMA is still running — more results may follow"},
+            "footer": {"text": "Resonance is still running — more results may follow"},
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }],
     }
@@ -120,7 +120,7 @@ def _build_discord_batch_summary(
     body = "\n\n".join(lines) if lines else "No jobs to display."
 
     return {
-        "username": "GEMA Scout",
+        "username": "Resonance Scout",
         "avatar_url": "https://cdn.jsdelivr.net/npm/twemoji@latest/assets/72x72/1f48e.png",
         "embeds": [{
             "title": f"💎 GEMA Session Complete — {len(tier1_jobs)} Tier 1 Match(es){duration}",
