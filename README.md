@@ -297,8 +297,9 @@ and the score renormalizes. Himalayas, Remotive, Jobicy, Arbeitnow, Greenhouse, 
 Ashby do send one.
 
 **The per-board fan-out is not decomposed into graph branches.** It runs inside
-`GemaScraper.run()` with `asyncio.gather`, and it is covered by tests. As a result,
-`node_traces` records one row per board path, not one per (board × title).
+`GemaScraper.run()` with `asyncio.gather`, and it is covered by tests. Tracing does not
+depend on it: `node_traces` gets one row per (board × title) on the browser path, one per
+endpoint and one per ATS company.
 
 **Most internal docs are in Spanish.** Phase reports, plans and audits under `docs/`
 record why each decision was made. []() is the index.
