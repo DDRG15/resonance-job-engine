@@ -303,3 +303,9 @@ endpoint and one per ATS company.
 
 **Most internal docs are in Spanish.** Phase reports, plans and audits under `docs/`
 record why each decision was made. []() is the index.
+
+---
+
+## License
+
+[MIT](LICENSE) © 2026 DDRG15
