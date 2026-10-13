@@ -41,6 +41,9 @@ longer where most jobs come from.
 ## Quick start
 
 ```bash
+git clone https://github.com/DDRG15/resonance-job-engine.git
+cd resonance-job-engine
+
 python -m venv .venv
 .venv/Scripts/activate              # Windows;  source .venv/bin/activate on Unix
 pip install -r requirements.txt
@@ -301,7 +304,7 @@ Ashby do send one.
 depend on it: `node_traces` gets one row per (board × title) on the browser path, one per
 endpoint and one per ATS company.
 
-**Most internal docs are in Spanish.** Phase reports, plans and audits under `docs/`
+**Most internal docs are in Spanish.** The phase reports and design plans under `docs/`
 record why each decision was made. []() is the index.
 
 ---
