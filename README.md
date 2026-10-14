@@ -75,6 +75,66 @@ are mounted read-only. `.dockerignore` keeps secrets, cookies, the CV-derived pr
 the databases and their backups out of the image, and a test checks the credential rules
 against both `git check-ignore` and the `.dockerignore` patterns.
 
+### Desktop app
+
+```powershell
+cd frontend; npm ci; npm run build; cd ..
+powershell -ExecutionPolicy Bypass -File packaging/build.ps1
+```
+
+That produces `dist/Resonance/` with two executables sharing one runtime (~270 MB, no
+browsers bundled). `Resonance.exe` is the app: double-click it and it starts the API on a
+free local port, opens the UI in an app window and leaves an icon in the tray. Closing the
+window keeps the scheduler running. Your data (`.env`, the registry, cookies, backups) lives
+in `%LOCALAPPDATA%\Resonance`, never inside the executable, so updating the app never touches
+it. `packaging/resonance.iss` builds a per-user installer with Inno Setup, with an optional
+"start with Windows" entry that runs the app headless.
+
+`build.ps1` does not trust the build: it starts the packaged app against a throwaway data
+directory, waits for `/api/status`, checks that the MCP answers over stdio, and scans the
+output for anything that must never ship (`.env`, databases, cookies, credentials).
+
+**Ports.** The app tries 8765-8769, then lets the OS pick a free one, and writes the
+chosen port to `runtime.json` so the MCP server always finds it. It never kills a process to
+free a port.
+
+### MCP server
+
+Resonance also runs as an MCP server, so Claude can search jobs, read results and log
+applications without opening the UI. It is a thin client of the local API: a search asked
+from the chat and one started from the UI run through the same graph. If the app is not
+running, the MCP server starts it headless.
+
+| Tool | What it does |
+|---|---|
+| `estado` | Sources, providers and warnings |
+| `buscar_trabajos` | Parses a free-text request and starts a run |
+| `estado_corrida` | Progress, ETA and last activity of the current run |
+| `resultados` | Top jobs of a tier, trimmed |
+| `detalle_aviso` | Requirements, evidence and score reasons for one job |
+| `registrar_postulacion` | Logs an application |
+| `salud_fuentes` | Sources that look broken, first |
+| `abrir_panel` | Opens the UI |
+
+Register it in Claude Desktop (`%APPDATA%\Claude\claude_desktop_config.json`):
+
+```json
+{"mcpServers": {"resonance": {"command": "C:\\path\\to\\resonance-mcp.exe"}}}
+```
+
+From source, without packaging: `"command": "<repo>\\.venv\\Scripts\\python.exe", "args": ["-m", "mcp_server"]`
+with the repo as working directory. Details in [mcp_server/LEEME.md](mcp_server/LEEME.md).
+
+### Run progress
+
+A run takes 10-20 minutes, and a silent screen for that long looks exactly like a hang.
+The run console shows a progress bar counted in real work units (endpoints, ATS companies,
+browser branches), the elapsed time, an estimate of the time left based on the median of
+your last runs, and "last activity N s ago". Past the estimate it says the run is taking
+longer than usual instead of counting below zero, and after two minutes without activity
+it flags a possible hang. The same data is in `GET /api/status` and in the MCP's
+`estado_corrida`.
+
 ---
 
 ## Configuration
@@ -257,6 +317,10 @@ nlp_engine.py           the 7 LLM providers and their callers
 graph/                  the pipeline as a state graph
 integrations/           Discord, Notion, Sheets, cookie jar
 tools/                  CLI utilities (provider check, ATS discovery, re-scoring, Gmail auth, ...)
+desktop/                desktop app: launcher, ports, runtime.json, tray
+mcp_server/             MCP server (stdio), thin client of the local API
+progreso.py             run progress and ETA
+packaging/              PyInstaller spec, build + smoke script, Inno Setup installer
 frontend/               React + Vite + TypeScript, served from /
 tests/                  pytest suite
 docs/                   architecture, observability, LLM providers, eval, roadmap
