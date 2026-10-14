@@ -2312,9 +2312,82 @@ class GemaDatabase:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    def tiempo_por_unidad_ms(self, nodo: str, *, excluir_run_id: Optional[str] = None,
+                             ultimas: int = 5) -> Optional[dict]:
+        """
+        Mediana de `exec_ms` de un nodo en sus últimas `ultimas` corridas (Pieza 4: ETA).
+
+        Solo lectura. Las corridas se ordenan por la última traza que dejaron (MAX(id)),
+        no por `runs.started_at`: hay trazas de corridas cuya fila de `runs` no existe
+        (ver el comentario de GemaScraper sobre el run_id inventado) y esas también
+        miden tiempo real.
+
+        Las ramas salteadas por el breaker (`skipped_breaker`) y las de exec_ms nulo o
+        cero NO entran a la mediana: miden «no hice nada», y con un board caído en la
+        mayoría de las ramas la mediana daría 0 y la estimación prometería una corrida
+        instantánea. Se reportan aparte en `ejecutadas / filas` para que quien estima
+        pueda ponderar cuántas ramas suelen saltarse.
+
+        Devuelve None si el nodo no tiene ninguna traza medida en esas corridas.
+        """
+        try:
+            with _get_connection(self.db_path) as conn:
+                filas = conn.execute(
+                    """SELECT exec_ms, status FROM node_traces
+                       WHERE node = ? AND run_id IN (
+                           SELECT run_id FROM (
+                               SELECT run_id, MAX(id) AS ultimo FROM node_traces
+                               WHERE node = ? AND run_id IS NOT NULL AND run_id != ?
+                               GROUP BY run_id ORDER BY ultimo DESC LIMIT ?))""",
+                    (nodo, nodo, excluir_run_id or "", int(ultimas)),
+                ).fetchall()
+        except Exception as exc:
+            logger.warning("[PROGRESO] no se pudo leer el historial de %s: %s", nodo, exc)
+            return None
+        medidas = sorted(
+            float(f["exec_ms"]) for f in filas
+            if f["status"] != "skipped_breaker" and f["exec_ms"] and f["exec_ms"] > 0
+        )
+        if not medidas:
+            return None
+        n = len(medidas)
+        mediana = (medidas[n // 2] if n % 2
+                   else (medidas[n // 2 - 1] + medidas[n // 2]) / 2.0)
+        return {"mediana_ms": mediana, "ejecutadas": n, "filas": len(filas)}
+
+    def duracion_mediana_corridas_s(self, *, excluir_run_id: Optional[str] = None,
+                                    ultimas: int = 5) -> Optional[float]:
+        """
+        Mediana de la duración total (segundos) de las últimas corridas cerradas en `ok`.
+
+        Es el respaldo de la ETA cuando una clase de unidad no tiene historial propio.
+        Solo corridas `ok` con `completed_at`: una `crashed` o `interrupted` duró lo que
+        tardó en romperse, no lo que dura una corrida entera.
+        """
+        try:
+            with _get_connection(self.db_path) as conn:
+                filas = conn.execute(
+                    """SELECT CAST(strftime('%s', completed_at) AS INTEGER)
+                              - CAST(strftime('%s', started_at) AS INTEGER) AS dur
+                       FROM runs
+                       WHERE status = 'ok' AND completed_at IS NOT NULL AND run_id != ?
+                       ORDER BY started_at DESC LIMIT ?""",
+                    (excluir_run_id or "", int(ultimas)),
+                ).fetchall()
+        except Exception as exc:
+            logger.warning("[PROGRESO] no se pudo leer la duración de las corridas: %s", exc)
+            return None
+        duraciones = sorted(float(f["dur"]) for f in filas
+                            if f["dur"] is not None and f["dur"] > 0)
+        if not duraciones:
+            return None
+        n = len(duraciones)
+        return (duraciones[n // 2] if n % 2
+                else (duraciones[n // 2 - 1] + duraciones[n // 2]) / 2.0)
+
     # Los tres nodos que LEEN una fuente. Un nodo del grafo (scrape, bucket, push...) no
     # cuenta avisos de ninguna fuente y no entra a estas consultas.
-    NODOS_FUENTE = ("scrape_srp", "fuente_endpoint", "fuente_ats")
+    NODOS_FUENTE =("scrape_srp", "fuente_endpoint", "fuente_ats")
 
     def get_items_por_fuente_y_corrida(self) -> list[dict]:
         """

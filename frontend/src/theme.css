@@ -694,3 +694,24 @@ details.warn-details .warn-list {
 .app-historial li { display: flex; align-items: center; gap: 8px; font-size: 12px;
   color: var(--muted); flex-wrap: wrap; }
 .app-historial time { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+
+/* ── Progreso de la corrida (Pieza 4) ── */
+.progreso { margin-bottom: 14px; }
+.progreso-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.progreso-fase { font-size: 13px; color: var(--text); }
+.progreso-pct { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; color: var(--accent); }
+.progreso-bar {
+  height: 10px; border-radius: 6px; overflow: hidden;
+  background: var(--absent); border: 1px solid var(--border);
+}
+.progreso-fill {
+  height: 100%; background: linear-gradient(90deg, var(--accent), #0E7490);
+  transition: width .4s ease;
+}
+.progreso-fill.listo { background: var(--accent); }
+.progreso-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 8px;
+  font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.progreso-excedido { color: var(--t2-ink); }
+@media (prefers-reduced-motion: reduce) { .progreso-fill { transition: none; } }

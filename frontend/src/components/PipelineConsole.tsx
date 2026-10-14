@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import type { Progreso } from '../types'
+import ProgresoCorrida from './ProgresoCorrida'
 
 interface Props {
   runId: string
@@ -13,6 +15,8 @@ interface Props {
 export default function PipelineConsole({ runId, onDone }: Props) {
   const [lines, setLines] = useState<string[]>([])
   const [live, setLive] = useState(true)
+  // Pieza 4: último bloque `progreso` que mandó el backend (evento SSE `progreso`).
+  const [progreso, setProgreso] = useState<Progreso | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -21,14 +25,27 @@ export default function PipelineConsole({ runId, onDone }: Props) {
       const data = JSON.parse(e.data) as { log: string }
       setLines((prev) => [...prev, data.log])
     }
+    es.addEventListener('progreso', (e) => {
+      try {
+        setProgreso(JSON.parse((e as MessageEvent).data) as Progreso)
+      } catch {
+        // un bloque ilegible no puede cortar el stream de logs
+      }
+    })
     es.addEventListener('done', () => {
       es.close()
       setLive(false)
+      // El backend deja de informar apenas termina la corrida: se cierra la barra acá
+      // para que el último cuadro no quede clavado en 99% «puntuando».
+      setProgreso((p) => (p ? { ...p, fase: 'listo', porcentaje: 100, restante_s: 0,
+        excedido: false, ultima_actividad_hace_s: 0, completadas: p.total } : p))
       onDone()
     })
     es.onerror = () => {
       es.close()
       setLive(false)
+      // Sin stream no hay datos frescos: una barra congelada se leería como «sigue viva».
+      setProgreso(null)
     }
     return () => es.close()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -44,6 +61,7 @@ export default function PipelineConsole({ runId, onDone }: Props) {
         <h3>Consola del pipeline</h3>
         <span className="phase">{live ? 'Fase 3 · corriendo' : 'Fase 3'}</span>
       </div>
+      <ProgresoCorrida progreso={progreso} />
       <pre className="console">
         {lines.join('\n')}
         {live && (

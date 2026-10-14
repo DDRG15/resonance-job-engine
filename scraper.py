@@ -76,6 +76,7 @@ from playwright_stealth import Stealth
 import config
 import fuentes_estado
 import metrics
+import progreso
 from board_strategy import (
     AccessVector, BoardStrategyRegistry, ExtractionMode, Health, Protection,
 )
@@ -1007,6 +1008,25 @@ class GemaScraper:
     def _log(self, msg: str) -> None:
         logger.info(msg)
         self.log_queue.put(msg)
+        progreso.latido()   # una linea de log es una senal de vida (Pieza 4)
+
+    def _ramas_css(self, domains: list[str]) -> int:
+        """Cuantas ramas (dominio x titulo) genera el fan-out para estos dominios.
+
+        Misma regla que arma `pairs` en run(): un board de feed fijo se pide una sola vez.
+        El total de la barra de progreso sale de aca, asi que si las dos reglas divergen
+        la barra termina en 87% o en 113%.
+        """
+        titulos = self.config.target_titles
+        return sum(len(titulos[:1]) if _es_feed_fijo(d) else len(titulos) for d in domains)
+
+    @staticmethod
+    def _contar_fuentes_ats() -> int:
+        try:
+            import ats_registry
+            return len(ats_registry.activas())
+        except Exception:
+            return 0
 
     def _seen_this_session(self, url_hash: str) -> bool:
         """
@@ -1173,6 +1193,20 @@ class GemaScraper:
             d for d in all_domains
             if self._strategy.get(d).access_vector == AccessVector.ENDPOINT
         ]
+
+        # Pieza 4: los tres totales se conocen ACA, antes de scrapear nada. Declararlos
+        # recien al llegar a cada fase haria que el total creciera a mitad de corrida y
+        # el porcentaje retrocediera. Las ramas CSS que el probe o el breaker salteen
+        # mas adelante se cuentan como terminadas (no se restan del total).
+        _ats_pedidos = self._ats_dominios_pedidos(all_domains)
+        progreso.cambiar_fase("endpoints")
+        progreso.fijar_total("endpoint", len(endpoint_domains))
+        if _ats_pedidos:
+            progreso.fijar_total("ats", self._contar_fuentes_ats())
+        progreso.fijar_total("css", self._ramas_css(
+            [d for d in all_domains
+             if d not in endpoint_domains and d not in _ats_pedidos]))
+
         if endpoint_domains:
             all_domains = [d for d in all_domains if d not in endpoint_domains]
             await self._scrape_endpoint_boards(endpoint_domains)
@@ -1184,6 +1218,7 @@ class GemaScraper:
         ats_dominios = self._ats_dominios_pedidos(all_domains)
         if ats_dominios:
             all_domains = [d for d in all_domains if d not in ats_dominios]
+            progreso.cambiar_fase("ats")
             await self._scrape_ats_sources()
 
         # ── , Fase 11: alertas de LinkedIn e Indeed desde Gmail ──
@@ -1191,6 +1226,7 @@ class GemaScraper:
         # Apagada por flag; con el flag prendido y sin token, la corrida sigue y el error
         # queda en el resumen.
         if config.GMAIL_ALERTAS_HABILITADO:
+            progreso.cambiar_fase("gmail")
             await self._scrape_gmail_alertas()
 
         if not all_domains:
@@ -1200,6 +1236,7 @@ class GemaScraper:
         # Pre-scrape board probe — classify protection type, skip hard-blocked domains
         # Runs only if board_probe is importable (graceful degradation if missing deps)
         domains = all_domains
+        progreso.cambiar_fase("navegador")
 
         # Phase 28: seed known-camoufox boards so the probe's upgrade-only rule
         # protects them (a chromium probe seeing 'open' must not downgrade them).
@@ -1239,6 +1276,11 @@ class GemaScraper:
         except Exception as probe_exc:
             self._log(f"[PROBE] Skipped (error: {probe_exc}). Proceeding with all domains.")
             domains = all_domains
+
+        # Pieza 4: las ramas de los boards que el probe descarto no van a correr nunca;
+        # cuentan como terminadas para que la barra pueda llegar al 100%.
+        progreso.unidad_hecha("css", self._ramas_css(
+            [d for d in all_domains if d not in domains]))
 
         async with async_playwright() as pw:
             browser: Browser = await pw.chromium.launch(
@@ -1315,7 +1357,7 @@ class GemaScraper:
                 # escritura por rama seria un fsync por rama, dentro del event loop.
                 trazas: list[dict] = []
 
-                async def _bounded(domain: str, title: str):
+                async def _rama(domain: str, title: str):
                     # Re-check circuit state: the domain may have been tripped
                     # while this task was waiting in the asyncio.gather queue.
                     # Without this check, all pre-queued tasks run even after
@@ -1367,6 +1409,15 @@ class GemaScraper:
                         _traza("ok", arranco, items=acum["items"], aceptados=len(salida))
                         return salida
 
+                async def _bounded(domain: str, title: str):
+                    # Pieza 4: UNA unidad terminada por rama, salga como salga (ok,
+                    # error, saltada por el breaker). El finally es lo que garantiza
+                    # que la barra llegue al 100% aunque revienten ramas.
+                    try:
+                        return await _rama(domain, title)
+                    finally:
+                        progreso.unidad_hecha("css")
+
                 # Un board de feed fijo ignora la busqueda: pedirlo por cada titulo es
                 # cargar la misma pagina N veces. Se pide con el primer titulo y listo.
                 pairs = [
@@ -1377,6 +1428,10 @@ class GemaScraper:
                                    else self.config.target_titles)
                     if not self.circuit.is_open(domain)
                 ]
+
+                # Las ramas de un board cuyo breaker ya estaba abierto no entran a
+                # `pairs` y no van a correr: tambien cuentan como terminadas.
+                progreso.unidad_hecha("css", self._ramas_css(domains) - len(pairs))
 
                 self._log(
                     f"[BLITZ] Fan-out: {len(pairs)} SRP tasks across "
@@ -1539,26 +1594,39 @@ class GemaScraper:
             import ats_scraper
         except Exception as exc:
             logger.debug("[ATS] modulo ausente, se omite: %s", exc)
+            progreso.fijar_total("ats", 0)   # no hay nada que contar: que no trabe la barra
             return
 
         fuentes = ats_registry.activas()
         if not fuentes:
+            progreso.fijar_total("ats", 0)
             return
 
         from matcher import title_is_relevant
 
         def _relevante(titulo: str) -> bool:
+            progreso.latido()
             return title_is_relevant(titulo, self.config.target_titles, self.profile)
 
+        progreso.fijar_total("ats", len(fuentes))
         self._log(f"[ATS] {len(fuentes)} fuentes activas "
                   f"({len({f.plataforma for f in fuentes})} plataformas).")
 
         writer_task = asyncio.create_task(self._db_writer_task())
         try:
-            resultados = await ats_scraper.traer_todo(
-                fuentes, titles=self.config.target_titles,
-                es_relevante=_relevante, log=self._log,
-            )
+            # Por lotes y no de una: `traer_todo` es atomico (devuelve cuando terminan
+            # las N empresas) y no avisa cada una que termina. Con 40 fuentes la barra
+            # quedaba quieta toda la fase y despues saltaba. Un lote de LOTE_ATS
+            # mantiene el paralelismo por plataforma adentro y da un avance honesto
+            # entre lotes; el costo es esperar a la empresa mas lenta de cada lote.
+            resultados = []
+            for i in range(0, len(fuentes), progreso.LOTE_ATS):
+                lote = fuentes[i:i + progreso.LOTE_ATS]
+                resultados.extend(await ats_scraper.traer_todo(
+                    lote, titles=self.config.target_titles,
+                    es_relevante=_relevante, log=self._log,
+                ))
+                progreso.unidad_hecha("ats", len(lote))
             await fuentes_estado.registrar_ats(          # Fase 4: una traza por empresa
                 self.db, self.summary.run_id, resultados)
             for r in resultados:
@@ -1660,6 +1728,7 @@ class GemaScraper:
                 estrategia = self._strategy.get(domain)
                 if not estrategia.endpoint_template:
                     self._log(f"[ENDPOINT] {domain} — sin endpoint_template, se saltea.")
+                    progreso.unidad_hecha("endpoint")
                     continue
 
                 # , Fase 2: el limite que declaran los terminos de la API
@@ -1673,6 +1742,7 @@ class GemaScraper:
                               f"cada {estrategia.intervalo_minimo_s / 60:.0f} min y "
                               f"faltan {falta / 60:.0f} min.")
                     metrics.emit("endpoint_saltado_por_limite", 1, domain=domain)
+                    progreso.unidad_hecha("endpoint")
                     continue
                 if estrategia.intervalo_minimo_s > 0:
                     # Se marca ANTES de pedir: un pedido que falla tambien cuenta contra
@@ -1717,6 +1787,7 @@ class GemaScraper:
                     self.summary.errors.append(msg)
                     await fuentes_estado.registrar_endpoint(     # Fase 4: explotó = 0
                         self.db, self.summary.run_id, domain, None, msg)
+                    progreso.unidad_hecha("endpoint")
                     continue
 
                 if res.error:
@@ -1740,6 +1811,7 @@ class GemaScraper:
                 if res.parcial:
                     metrics.emit("endpoint_cobertura_parcial", 1, domain=domain)
                 metrics.emit("endpoint_latency_ms", res.ms, domain=domain)
+                progreso.unidad_hecha("endpoint")
         finally:
             await self._write_q.put(None)
             await writer_task

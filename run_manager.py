@@ -26,6 +26,7 @@ import uuid
 from typing import Optional
 
 import metrics
+import progreso
 from integrations.webhook_client import send_discord_alert
 from matcher import bucket_jobs
 from models import ScrapeRunSummary, SearchConfig
@@ -254,6 +255,7 @@ class RunManager:
                     cola.put(msg)
                 except Exception:
                     pass
+                progreso.latido()   # Pieza 4: cada linea del pipeline es una senal de vida
 
             try:
                 ctx = RuntimeContext(

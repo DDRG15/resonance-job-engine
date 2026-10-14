@@ -19,6 +19,8 @@ export interface Status {
   // Fase 4: el estado REAL del token de Notion, no solo "hay una key". Opcional para que
   // un backend anterior al 30-09 siga siendo un Status válido.
   notion_estado?: NotionEstado
+  // Pieza 4: null si no corre nada. Opcional para un backend anterior.
+  progreso?: Progreso | null
 }
 
 export type EstadoNotion = 'apagado' | 'valido' | 'invalido' | 'no_verificado'
@@ -349,4 +351,21 @@ export interface AprendizajeEstado {
   error: string | null
   score_version: string | null
   reglas: AprendizajeRegla[]
+}
+
+// Pieza 4 — avance y tiempo estimado de la corrida (bloque `progreso` de /api/status y
+// evento `progreso` del SSE). `restante_s` es null cuando no hay referencia («calculando…»)
+// o cuando `excedido` (la corrida va más lenta que el historial).
+export type FaseProgreso = 'endpoints' | 'ats' | 'gmail' | 'navegador' | 'puntuando' | 'listo'
+
+export interface Progreso {
+  fase: FaseProgreso
+  porcentaje: number
+  completadas: number
+  total: number
+  transcurrido_s: number
+  restante_s: number | null
+  excedido: boolean
+  ultima_actividad_hace_s: number
+  estimado_desde: 'historial' | 'corridas' | null
 }

@@ -53,6 +53,7 @@ from nlp_engine import (
     extract_cv_text,
     generate_ephemeral_profile,
 )
+import progreso
 from run_manager import RunManager, RunInProgressError
 from scraper import scrape_gate_is_busy
 from scheduler_service import SchedulerService
@@ -427,11 +428,25 @@ def start_scrape(body: ScrapeRequest = None):
     return {"run_id": run_id}
 
 
+def _progreso_dto() -> Optional[dict]:
+    """El bloque `progreso` (Pieza 4), o None si no corre nada.
+
+    Nunca levanta: una barra de progreso que falla no puede convertir /api/status en un
+    500 ni cortar el stream de logs que el usuario esta mirando.
+    """
+    try:
+        return progreso.snapshot()
+    except Exception as exc:
+        logging.getLogger("gema.api").warning("[PROGRESO] snapshot fallo: %s", exc)
+        return None
+
+
 @app.get("/api/scrape/stream")
 async def stream_logs():
     runs: RunManager = app.state.runs
 
     async def event_gen():
+        ultimo_progreso = None
         # Historial primero: un cliente que se conecta tarde no pierde logs
         for msg in list(runs.logs):
             yield f"data: {json.dumps({'log': msg})}\n\n"
@@ -439,6 +454,13 @@ async def stream_logs():
             new, done = runs.drain_logs()
             for msg in new:
                 yield f"data: {json.dumps({'log': msg})}\n\n"
+            # Pieza 4: evento aparte (`progreso`), solo cuando cambia. `onmessage` del
+            # cliente solo recibe los eventos sin nombre, asi que un front anterior lo
+            # ignora sin romperse.
+            snap = _progreso_dto()
+            if snap is not None and snap != ultimo_progreso:
+                ultimo_progreso = snap
+                yield f"event: progreso\ndata: {json.dumps(snap)}\n\n"
             if done or (not runs.is_running and not new):
                 s = runs.summary
                 payload = {
@@ -1148,6 +1170,9 @@ def status():
             "next_run": sched.get_next_run_time() if sched.enabled else None,
         },
         "is_running": runs.is_running,
+        # Pieza 4: avance y tiempo estimado de la corrida en curso (manual o cron);
+        # null si no corre nada. Ver progreso.py para la forma y la formula.
+        "progreso": _progreso_dto(),
         # True si hay una corrida (manual O del cron) con el gate tomado. La UI lo usa
         # para deshabilitar "Limpiar sesion" con la razon a la vista (revision externa punto 1).
         "scrape_gate_busy": scrape_gate_is_busy(),

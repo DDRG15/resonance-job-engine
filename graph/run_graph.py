@@ -39,6 +39,7 @@ from typing import Any, Optional
 from langgraph.graph import END, StateGraph
 from langgraph.types import RunnableConfig
 
+import progreso
 from graph.instrumentation import traced_node
 from graph.state import RunState
 
@@ -161,6 +162,9 @@ def bucket(state: RunState, config: RunnableConfig) -> dict:
 
     ctx = _rt(config)
     jobs = state.get("jobs") or []
+    # Pieza 4: el scrape termino; lo que sigue (correlacion, puntaje, persistencia y push)
+    # es la fase final de la barra.
+    progreso.cambiar_fase("puntuando")
 
     # Fase 11 conectada el 2026-09-28. `correlacionar_duplicados()` no la llamaba
     # nadie: los "141 auto-aceptados" de la calibracion salieron de una corrida
@@ -410,6 +414,10 @@ def run_pipeline(
         "tier1": [], "tier2": [], "tier3": [], "tier4": [],
         "status": "running", "error": None,
     }
+    # Pieza 4: una corrida, un seguimiento. Lo abre el unico punto de entrada comun a API,
+    # cron y CLI y lo cierra el finally: aunque el grafo reviente, la barra no queda
+    # clavada en una corrida que ya no existe.
+    progreso.iniciar(inicial["run_id"], getattr(ctx, "db", None))
     try:
         return RUN_GRAPH.invoke(inicial, config={"configurable": {"ctx": ctx}})
     except Exception as exc:
@@ -429,3 +437,5 @@ def run_pipeline(
             except Exception:
                 pass
         raise
+    finally:
+        progreso.finalizar()
