@@ -18,6 +18,17 @@ import endpoint_scraper as es
 from database import GemaDatabase
 from models import SearchConfig, salario_anual_usd
 
+
+@pytest.fixture(autouse=True)
+def _pais_del_candidato_de_prueba(monkeypatch):
+    """
+    `PAIS_CANDIDATO` no tiene default (vive en el .env de cada usuario). Sin esto, los
+    tests que no lo fijan pasaban o fallaban segun el .env de quien los corriera: en una
+    copia limpia del repo, sin .env, la consulta se cortaba antes de pedir nada.
+    """
+    import config
+    monkeypatch.setattr(config, "PAIS_CANDIDATO", "Colombia")
+
 FIXTURE = Path(__file__).parent / "fixtures" / "fuentes" / "himalayas_search_pais.json"
 CRUDO = FIXTURE.read_bytes()
 FILAS = json.loads(CRUDO)["jobs"]

@@ -37,6 +37,11 @@ from desktop import runtime, ventana
 log = logging.getLogger("resonance.app")
 
 TOPE_ARRANQUE_S = 60.0
+#: Cuánto espera una app que no consiguió el cerrojo a que la otra instancia quede
+#: sirviendo. Más que `TOPE_ARRANQUE_S`: la otra puede ser un arranque en frío con el
+#: antivirus escaneando el onedir entero, y salir antes dejaría al doble clic sin ventana
+#: ni aviso mientras la otra termina de arrancar.
+TOPE_ESPERA_OTRA_S = 180.0
 
 
 # =============================================================================
@@ -97,6 +102,20 @@ def _esperar_instancia(tope: float) -> Optional[dict]:
     return None
 
 
+def _avisar_error(mensaje: str) -> None:
+    """
+    Aviso visible para un arranque fallido sin ventana. Un exe windowed no tiene consola:
+    sin esto, el doble clic que falla no le dice nada a quien lo dio. Nunca levanta.
+    """
+    try:
+        if os.name == "nt":
+            import ctypes
+            # 0x10 = MB_ICONERROR. Bloquea hasta que se cierra; la app ya iba a salir.
+            ctypes.windll.user32.MessageBoxW(None, mensaje, "Resonance", 0x10)
+    except Exception:  # noqa: BLE001 — avisar es best-effort
+        pass
+
+
 # =============================================================================
 # Entrada
 # =============================================================================
@@ -123,10 +142,20 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     cerrojo = runtime.tomar_cerrojo()
     if cerrojo is None:
-        viva = _esperar_instancia(TOPE_ARRANQUE_S)
-        if viva and not args.headless:
-            ventana.abrir(viva["url"])
-        return 0 if viva else 1
+        viva = _esperar_instancia(TOPE_ESPERA_OTRA_S)
+        if viva:
+            if not args.headless:
+                ventana.abrir(viva["url"])
+            return 0
+        ruta_log = home / "logs" / "app.log"
+        log.error("otra instancia tiene el cerrojo y no quedó sirviendo en %.0f s; "
+                  "no abro ventana", TOPE_ESPERA_OTRA_S)
+        if not args.headless:
+            _avisar_error(
+                "Resonance ya se está iniciando en otra ventana, pero no respondió a "
+                "tiempo.\n\nVolvé a intentarlo en un momento. Si persiste, mirá el log:\n"
+                f"{ruta_log}")
+        return 1
 
     port = runtime.elegir_puerto()
     url = f"http://127.0.0.1:{port}"

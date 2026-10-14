@@ -18,7 +18,13 @@ from dotenv import load_dotenv
 # Sin la variable, el modo desarrollo de siempre.
 _RESONANCE_HOME = os.environ.get("RESONANCE_HOME", "").strip()
 _ENV_FILE = (Path(_RESONANCE_HOME) / ".env") if _RESONANCE_HOME else (Path(__file__).parent / ".env")
+# GEMA_ALLOWED_ORIGINS: la app de escritorio la fija con el puerto que eligió. Con
+# override=True, un `.env` que la defina (p. ej. un origin de desarrollo) la pisaría y cada
+# POST de la UI daría 403. Con RESONANCE_HOME mandan la app y su puerto, no el `.env`.
+_ORIGINS_DE_LA_APP = os.environ.get("GEMA_ALLOWED_ORIGINS", "") if _RESONANCE_HOME else ""
 load_dotenv(dotenv_path=_ENV_FILE, override=True)
+if _ORIGINS_DE_LA_APP.strip():
+    os.environ["GEMA_ALLOWED_ORIGINS"] = _ORIGINS_DE_LA_APP
 
 
 # =============================================================================

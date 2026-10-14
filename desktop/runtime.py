@@ -10,7 +10,8 @@ Qué resuelve:
 - `RESONANCE_HOME`: dónde viven los datos (el ejecutable no lleva ninguno).
 - `runtime.json`: pid, puerto y URL de la instancia que está corriendo.
 - `instancia_viva()`: ¿hay una app sirviendo de verdad? (pid vivo Y /api/status 200).
-- `elegir_puerto()`: un puerto que funcione, sin matar jamás un proceso ajeno.
+- `elegir_puerto()`: un puerto que funcione. Un puerto ocupado se salta; este módulo no
+  termina procesos por ningún camino.
 - `comando_lanzar_headless()`: cómo arranca la app quien necesita que corra (el MCP).
 """
 
@@ -21,7 +22,6 @@ import os
 import socket
 import subprocess
 import sys
-import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -31,10 +31,6 @@ from typing import Optional
 PUERTOS_PREFERIDOS: tuple[int, ...] = (8765, 8766, 8767, 8768, 8769)
 
 _ES_WINDOWS = os.name == "nt"
-
-# Nombres de imagen que puede tener un proceso de Resonance. Un pid reutilizado por otro
-# programa NO está en esta lista, y esa es la última barrera antes de terminar un proceso.
-_IMAGENES_RESONANCE = ("resonance.exe", "python.exe", "pythonw.exe")
 
 
 # =============================================================================
@@ -128,8 +124,11 @@ def leer_runtime() -> Optional[dict]:
         datos = json.loads(_ruta_runtime().read_text(encoding="utf-8"))
         if not isinstance(datos, dict):
             return None
-        int(datos["pid"]), int(datos["port"])
-        datos.setdefault("url", f"http://127.0.0.1:{int(datos['port'])}")
+        int(datos["pid"])
+        # La URL se reconstruye desde `port`: el archivo lo puede escribir cualquiera con
+        # acceso al directorio de datos, y `instancia_viva()` hace GET contra esa URL. Un
+        # `url` apuntando a otro host sacaría la sonda de localhost.
+        datos["url"] = f"http://127.0.0.1:{int(datos['port'])}"
         return datos
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -211,45 +210,6 @@ def pid_existe(pid: int) -> bool:
         k32.CloseHandle(h)
 
 
-def _imagen_proceso(pid: int) -> str:
-    """Nombre del ejecutable del pid en minúsculas, o '' si no se puede saber."""
-    try:
-        if not _ES_WINDOWS:
-            return os.path.basename(os.readlink(f"/proc/{pid}/exe")).lower()
-        import ctypes
-        from ctypes import wintypes
-
-        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-        k32.OpenProcess.restype = wintypes.HANDLE
-        h = k32.OpenProcess(0x1000, False, pid)
-        if not h:
-            return ""
-        try:
-            buf = ctypes.create_unicode_buffer(1024)
-            n = wintypes.DWORD(len(buf))
-            if not k32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(n)):
-                return ""
-            return os.path.basename(buf.value).lower()
-        finally:
-            k32.CloseHandle(h)
-    except Exception:
-        return ""
-
-
-def _terminar_proceso(pid: int) -> None:
-    """Termina el árbol del pid. Solo se llama sobre una instancia verificada."""
-    try:
-        if _ES_WINDOWS:
-            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
-                           capture_output=True, timeout=15,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-        else:
-            import signal
-            os.kill(pid, signal.SIGTERM)
-    except Exception:
-        pass
-
-
 # =============================================================================
 # Instancia viva
 # =============================================================================
@@ -314,12 +274,29 @@ def tomar_cerrojo():
 
 def _puerto_libre(port: int) -> bool:
     """
-    ¿Se puede bindear 127.0.0.1:port? Sin SO_REUSEADDR en Windows: ahí significa «robar el
-    puerto» aunque otro proceso lo esté escuchando, y todo puerto parecería libre.
+    ¿Se puede escuchar en 127.0.0.1:port sin pisar a nadie?
+
+    1. `connect_ex` primero: en Windows, `bind` a 127.0.0.1 TIENE ÉXITO aunque otro servicio
+       escuche en 0.0.0.0:port (la dirección más específica gana), y uvicorn le robaría el
+       tráfico de localhost a ese servicio. Si algo acepta la conexión, el puerto está ocupado.
+    2. `bind` después: con SO_EXCLUSIVEADDRUSE en Windows (sin SO_REUSEADDR, que ahí significa
+       «robar el puerto»), con SO_REUSEADDR en el resto (tolera TIME_WAIT).
     """
+    sonda = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sonda.settimeout(0.5)
+        if sonda.connect_ex(("127.0.0.1", port)) == 0:
+            return False
+    except OSError:
+        pass
+    finally:
+        sonda.close()
+
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        if not _ES_WINDOWS:
+        if _ES_WINDOWS:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind(("127.0.0.1", port))
         return True
@@ -338,45 +315,18 @@ def _puerto_asignado() -> int:
         s.close()
 
 
-def _liberar_si_es_resonance(port: int) -> bool:
-    """
-    Si `port` lo ocupa una instancia vieja de Resonance VERIFICADA, la termina y espera a
-    que el puerto quede libre. Devuelve True si quedó libre.
-
-    Verificada = runtime.json apunta a ese puerto, ese pid existe, su ejecutable es
-    Resonance/Python (descarta un pid reutilizado) y NO es una instancia sana: a una que
-    responde bien no se le quita el puerto, para eso está `instancia_viva()`. Cualquier
-    otra cosa —Docker, una base, otra app— es ajena y no se toca: matarla rompe algo que
-    el usuario no está mirando.
-    """
-    rt = leer_runtime()
-    if rt is None or int(rt["port"]) != port:
-        return False
-    pid = int(rt["pid"])
-    if pid == os.getpid() or not pid_existe(pid):
-        return False
-    if _imagen_proceso(pid) not in _IMAGENES_RESONANCE:
-        return False
-    if instancia_viva() is not None:
-        return False
-    _terminar_proceso(pid)
-    limite = time.monotonic() + 8.0
-    while time.monotonic() < limite:
-        if _puerto_libre(port):
-            borrar_runtime()
-            return True
-        time.sleep(0.2)
-    return False
-
-
 def elegir_puerto(preferidos=PUERTOS_PREFERIDOS) -> int:
     """
     Un puerto donde la app puede escuchar. No falla nunca.
 
-    Orden: el último que funcionó (`last_port`), después la lista. Un puerto ocupado por
-    un proceso ajeno se salta SIN tocarlo. Si todos están ocupados, el sistema asigna uno
-    libre (puerto 0): el MCP lo encuentra igual porque lee runtime.json. El elegido queda
-    en `last_port`.
+    Orden: el último que funcionó (`last_port`), después la lista; el primero libre gana.
+    Un puerto ocupado se salta SIN tocar a su dueño, sea quien sea: este módulo no termina
+    procesos. (Se probó liberar «instancias viejas» de Resonance y era inseguro: tras un
+    apagado sucio queda un runtime.json huérfano, Windows reutiliza el pid para otro
+    programa, y matarlo rompía algo ajeno. Además, quien llama ya tiene el cerrojo, así que
+    ninguna Resonance viva puede ser dueña del puerto.) Si todos están ocupados, el sistema
+    asigna uno libre (puerto 0): el MCP lo encuentra igual porque lee runtime.json. El
+    elegido queda en `last_port`.
     """
     home = resonance_home()
     candidatos: list[int] = []
@@ -392,7 +342,7 @@ def elegir_puerto(preferidos=PUERTOS_PREFERIDOS) -> int:
 
     elegido: Optional[int] = None
     for p in candidatos:
-        if _puerto_libre(p) or _liberar_si_es_resonance(p):
+        if _puerto_libre(p):
             elegido = p
             break
     if elegido is None:

@@ -22,12 +22,18 @@ import requests
 logger = logging.getLogger("mcp_server.cliente")
 
 #: Tope de espera a que la app lanzada en headless publique runtime.json y responda.
-ESPERA_ARRANQUE_S = 60.0
+#: 180 s y no 60: un arranque en frío con antivirus escaneando el onedir tarda más de un
+#: minuto, y declarar «no arrancó» con la app a punto de quedar sirviendo deja al usuario
+#: con un error que desaparece al reintentar.
+ESPERA_ARRANQUE_S = 180.0
 INTERVALO_SONDEO_S = 0.5
 #: Timeout de las lecturas. /api/status y /api/results son locales y responden en ms.
 TIMEOUT_S = 10.0
 #: /api/parse llama a un LLM (y a su auditor): ahí sí hay espera legítima.
 TIMEOUT_PARSE_S = 120.0
+
+#: Largo máximo del `detail` de la API que se le muestra al LLM.
+_MAX_DETALLE = 500
 
 # CREATE_NO_WINDOW: sin consola parpadeando al lanzar la app desde un cliente MCP.
 _CREATE_NO_WINDOW = 0x08000000
@@ -104,16 +110,27 @@ def asegurar_instancia() -> dict:
                 f"No pude lanzar la app de Resonance ({exc}). Abrila a mano y reintentá.")
 
         limite = time.monotonic() + ESPERA_ARRANQUE_S
+        salio_con_1: Optional[int] = None
         while time.monotonic() < limite:
             inst = runtime.instancia_viva()
             if inst:
                 return inst
             codigo = proceso.poll()
-            if codigo not in (None, 0):
+            if codigo == 1:
+                # Código 1 = «otra instancia tiene el cerrojo y no respondió a tiempo». Esa
+                # otra puede quedar sirviendo después: se sigue esperando hasta el tope y,
+                # si aparece, se usa. No es un error mientras haya una viva.
+                salio_con_1 = codigo
+            elif codigo not in (None, 0):
                 raise ErrorApp(
                     f"La app terminó al arrancar (código {codigo}). "
                     f"Ver {_carpeta_logs(runtime)}.")
             time.sleep(INTERVALO_SONDEO_S)
+        if salio_con_1 is not None:
+            raise ErrorApp(
+                f"La app terminó al arrancar (código {salio_con_1}) y ninguna otra instancia "
+                f"quedó sirviendo en {ESPERA_ARRANQUE_S:.0f} s. "
+                f"Ver {_carpeta_logs(runtime)}.")
 
     raise ErrorApp(
         f"La app no arrancó en {ESPERA_ARRANQUE_S:.0f} s; ver {_carpeta_logs(runtime)}.")
@@ -124,7 +141,9 @@ def _detalle(resp: requests.Response) -> str:
         cuerpo = resp.json()
         det = cuerpo.get("detail") if isinstance(cuerpo, dict) else None
         if det:
-            return str(det)
+            # Un 422 de FastAPI trae `detail` como lista con el cuerpo entero de cada
+            # campo inválido: sin tope, el mensaje de error se come el contexto del LLM.
+            return str(det)[:_MAX_DETALLE]
     except ValueError:
         pass
     return (resp.text or resp.reason or "").strip()[:200]

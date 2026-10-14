@@ -229,49 +229,36 @@ def test_elegir_puerto_salta_un_puerto_ajeno_sin_matar_nada(_home):
         ajeno.wait()
 
 
-def test_elegir_puerto_no_mata_un_pid_con_imagen_ajena(_home, monkeypatch):
-    """runtime.json apunta al dueno del puerto, pero su ejecutable no es de Resonance."""
-    a, b = _puertos_libres(2)
-    ajeno = _holder(a)
+def test_elegir_puerto_no_termina_a_la_victima_de_un_runtime_huerfano(_home):
+    """
+    Apagado sucio: queda un runtime.json huérfano; Windows reutiliza su pid para otro
+    python.exe ajeno y el puerto guardado lo ocupa otro proceso. Elegir puerto salta el
+    puerto y NO toca a nadie.
+    """
+    victima = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    puerto = _puertos_libres(1)[0]
+    listener = _ocupar(puerto)
+    cerrojo = None
     try:
-        runtime.escribir_runtime(a, ajeno.pid)
-        monkeypatch.setattr(runtime, "_imagen_proceso", lambda pid: "postgres.exe")
-        assert runtime.elegir_puerto((a, b)) == b
-        assert ajeno.poll() is None
+        runtime.escribir_runtime(puerto, victima.pid)
+        cerrojo = runtime.tomar_cerrojo()
+        assert cerrojo is not None
+        elegido = runtime.elegir_puerto(preferidos=(puerto,))
+        assert elegido != puerto
+        assert victima.poll() is None  # sigue viva
+        assert listener.getsockname()[1] == puerto
     finally:
-        ajeno.kill()
-        ajeno.wait()
+        if cerrojo is not None:
+            cerrojo.close()
+        listener.close()
+        victima.kill()
+        victima.wait()
 
 
-def test_elegir_puerto_libera_una_instancia_vieja_verificada(_home, monkeypatch):
-    """Pid y puerto de runtime.json, imagen de Resonance, y /api/status no responde."""
-    a, b = _puertos_libres(2)
-    vieja = _holder(a)
-    try:
-        runtime.escribir_runtime(a, vieja.pid)
-        monkeypatch.setattr(runtime, "_imagen_proceso", lambda pid: "resonance.exe")
-        assert runtime.elegir_puerto((a, b)) == a
-        assert vieja.wait(timeout=15) is not None  # fue terminada
-    finally:
-        if vieja.poll() is None:
-            vieja.kill()
-            vieja.wait()
-
-
-def test_elegir_puerto_no_toca_una_instancia_sana(_home, servidor, monkeypatch):
-    """Una instancia que responde bien no pierde su puerto: eso es `instancia_viva`."""
-    b = _puertos_libres(1)[0]
-    # El pid de runtime.json es otro proceso vivo, para no chocar con la regla de
-    # «no terminarse a si mismo».
-    dueno = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
-    try:
-        runtime.escribir_runtime(servidor.port, dueno.pid)
-        monkeypatch.setattr(runtime, "_imagen_proceso", lambda pid: "resonance.exe")
-        assert runtime.elegir_puerto((servidor.port, b)) == b
-        assert dueno.poll() is None
-    finally:
-        dueno.kill()
-        dueno.wait()
+def test_runtime_no_tiene_ningun_camino_para_terminar_procesos():
+    for nombre in ("_terminar_proceso", "_liberar_si_es_resonance", "_imagen_proceso",
+                   "_IMAGENES_RESONANCE"):
+        assert not hasattr(runtime, nombre), nombre
 
 
 def test_elegir_puerto_cae_a_cero_si_los_cinco_son_ajenos(_home):

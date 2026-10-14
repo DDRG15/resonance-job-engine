@@ -174,6 +174,15 @@ def test_abrir_como_dice_como_abrio_y_none_si_no_pudo(monkeypatch):
     assert ventana.abrir("http://x") is False
 
 
+def _matar(pid: int) -> None:
+    """Limpieza del test: el runtime ya no sabe terminar procesos, a propósito."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True,
+                       timeout=15)
+    else:
+        os.kill(pid, signal.SIGTERM)
+
+
 # --- humo: arranque real ------------------------------------------------------
 
 def test_humo_headless_arranca_responde_y_sale_limpio(tmp_path):
@@ -231,7 +240,7 @@ def test_humo_headless_arranca_responde_y_sale_limpio(tmp_path):
         assert not ruta_rt.exists(), "runtime.json sobrevivio al cierre"
     finally:
         if pid_app and runtime.pid_existe(pid_app):
-            runtime._terminar_proceso(pid_app)
+            _matar(pid_app)
         if proc.poll() is None:
             proc.kill()
             proc.wait()

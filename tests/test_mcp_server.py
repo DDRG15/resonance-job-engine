@@ -413,6 +413,69 @@ async def test_proceso_que_muere_al_arrancar_falla_rapido(api, runtime_falso, mo
     assert err and "código 3" in texto
 
 
+def test_espera_de_arranque_por_defecto_es_180_s():
+    # En subproceso: los fixtures parchean el valor, y recargar el módulo aquí duplicaría
+    # `ErrorApp` y rompería el `except` de servidor.py en los tests siguientes.
+    import subprocess
+    r = subprocess.run([sys.executable, "-c",
+                        "from mcp_server import cliente; print(cliente.ESPERA_ARRANQUE_S)"],
+                       cwd=REPO, capture_output=True, text=True, timeout=60)
+    assert r.returncode == 0, r.stderr
+    assert float(r.stdout.strip()) == 180.0
+
+
+async def test_proceso_que_sale_con_1_pero_deja_una_instancia_viva_se_usa(
+        api, runtime_falso, monkeypatch):
+    """Código 1 = «otra instancia tenía el cerrojo»: si esa otra queda sirviendo, no es error."""
+    runtime_falso["viva"] = False
+    rt = sys.modules["desktop.runtime"]
+    monkeypatch.setattr(rt, "comando_lanzar_headless",
+                        lambda: [sys.executable, "-c", "import sys; sys.exit(1)"])
+    sondas = {"n": 0}
+
+    def viva_tras_unas_sondas(timeout=2.0):
+        sondas["n"] += 1
+        # Las primeras sondas fallan: el proceso lanzado ya salió con 1 y se sigue esperando.
+        if sondas["n"] > 8:
+            return {"pid": 1234, "port": api.puerto, "url": api.url}
+        return None
+
+    monkeypatch.setattr(rt, "instancia_viva", viva_tras_unas_sondas)
+    monkeypatch.setattr(cliente, "ESPERA_ARRANQUE_S", 30.0)
+    d = await _json("estado")
+    assert d["boards_activos"] == 10
+    assert sondas["n"] > 8
+
+
+async def test_proceso_que_sale_con_1_y_ninguna_instancia_da_error_claro(
+        api, runtime_falso, monkeypatch):
+    runtime_falso["viva"] = False
+    runtime_falso["lanzar_nunca_viva"] = True
+    monkeypatch.setattr(sys.modules["desktop.runtime"], "comando_lanzar_headless",
+                        lambda: [sys.executable, "-c", "import sys; sys.exit(1)"])
+    err, texto = await _llamar("estado")
+    assert err and "código 1" in texto and "ninguna otra instancia" in texto
+
+
+def test_detalle_de_un_422_se_recorta_a_500_caracteres():
+    import requests
+    resp = requests.Response()
+    resp.status_code = 422
+    resp._content = json.dumps(
+        {"detail": [{"loc": ["body", "x"], "msg": "campo invalido " * 200}]}).encode()
+    resp.headers["Content-Type"] = "application/json"
+    texto = cliente._detalle(resp)
+    assert 0 < len(texto) <= 500
+
+
+def test_detalle_corto_no_se_toca():
+    import requests
+    resp = requests.Response()
+    resp.status_code = 400
+    resp._content = b'{"detail": "base bloqueada"}'
+    assert cliente._detalle(resp) == "base bloqueada"
+
+
 async def test_app_que_responde_error_http_propaga_el_detalle(api, runtime_falso):
     api.rutas[("GET", "/api/fuentes")] = (500, {"detail": "base bloqueada"})
     err, texto = await _llamar("salud_fuentes")
