@@ -416,7 +416,11 @@ def comando_lanzar_headless() -> list[str]:
     repo en PYTHONPATH): usá `lanzar_headless()` y no armes el Popen a mano.
     """
     if getattr(sys, "frozen", False):
-        return [sys.executable, "--headless"]
+        # Empaquetado hay dos exe en la misma carpeta. Desde resonance-mcp.exe,
+        # `sys.executable` es el MCP: lanzarlo con --headless lo arrancaria a si mismo en
+        # vez de la app. El que sirve la API es siempre Resonance.exe.
+        app = Path(sys.executable).with_name("Resonance.exe")
+        return [str(app if app.is_file() else sys.executable), "--headless"]
     return [sys.executable, "-m", "desktop.app", "--headless"]
 
 

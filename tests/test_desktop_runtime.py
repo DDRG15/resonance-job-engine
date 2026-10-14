@@ -327,3 +327,15 @@ def test_comando_lanzar_headless_en_desarrollo():
 def test_comando_lanzar_headless_congelado(monkeypatch):
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert runtime.comando_lanzar_headless() == [sys.executable, "--headless"]
+
+
+def test_congelado_desde_el_mcp_lanza_resonance_exe_y_no_a_si_mismo(tmp_path, monkeypatch):
+    """Empaquetado, el MCP es resonance-mcp.exe: lanzar sys.executable lo arrancaria a el."""
+    import sys
+    from desktop import runtime
+    (tmp_path / "Resonance.exe").write_bytes(b"")
+    mcp = tmp_path / "resonance-mcp.exe"
+    mcp.write_bytes(b"")
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setattr(sys, "executable", str(mcp))
+    assert runtime.comando_lanzar_headless() == [str(tmp_path / "Resonance.exe"), "--headless"]
