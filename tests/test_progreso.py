@@ -334,25 +334,31 @@ class TestUnidadesSaltadas:
         snap = progreso.snapshot()
         assert snap["completadas"] == 2 and snap["total"] == 2
 
-    async def test_ats_avanza_por_lote(self, tmp_db, monkeypatch):
+    async def test_ats_avanza_por_empresa_con_una_sola_llamada(self, tmp_db, monkeypatch):
         import ats_registry
         import ats_scraper
         from ats_registry import FuenteATS
 
         fuentes = [FuenteATS("ashby", f"e{i}", f"E{i}") for i in range(25)]
-        lotes = []
+        llamadas = []
+        vistas = []
 
-        async def _fake(lote, **k):
-            lotes.append(len(lote))
-            # Visto desde afuera: las unidades de los lotes anteriores ya estan sumadas.
-            lotes.append(progreso.snapshot()["completadas"])
-            return []
+        async def _fake(lista, *, al_terminar=None, **k):
+            llamadas.append(len(lista))
+            res = []
+            for f in lista:
+                r = ats_scraper.ResultadoATS(f)
+                res.append(r)
+                al_terminar(r)
+                vistas.append(progreso.snapshot()["completadas"])
+            return res
         monkeypatch.setattr(ats_scraper, "traer_todo", _fake)
         monkeypatch.setattr(ats_registry, "activas", lambda: fuentes)
 
         progreso.iniciar("r-test")
         await _scraper(tmp_db, ["python"])._scrape_ats_sources()
-        assert lotes == [10, 0, 10, 10, 5, 20]
+        assert llamadas == [25]                       # una llamada, no lotes
+        assert vistas == list(range(1, 26))           # una unidad por empresa, al terminar
         assert progreso.snapshot()["completadas"] == 25
 
 

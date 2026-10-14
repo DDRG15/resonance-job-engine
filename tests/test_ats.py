@@ -215,6 +215,37 @@ class TestTraerTodo:
         res = asyncio.run(ats_scraper.traer_todo(fuentes))
         assert [r.fuente.token for r in res] == [f.token for f in fuentes]
 
+    def test_al_terminar_se_llama_una_vez_por_fuente_incluida_la_que_explota(self, monkeypatch):
+        def _fuente(f, **kw):
+            if f.token == "malo":
+                raise RuntimeError("boom")
+            return ats_scraper.ResultadoATS(f)
+
+        monkeypatch.setattr(ats_scraper, "traer_fuente", _fuente)
+        fuentes = [FuenteATS("ashby", "bueno", "B"),
+                   FuenteATS("lever", "malo", "M"),
+                   FuenteATS("ashby", "otro", "O")]
+        avisos = []
+        con_cb = asyncio.run(ats_scraper.traer_todo(fuentes, al_terminar=avisos.append))
+        sin_cb = asyncio.run(ats_scraper.traer_todo(fuentes))
+
+        assert sorted(r.fuente.token for r in avisos) == ["bueno", "malo", "otro"]
+        assert [r for r in avisos if r.fuente.token == "malo"][0].error.startswith("RuntimeError")
+        # Mismo resultado, mismo orden y mismos errores que sin callback.
+        assert [(r.fuente.token, r.error) for r in con_cb] ==                [(r.fuente.token, r.error) for r in sin_cb]
+        assert [r.fuente.token for r in con_cb] == ["bueno", "malo", "otro"]
+
+    def test_un_al_terminar_que_explota_no_afecta_al_resultado(self, monkeypatch):
+        monkeypatch.setattr(ats_scraper, "traer_fuente",
+                            lambda f, **kw: ats_scraper.ResultadoATS(f))
+
+        def _revienta(_r):
+            raise ValueError("contador roto")
+        fuentes = [FuenteATS("ashby", f"t{i}", f"E{i}") for i in range(3)]
+        res = asyncio.run(ats_scraper.traer_todo(fuentes, al_terminar=_revienta))
+        assert [r.fuente.token for r in res] == ["t0", "t1", "t2"]
+        assert all(not r.error for r in res)
+
 
 class TestDominiosActivos:
     def test_las_plataformas_ats_entran_a_active_domains(self):

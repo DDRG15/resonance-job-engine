@@ -129,13 +129,20 @@ async def traer_todo(
     titles: Optional[list[str]] = None,
     es_relevante: Optional[Callable[[str], bool]] = None,
     log: Callable[[str], None] = lambda _m: None,
+    al_terminar: Optional[Callable[[ResultadoATS], None]] = None,
 ) -> list[ResultadoATS]:
     """
     Todas las fuentes activas, concurrentes dentro del límite de cada plataforma.
 
-    `return_exceptions=True` no está de adorno: una fuente que explota no puede tumbar
-    a las otras treinta y nueve. Ese fue el riesgo R1 del plan anterior y el motivo por
-    el que el fan-out del scraper envuelve cada rama.
+    `al_terminar` se llama una vez por fuente en cuanto esa fuente termina, también si
+    falla (recibe el `ResultadoATS` con `error`). Es lo que permite a quien llama contar
+    progreso por empresa sin partir la lista en lotes, que serializaba los lotes y
+    repetía el log agregado. Corre en el hilo del event loop; si el callback explota se
+    registra y no afecta a la fuente ni a las demás. El orden y el valor de retorno no
+    cambian: sigue siendo un resultado por fuente, en el orden de `fuentes`.
+
+    Una fuente que explota no puede tumbar a las otras treinta y nueve. Ese fue el riesgo
+    R1 del plan anterior y el motivo por el que el fan-out del scraper envuelve cada rama.
     """
     fuentes = fuentes if fuentes is not None else ats_registry.activas()
     if not fuentes:
@@ -147,28 +154,35 @@ async def traer_todo(
         for nombre, p in ats_registry.PLATAFORMAS.items()
     }
 
+    def _avisar(res: ResultadoATS) -> None:
+        if al_terminar is None:
+            return
+        try:
+            al_terminar(res)
+        except Exception as exc:  # un contador de progreso no puede tumbar una fuente
+            logger.warning("[ATS] al_terminar fallo para %s: %s", res.etiqueta, exc)
+
     async def _una(f: FuenteATS) -> ResultadoATS:
-        async with semaforos[f.plataforma]:
-            return await loop.run_in_executor(
-                None,
-                functools.partial(traer_fuente, f, titles=titles,
-                                  es_relevante=es_relevante, log=log),
-            )
-
-    crudos = await asyncio.gather(*[_una(f) for f in fuentes],
-                                  return_exceptions=True)
-
-    salida: list[ResultadoATS] = []
-    for f, r in zip(fuentes, crudos):
-        if isinstance(r, Exception):
-            fallido = ResultadoATS(f)
-            fallido.error = f"{type(r).__name__}: {str(r)[:120]}"
-            log(f"[ATS] {fallido.etiqueta} — {fallido.error}")
+        try:
+            async with semaforos[f.plataforma]:
+                res = await loop.run_in_executor(
+                    None,
+                    functools.partial(traer_fuente, f, titles=titles,
+                                      es_relevante=es_relevante, log=log),
+                )
+        except Exception as r:
+            res = ResultadoATS(f)
+            res.error = f"{type(r).__name__}: {str(r)[:120]}"
+            log(f"[ATS] {res.etiqueta} — {res.error}")
             metrics.emit("ats_fuente_error_total", 1, plataforma=f.plataforma,
                          token=f.token, motivo="excepcion")
-            salida.append(fallido)
-        else:
-            salida.append(r)
+        _avisar(res)
+        return res
+
+    # `_una` ya no deja escapar excepciones: una fuente que explota no puede tumbar a
+    # las otras treinta y nueve (riesgo R1 del plan anterior) y queda como resultado con
+    # `error`, igual que antes.
+    salida: list[ResultadoATS] = list(await asyncio.gather(*[_una(f) for f in fuentes]))
 
     por_plataforma: dict[str, tuple[int, int, int]] = {}
     for r in salida:

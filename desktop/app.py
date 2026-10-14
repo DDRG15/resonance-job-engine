@@ -14,6 +14,9 @@ El orden de arranque importa y no es negociable:
 backend. `config` lee el entorno y el `.env` al importarse, y `api` calcula sus orígenes
 permitidos de ahí: importarlos antes dejaría el CORS fijado al puerto de otra época, y la
 UI recibiría 403 en cada POST sin una sola línea de log que lo explique.
+
+Los datos del usuario (`.env`, `api_state.json`, `cookies/`) los resuelve `rutas.py` contra
+`RESONANCE_HOME` al importar el backend; la app no reubica nada por su cuenta.
 """
 
 from __future__ import annotations
@@ -69,42 +72,6 @@ def _primer_arranque(home: Path) -> None:
             destino.touch()
     except OSError as exc:
         log.warning("no se pudo crear %s: %s", destino, exc)
-
-
-def _anclar_datos_en_home(home: Path) -> None:
-    """
-    Reubica las rutas que el backend ancla al CÓDIGO con `Path(__file__)` y que, por eso,
-    el `chdir` no mueve: el `.env` que escribe el wizard, `api_state.json` y los
-    directorios de cookies. Sin esto, en el ejecutable congelado esas escrituras caerían
-    dentro de `_internal/` (se pierden al actualizar) y el wizard guardaría las keys en un
-    `.env` que `config` ya no lee.
-
-    Es un parche del lado de la app a propósito: el backend sigue funcionando igual en
-    modo desarrollo. Lo correcto es que esos módulos lean `RESONANCE_HOME`; hasta
-    entonces este es el único punto que lo sabe.
-    """
-    import api
-    import setup_wizard
-
-    setup_wizard._ENV_PATH = home / ".env"
-    api.API_STATE_FILE = home / "api_state.json"
-
-    try:
-        from integrations import cookie_vault, session_jar
-    except ImportError:
-        return
-
-    orig_vault = cookie_vault.CookieVault.__init__
-    orig_jar = session_jar.SessionJar.__init__
-
-    def _vault_init(self, cookies_dir: Optional[str] = None) -> None:
-        orig_vault(self, cookies_dir or str(home / "cookies"))
-
-    def _jar_init(self, jar_dir: Optional[str] = None) -> None:
-        orig_jar(self, jar_dir or str(home / "cookies" / "session"))
-
-    cookie_vault.CookieVault.__init__ = _vault_init
-    session_jar.SessionJar.__init__ = _jar_init
 
 
 def _esperar_api(server, hilo: threading.Thread, url: str, tope: float) -> bool:
@@ -173,8 +140,6 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     import uvicorn
     import api  # noqa: WPS433 — después del chdir y del entorno, ver docstring del módulo
-
-    _anclar_datos_en_home(home)
 
     server = uvicorn.Server(uvicorn.Config(
         api.app, host="127.0.0.1", port=port, workers=1, log_level="info",

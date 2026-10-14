@@ -32,6 +32,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from rutas import ruta_datos
+
 logger = logging.getLogger(__name__)
 
 # Fields Playwright accepts when adding cookies to a context
@@ -49,10 +51,8 @@ class CookieVault:
 
     def __init__(self, cookies_dir: Optional[str] = None) -> None:
         if cookies_dir is None:
-            # Default: cookies/ sibling to this file's package root
-            this_file = Path(__file__).resolve()
-            package_root = this_file.parent.parent  # gema/
-            cookies_dir = str(package_root / "cookies")
+            # Default: RESONANCE_HOME/cookies, o cookies/ en la raíz del repo (desarrollo)
+            cookies_dir = str(ruta_datos("cookies"))
         self._dir = Path(cookies_dir)
 
     # -------------------------------------------------------------------------

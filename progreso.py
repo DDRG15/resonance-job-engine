@@ -78,9 +78,6 @@ ULTIMAS_CORRIDAS = 5
 #: la UI prometería «2 min» y tardaría 6.
 CONCURRENCIA_ATS = 4
 
-#: Cuántas empresas ATS se piden por lote (ver scraper._scrape_ats_sources).
-LOTE_ATS = 10
-
 
 def _concurrencia(clase: str) -> int:
     if clase == "css":

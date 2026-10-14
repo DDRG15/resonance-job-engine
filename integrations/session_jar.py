@@ -26,6 +26,8 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+from rutas import ruta_datos
+
 logger = logging.getLogger(__name__)
 
 # Cookies que valen la pena persistir para saltar anti-bot. Guardamos solo las
@@ -40,9 +42,7 @@ class SessionJar:
 
     def __init__(self, jar_dir: Optional[str] = None) -> None:
         if jar_dir is None:
-            this_file = Path(__file__).resolve()
-            package_root = this_file.parent.parent  # gema/
-            jar_dir = str(package_root / "cookies" / "session")
+            jar_dir = str(ruta_datos("cookies", "session"))
         self._dir = Path(jar_dir)
 
     # -------------------------------------------------------------------------

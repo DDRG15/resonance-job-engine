@@ -29,6 +29,15 @@ TOOLS_ESPERADAS = {
 }
 
 
+def test_abrir_ventana_delega_en_desktop_ventana(monkeypatch):
+    from desktop import ventana
+    monkeypatch.setattr(ventana, "abrir_como", lambda url: ventana.NAVEGADOR_POR_DEFECTO)
+    assert cliente.abrir_ventana("http://127.0.0.1:1") == "navegador por defecto"
+    monkeypatch.setattr(ventana, "abrir_como", lambda url: None)
+    with pytest.raises(cliente.ErrorApp):
+        cliente.abrir_ventana("http://127.0.0.1:1")
+
+
 # =============================================================================
 # API falsa
 # =============================================================================

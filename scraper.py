@@ -1614,19 +1614,13 @@ class GemaScraper:
 
         writer_task = asyncio.create_task(self._db_writer_task())
         try:
-            # Por lotes y no de una: `traer_todo` es atomico (devuelve cuando terminan
-            # las N empresas) y no avisa cada una que termina. Con 40 fuentes la barra
-            # quedaba quieta toda la fase y despues saltaba. Un lote de LOTE_ATS
-            # mantiene el paralelismo por plataforma adentro y da un avance honesto
-            # entre lotes; el costo es esperar a la empresa mas lenta de cada lote.
-            resultados = []
-            for i in range(0, len(fuentes), progreso.LOTE_ATS):
-                lote = fuentes[i:i + progreso.LOTE_ATS]
-                resultados.extend(await ats_scraper.traer_todo(
-                    lote, titles=self.config.target_titles,
-                    es_relevante=_relevante, log=self._log,
-                ))
-                progreso.unidad_hecha("ats", len(lote))
+            # Una sola llamada: `al_terminar` suma la unidad de progreso en cuanto cada
+            # empresa termina (también las que fallan), sin partir la lista en lotes.
+            resultados = await ats_scraper.traer_todo(
+                fuentes, titles=self.config.target_titles,
+                es_relevante=_relevante, log=self._log,
+                al_terminar=lambda _r: progreso.unidad_hecha("ats"),
+            )
             await fuentes_estado.registrar_ats(          # Fase 4: una traza por empresa
                 self.db, self.summary.run_id, resultados)
             for r in resultados:

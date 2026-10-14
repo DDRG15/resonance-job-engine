@@ -11,11 +11,9 @@ se lanza con `--headless` y se espera hasta `ESPERA_ARRANQUE_S`. Las peticiones 
 
 import logging
 import os
-import shutil
 import subprocess
 import threading
 import time
-import webbrowser
 from pathlib import Path
 from typing import Any, Optional
 
@@ -170,36 +168,10 @@ def post(ruta: str, cuerpo: Any = None, *, timeout: float = TIMEOUT_S) -> Any:
 
 # ── abrir la UI ──────────────────────────────────────────────────────────────
 
-def _navegador_app() -> Optional[str]:
-    """Edge o Chrome (en ese orden: Edge viene con Windows), o None."""
-    for nombre in ("msedge", "chrome", "google-chrome", "chromium"):
-        ruta = shutil.which(nombre)
-        if ruta:
-            return ruta
-    bases = [os.environ.get(v) for v in ("PROGRAMFILES(X86)", "PROGRAMFILES", "LOCALAPPDATA")]
-    relativas = (r"Microsoft\Edge\Application\msedge.exe",
-                 r"Google\Chrome\Application\chrome.exe")
-    for base in filter(None, bases):
-        for rel in relativas:
-            candidato = Path(base) / rel
-            if candidato.is_file():
-                return str(candidato)
-    return None
-
-
 def abrir_ventana(url: str) -> str:
-    """Abre la UI. Devuelve cómo: «ventana de app» o «navegador por defecto»."""
-    exe = _navegador_app()
-    if exe:
-        try:
-            kwargs: dict[str, Any] = dict(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                          stderr=subprocess.DEVNULL, close_fds=True)
-            if os.name == "nt":
-                kwargs["creationflags"] = _CREATE_NEW_PROCESS_GROUP
-            subprocess.Popen([exe, f"--app={url}"], **kwargs)
-            return "ventana de app"
-        except OSError as exc:
-            logger.warning("no pude abrir %s: %s", exe, exc)
-    if webbrowser.open(url):
-        return "navegador por defecto"
-    raise ErrorApp(f"No pude abrir ningún navegador. La UI está en {url}.")
+    """Abre la UI con la misma lógica que la app (`desktop.ventana`). Devuelve cómo."""
+    from desktop import ventana  # perezoso, como `_runtime`
+    como = ventana.abrir_como(url)
+    if como is None:
+        raise ErrorApp(f"No pude abrir ningún navegador. La UI está en {url}.")
+    return como

@@ -162,6 +162,18 @@ def test_ventana_cae_al_navegador_por_defecto(monkeypatch):
     assert abiertos == ["http://127.0.0.1:8765"]
 
 
+def test_abrir_como_dice_como_abrio_y_none_si_no_pudo(monkeypatch):
+    monkeypatch.setattr(ventana, "buscar_navegador", lambda: "C:/x/msedge.exe")
+    monkeypatch.setattr(ventana.subprocess, "Popen", lambda cmd, **kw: None)
+    assert ventana.abrir_como("http://x") == ventana.VENTANA_DE_APP
+    monkeypatch.setattr(ventana, "buscar_navegador", lambda: None)
+    monkeypatch.setattr(ventana.webbrowser, "open", lambda u: True)
+    assert ventana.abrir_como("http://x") == ventana.NAVEGADOR_POR_DEFECTO
+    monkeypatch.setattr(ventana.webbrowser, "open", lambda u: False)
+    assert ventana.abrir_como("http://x") is None
+    assert ventana.abrir("http://x") is False
+
+
 # --- humo: arranque real ------------------------------------------------------
 
 def test_humo_headless_arranca_responde_y_sale_limpio(tmp_path):

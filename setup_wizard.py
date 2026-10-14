@@ -20,13 +20,15 @@ Groq cacheado), asi que recargar `config` no cambiaba la key que usaba la cadena
 """
 
 import os
-from pathlib import Path
 
 from dotenv import set_key
 
 import config
 
-_ENV_PATH = Path(__file__).parent / ".env"
+from rutas import ruta_datos
+
+# Mismo archivo que lee config.py: RESONANCE_HOME/.env, o el .env del repo en desarrollo.
+_ENV_PATH = ruta_datos(".env")
 
 #: Las siete keys que usa la cadena LLM (nlp_engine). Una sola lista para el wizard y
 #: para /api/status: el wizard miraba cuatro, y a quien tenia solo Mistral (el primario

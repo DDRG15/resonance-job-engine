@@ -46,9 +46,14 @@ def buscar_navegador() -> Optional[str]:
     return None
 
 
-def abrir(url: str) -> bool:
+VENTANA_DE_APP = "ventana de app"
+NAVEGADOR_POR_DEFECTO = "navegador por defecto"
+
+
+def abrir_como(url: str) -> Optional[str]:
     """
-    Abre `url` en una ventana de app. Devuelve True si lanzó algo.
+    Abre `url` y devuelve cómo: `VENTANA_DE_APP`, `NAVEGADOR_POR_DEFECTO`, o None si no
+    se pudo abrir nada. Es la única implementación: la bandeja y el MCP pasan por acá.
 
     No bloquea: Edge/Chrome delegan en la instancia ya abierta del navegador y el proceso
     que lanzamos termina enseguida, así que esperarlo no dice nada sobre la ventana.
@@ -64,10 +69,15 @@ def abrir(url: str) -> bool:
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, close_fds=True, **kwargs,
             )
-            return True
+            return VENTANA_DE_APP
         except OSError:
             pass  # cae al navegador por defecto
     try:
-        return bool(webbrowser.open(url))
+        return NAVEGADOR_POR_DEFECTO if webbrowser.open(url) else None
     except Exception:
-        return False
+        return None
+
+
+def abrir(url: str) -> bool:
+    """Abre `url` en una ventana de app. Devuelve True si lanzó algo."""
+    return abrir_como(url) is not None

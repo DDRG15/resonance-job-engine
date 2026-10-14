@@ -57,6 +57,7 @@ import progreso
 from run_manager import RunManager, RunInProgressError
 from scraper import scrape_gate_is_busy
 from scheduler_service import SchedulerService
+from rutas import ruta_datos
 from upload_guard import MaxBodySizeMiddleware
 from setup_wizard import (
     LLM_KEY_NAMES as _LLM_KEY_NAMES,   # una sola lista: /api/status y el wizard cuentan igual
@@ -65,7 +66,7 @@ from setup_wizard import (
 
 # F8: persistencia de sesión — el cron y la última búsqueda confirmada
 # sobreviven reinicios del server. Los tests lo redirigen a un path temporal.
-API_STATE_FILE = Path(__file__).parent / "api_state.json"
+API_STATE_FILE = ruta_datos("api_state.json")  # RESONANCE_HOME si está definida
 
 
 def _persist_state() -> None:
