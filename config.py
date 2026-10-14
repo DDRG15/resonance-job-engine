@@ -13,7 +13,12 @@ from dotenv import load_dotenv
 
 # Load .env anchored to this file's directory so it works regardless of
 # which directory the process was launched from (e.g. streamlit run from parent).
-load_dotenv(dotenv_path=Path(__file__).parent / ".env", override=True)
+# Con RESONANCE_HOME definido (app de escritorio / ejecutable empaquetado) el .env vive en
+# ese directorio de datos: el ejecutable no contiene secretos y se reemplaza al actualizar.
+# Sin la variable, el modo desarrollo de siempre.
+_RESONANCE_HOME = os.environ.get("RESONANCE_HOME", "").strip()
+_ENV_FILE = (Path(_RESONANCE_HOME) / ".env") if _RESONANCE_HOME else (Path(__file__).parent / ".env")
+load_dotenv(dotenv_path=_ENV_FILE, override=True)
 
 
 # =============================================================================

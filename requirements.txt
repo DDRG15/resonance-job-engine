@@ -73,6 +73,8 @@ PyYAML==6.0.3                    # run_scrape_now.py (user_profile.yaml)
 # ── HTTP Client ──────────────────────────────────────────────────────────────
 requests==2.33.0       # Discord webhook delivery — bumped from 2.32.3, fixes GHSA-9hjg + GHSA-gc5v (AUDIT #2)
 
+mcp==2.3.0  # SDK oficial de MCP (mcp_server/): servidor stdio que habla con la API local
+
 # ── CV Parsing — Ephemeral Identity (Phase 7) ────────────────────────────────
 pdfplumber==0.11.10    # PDF text extraction for CV upload — subido desde 0.11.4 para
                        # arrastrar pdfminer.six 20260107 y cerrar PYSEC-2026-1761/1762.
