@@ -150,9 +150,9 @@ class TestShortlist:
                                   corr.ACCEPTED)
         assert tmp_db.compute_hash(dup) in tmp_db.hashes_bloqueados()
 
-        t1, t2, t3, t4 = bucket_jobs([_job(can), _job(dup)], sample_config, tmp_db,
+        t1, t2, t3 = bucket_jobs([_job(can), _job(dup)], sample_config, tmp_db,
                                      repuntuar_todo=True)
-        urls = {tj.job.url for tj in (t1 + t2 + t3 + t4)}
+        urls = {tj.job.url for tj in (t1 + t2 + t3)}
         assert dup not in urls, "el duplicado aceptado aparecio en el shortlist"
         assert can in urls, "el canonico tambien se fue"
 
@@ -163,9 +163,9 @@ class TestShortlist:
         _link(tmp_db, a, b)
         tmp_db.decidir_correlator(tmp_db.compute_hash(a), tmp_db.compute_hash(b),
                                   corr.REJECTED)
-        t1, t2, t3, t4 = bucket_jobs([_job(a), _job(b)], sample_config, tmp_db,
+        t1, t2, t3 = bucket_jobs([_job(a), _job(b)], sample_config, tmp_db,
                                      repuntuar_todo=True)
-        assert len(t1 + t2 + t3 + t4) == 2
+        assert len(t1 + t2 + t3) == 2
 
 
 class TestElGrafoCorreLosCorrelators:

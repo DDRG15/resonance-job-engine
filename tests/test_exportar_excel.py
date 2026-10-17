@@ -43,7 +43,6 @@ def _tiers():
         "tier2": [_tj("Data C", "Gamma", 70, "Tier 2", veredicto="FLAG",
                       nota="Location soft-restricted: 'USA'", salario="Competitive")],
         "tier3": [_tj("Ops D", "Delta", 40, "Tier 3", veredicto="FAIL", nota="Pide clearance")],
-        "tier4": [],
     }
 
 
@@ -228,7 +227,8 @@ class TestFormatoCondicional:
         assert colores['"FAIL"'] == "FFC7CE"
         assert [r.type for r in reglas["B2:B5"]] == ["colorScale"]
         tiers = {r.formula[0]: r.dxf.fill.bgColor.rgb[-6:] for r in reglas["A2:A5"]}
-        assert tiers['"Tier 1"'] == "5EEAD4" and tiers['"Tier 4"'] == "C4B5FD"
+        assert set(tiers) == {'"Tier 1"', '"Tier 2"', '"Tier 3"'}
+        assert tiers['"Tier 1"'] == "5EEAD4"
 
 
 class TestResumenYRevision:

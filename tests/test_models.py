@@ -167,17 +167,18 @@ def test_parse_salary_empty_string_returns_none():
 # 5. TieredJob.validate_tier
 # =============================================================================
 
-def test_tiered_job_rejects_invalid_tier():
+@pytest.mark.parametrize("tier", ["Tier 4", "Tier 5"])
+def test_tiered_job_rejects_invalid_tier(tier):
     with pytest.raises(ValidationError):
         TieredJob(
             job=_job(),
             match_score=80,
-            tier="Tier 5",
+            tier=tier,
         )
 
 
 def test_tiered_job_accepts_all_valid_tiers():
-    for tier, score in [("Tier 1", 90), ("Tier 2", 60), ("Tier 3", 30), ("Tier 4", -1)]:
+    for tier, score in [("Tier 1", 90), ("Tier 2", 60), ("Tier 3", 30)]:
         t = TieredJob(job=_job(), match_score=score, tier=tier)
         assert t.tier == tier
 
@@ -204,11 +205,12 @@ def test_tiered_job_rejects_score_above_115():
         TieredJob(job=_job(), match_score=116, tier="Tier 1")
 
 
-def test_tiered_job_accepts_sentinel_minus_one():
-    tiered = TieredJob(job=_job(), match_score=-1, tier="Tier 4")
-    assert tiered.match_score == -1
+def test_tiered_job_accepts_zero_score():
+    tiered = TieredJob(job=_job(), match_score=0, tier="Tier 3")
+    assert tiered.match_score == 0
 
 
-def test_tiered_job_rejects_score_below_minus_one():
+@pytest.mark.parametrize("score", [-1, -2])
+def test_tiered_job_rejects_negative_score(score):
     with pytest.raises(ValidationError):
-        TieredJob(job=_job(), match_score=-2, tier="Tier 4")
+        TieredJob(job=_job(), match_score=score, tier="Tier 3")

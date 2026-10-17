@@ -101,7 +101,7 @@ class SheetsClient:
                 tj.job.salary_raw or "",
                 tj.job.url,
                 tj.tier,
-                tj.match_score if tj.match_score >= 0 else "",
+                tj.match_score,
                 run_id,
             ]
             for tj in tiered_jobs

@@ -7,7 +7,7 @@ interface Props {
 }
 
 const TIER_CLASS: Record<string, string> = {
-  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3', 'Tier 4': 'b4',
+  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3',
 }
 
 function scoreClass(score: number): string {
@@ -69,7 +69,6 @@ export default function JobDetail({ tj }: Props) {
   const j = tj.job
   const dirty = companyIsDirty(j.company)
   const conf = fieldConfidence(tj)
-  const esManual = tj.match_score < 0
 
   return (
     <div className="detail">
@@ -95,16 +94,12 @@ export default function JobDetail({ tj }: Props) {
         <div className="detail-company">{j.company}</div>
       )}
 
-      {esManual ? (
-        <div className="manual detail-manual">MANUAL — salario en texto, sin puntuar</div>
-      ) : (
-        <div className={`score detail-score ${scoreClass(tj.match_score)}`}>
-          <div className="bar">
-            <i style={{ width: `${Math.min(100, Math.max(0, tj.match_score))}%` }} />
-          </div>
-          <b>{tj.match_score}%</b>
+      <div className={`score detail-score ${scoreClass(tj.match_score)}`}>
+        <div className="bar">
+          <i style={{ width: `${Math.min(100, Math.max(0, tj.match_score))}%` }} />
         </div>
-      )}
+        <b>{tj.match_score}%</b>
+      </div>
 
       <dl className="detail-fields">
         <div>
@@ -134,7 +129,7 @@ export default function JobDetail({ tj }: Props) {
 
       {(tj.match_reasons.length > 0 || tj.miss_reasons.length > 0) && (
         <div className="detail-reasons">
-          <div className="detail-sub">Por qué {esManual ? 'quedó a revisión' : `sacó ${tj.match_score}`}</div>
+          <div className="detail-sub">Por qué sacó {tj.match_score}</div>
           {tj.match_reasons.map((r, i) => (
             <div className="ok" key={`ok-${i}`}>✓ {r}</div>
           ))}

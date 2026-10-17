@@ -129,7 +129,7 @@ class TestEndpoint:
         client.app.state.runs.results = (
             [_tj(FORMULA, "+cmd", url="javascript:alert(1)", salario="=1+1"),
              _tj("Backend Engineer", "Acme")],
-            [], [], [],
+            [], [],
         )
         r = client.get("/api/export.xlsx")
         assert r.status_code == 200
@@ -154,7 +154,7 @@ class TestEndpoint:
     def test_el_texto_original_no_cambia_en_el_estado_del_servidor(self, client):
         """La defensa vive en el borde: el objeto que lee la UI no se toca."""
         t1 = [_tj(FORMULA, "+cmd")]
-        client.app.state.runs.results = (t1, [], [], [])
+        client.app.state.runs.results = (t1, [], [])
         assert client.get("/api/export.xlsx").status_code == 200
         assert client.app.state.runs.results[0][0].job.title == FORMULA
         assert client.app.state.runs.results[0][0].job.company == "+cmd"

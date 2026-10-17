@@ -129,7 +129,6 @@ class RunState(TypedDict, total=False):
     tier1:       list
     tier2:       list
     tier3:       list
-    tier4:       list
     status:      str            # "running" | "ok" | "crashed"
     error:       Optional[str]
 

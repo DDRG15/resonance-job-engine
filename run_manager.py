@@ -128,7 +128,7 @@ class RunManager:
         self.thread: Optional[threading.Thread] = None
         self.log_queue: Optional[queue.Queue] = None
         self.logs: list[str] = []
-        self.results: Optional[tuple] = None      # (tier1..tier4: list[TieredJob])
+        self.results: Optional[tuple] = None      # (tier1..tier3: list[TieredJob])
         self.summary: Optional[ScrapeRunSummary] = None
         # True entre un reset() y el proximo start(): la sesion se limpio a proposito y
         # /api/results NO debe rellenarla con el historial de la DB.
@@ -280,7 +280,7 @@ class RunManager:
                 # cinturón para el día que exista cancelación.
                 if self.run_id == run_id:
                     self.results = (estado.get("tier1") or [], estado.get("tier2") or [],
-                                    estado.get("tier3") or [], estado.get("tier4") or [])
+                                    estado.get("tier3") or [])
                     self.summary = estado.get("summary")
                 _fire_discord(random.choice(END_PHRASES))
 

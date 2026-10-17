@@ -399,7 +399,7 @@ class TestAPI:
 # ── El reporte del cron ──────────────────────────────────────────────────────
 
 def _estado(trigger="cron"):
-    return {"trigger": trigger, "tier1": [], "tier2": [], "tier3": [], "tier4": [],
+    return {"trigger": trigger, "tier1": [], "tier2": [], "tier3": [],
             "errors": []}
 
 
@@ -448,7 +448,7 @@ class TestNotificacionDeVencidas:
     def test_sin_vencidas_el_reporte_no_cambia(self, tmp_db, con_webhook):
         enviados: list[str] = []
         _correr_notify(RuntimeContext(db=tmp_db, discord=enviados.append))
-        assert enviados[0].endswith("- Tier 4: 0")
+        assert enviados[0].endswith("- Tier 3: 0")
 
     def test_lista_cinco_y_cuenta_el_resto(self, tmp_db, con_webhook):
         for n in range(7):

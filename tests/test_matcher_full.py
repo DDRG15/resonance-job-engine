@@ -7,7 +7,7 @@ Coverage:
     3. _score_must_include    — all present, partial, empty list
     4. _apply_exclusion_penalty — hit, clean, empty list
     5. score_job              — Tier 4 bypass, Tier 1, Tier 3, score=115 (regression fix)
-    6. bucket_jobs            — 4-tier distribution, db update_tiers_batch called
+    6. bucket_jobs            — 3-tier distribution, db update_tiers_batch called
 
 No external API calls or disk access.
 """
@@ -249,7 +249,7 @@ def test_score_job_returns_tiered_job_instance():
     config = _config()
     result = score_job(job, config)
     assert isinstance(result, TieredJob)
-    assert result.tier in {"Tier 1", "Tier 2", "Tier 3", "Tier 4"}
+    assert result.tier in {"Tier 1", "Tier 2", "Tier 3"}
 
 
 def test_score_job_accepts_score_above_100_regression():
@@ -292,7 +292,7 @@ def test_score_job_with_exclusion_found():
 # 6. bucket_jobs
 # =============================================================================
 
-def test_bucket_jobs_distributes_into_four_tiers():
+def test_bucket_jobs_distributes_into_three_tiers():
     jobs = [
         _job("Backend Engineer", salary_raw="$150k", url_id=100),          # Tier 1
         _job("Backend Engineer", salary_raw="$80k", url_id=101),            # Tier 2
@@ -300,15 +300,14 @@ def test_bucket_jobs_distributes_into_four_tiers():
         _job("File Clerk", salary_raw="$40k", url_id=102),                  # off-topic → filtrado
     ]
     config = _config(titles=["Backend Engineer"], min_salary=130_000)
-    t1, t2, t3, t4 = bucket_jobs(jobs, config)
+    t1, t2, t3 = bucket_jobs(jobs, config)
 
     # v6: el salario en texto ya no puebla Tier 4; se puntua y queda marcado.
-    assert t4 == []
     assert any(tj.salario_no_confirmado for tj in t1 + t2 + t3)
-    total = len(t1) + len(t2) + len(t3) + len(t4)
+    total = len(t1) + len(t2) + len(t3)
     # AUDIT NEW #1: "File Clerk" es off-topic → descartado ANTES de puntuar.
     assert total == len(jobs) - 1
-    all_titles = [tj.job.title for tj in (t1 + t2 + t3 + t4)]
+    all_titles = [tj.job.title for tj in (t1 + t2 + t3)]
     assert "File Clerk" not in all_titles
 
 
@@ -334,7 +333,7 @@ def test_bucket_jobs_persiste_el_tier_de_cada_job():
     assert url == jobs[0].url and tier and tiered is not None
 
 
-def test_bucket_jobs_empty_input_returns_four_empty_lists():
+def test_bucket_jobs_empty_input_returns_three_empty_lists():
     config = _config()
-    t1, t2, t3, t4 = bucket_jobs([], config)
-    assert t1 == t2 == t3 == t4 == []
+    t1, t2, t3 = bucket_jobs([], config)
+    assert t1 == t2 == t3 == []

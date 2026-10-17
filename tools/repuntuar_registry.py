@@ -208,9 +208,9 @@ def main(argv=None) -> int:
         print("\n--dry-run: no se escribio nada.")
         return 0
 
-    t1, t2, t3, t4 = matcher.bucket_jobs(relevantes, cfg, db, profile=perfil,
+    t1, t2, t3 = matcher.bucket_jobs(relevantes, cfg, db, profile=perfil,
                                          repuntuar_todo=True)
-    print(f"\nre-puntuadas con {version}: T1 {len(t1)} | T2 {len(t2)} | T3 {len(t3)} | T4 {len(t4)}")
+    print(f"\nre-puntuadas con {version}: T1 {len(t1)} | T2 {len(t2)} | T3 {len(t3)}")
     print("(los tiers de arriba cuentan el shortlist; vencidos, duplicados y no elegibles")
     print(" se persisten con su tier igual, pero no entran a esas listas)")
 

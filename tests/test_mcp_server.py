@@ -263,7 +263,7 @@ async def test_resultados_recorta_a_cinco_campos_y_respeta_el_limite(api, runtim
              for i in range(60)]
     api.rutas[("GET", "/api/results")] = (200, {
         "run_id": "r1", "is_running": False, "has_results": True,
-        "tiers": {"tier1": tier1, "tier2": [], "tier3": [], "tier4": []}})
+        "tiers": {"tier1": tier1, "tier2": [], "tier3": []}})
 
     d = await _json("resultados")                       # límite por defecto 20
     assert d["total_en_tier"] == 60 and d["mostrados"] == 20 and len(d["avisos"]) == 20
@@ -298,7 +298,7 @@ async def test_detalle_aviso_desde_resultados_con_requisitos_recortados(api, run
         "tiers": {"tier1": [], "tier2": [
             _tj("Backend", "Acme", 72, "https://x.test/uno", tier="Tier 2",
                 requisitos=reqs, cobertura_requisitos=0.8)],
-            "tier3": [], "tier4": []}})
+            "tier3": []}})
 
     d = await _json("detalle_aviso", {"url": "https://x.test/uno/"})   # barra final tolerada
     assert d["titulo"] == "Backend" and d["tier"] == 2 and d["score"] == 72

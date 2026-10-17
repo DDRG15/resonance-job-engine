@@ -163,25 +163,17 @@ class NotionClient:
                 "select": {"name": tiered_job.tier, "color": color}
             },
             "Match Score": {
-                # Tier 4 sentinel is -1 — store as None in Notion (no score)
-                "number": tiered_job.match_score if tiered_job.match_score >= 0 else None
+                "number": tiered_job.match_score
             },
             "Salary": {
                 "rich_text": [{"text": {"content": job.salary_raw or "Not published"}}]
             },
             "Comments / Raw Salary": {
-                # Tier 4: surfaces the unstructured salary text for manual review.
-                # For Tier 1/2/3: populated only if salary_raw is present and
-                # non-numeric (defensive — belt-and-suspenders for edge cases).
+                # El salario en texto conserva su marca aunque no participe del score.
                 "rich_text": [{
                     "text": {
                         "content": (
-                            f"[MANUAL REVIEW] Employer stated: '{job.salary_raw}' — "
-                            "evaluate compensation manually before applying."
-                            if tiered_job.tier == "Tier 4" and job.salary_raw
-                            # v6: el salario en texto ya no es
-                            # Tier 4; se puntua sin ese eje y Notion lo sigue diciendo.
-                            else f"[SALARIO NO CONFIRMADO] '{job.salary_raw}' — "
+                            f"[SALARIO NO CONFIRMADO] '{job.salary_raw}' — "
                                  "puntuado sin el eje de salario."
                             if getattr(tiered_job, "salario_no_confirmado", False)
                             else job.salary_raw or ""
@@ -194,7 +186,7 @@ class NotionClient:
             },
             "Status": {
                 "select": {
-                    "name": "Manual Review" if tiered_job.tier == "Tier 4" else "To Review"
+                    "name": "To Review"
                 }
             },
         }

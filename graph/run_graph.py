@@ -184,9 +184,9 @@ def bucket(state: RunState, config: RunnableConfig) -> dict:
                      f"el shortlist puede traer duplicados esta vez.")
 
     ctx.emit(f"[MATCHER] Scoring {len(jobs)} new jobs...")
-    t1, t2, t3, t4 = bucket_jobs(jobs, state["config"], ctx.db,
+    t1, t2, t3 = bucket_jobs(jobs, state["config"], ctx.db,
                                  profile=state.get("profile"))
-    return {"tier1": t1, "tier2": t2, "tier3": t3, "tier4": t4}
+    return {"tier1": t1, "tier2": t2, "tier3": t3}
 
 
 @traced_node("summarize", graph="run")
@@ -194,15 +194,12 @@ def summarize(state: RunState, config: RunnableConfig) -> dict:
     """
     Cierra el summary con los conteos por tier.
 
-    Escribe los CUATRO. ScrapeRunSummary solo lleva tres campos, así que el cuarto se
-    devuelve en el estado para que persist_run lo guarde: bucket_jobs siempre devolvió
-    cuatro tiers y el cuarto se recalculaba por separado en el SSE y en el reporte de
-    Discord, cada uno por su cuenta.
+    Escribe los tres conteos que comparten el estado, la base y el reporte de Discord.
     """
     ctx = _rt(config)
     summary = state.get("summary")
-    t1, t2, t3, t4 = (state.get("tier1") or [], state.get("tier2") or [],
-                      state.get("tier3") or [], state.get("tier4") or [])
+    t1, t2, t3 = (state.get("tier1") or [], state.get("tier2") or [],
+                  state.get("tier3") or [])
     if summary is not None:
         summary.tier1_count = len(t1)
         summary.tier2_count = len(t2)
@@ -231,7 +228,7 @@ def persist_run(state: RunState, config: RunnableConfig) -> dict:
         summary_json=(summary.model_dump_json()
                       if hasattr(summary, "model_dump_json") else None),
         tier_counts=(len(state.get("tier1") or []), len(state.get("tier2") or []),
-                     len(state.get("tier3") or []), len(state.get("tier4") or [])),
+                     len(state.get("tier3") or [])),
         domains_aborted=list(getattr(summary, "domains_aborted", []) or []),
         error=state.get("error"),
     )
@@ -248,8 +245,8 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
     parece normal.
     """
     ctx = _rt(config)
-    t1, t2, t3, t4 = (state.get("tier1") or [], state.get("tier2") or [],
-                      state.get("tier3") or [], state.get("tier4") or [])
+    t1, t2, t3 = (state.get("tier1") or [], state.get("tier2") or [],
+                  state.get("tier3") or [])
     # El trigger va en el encabezado: dos corridas con los mismos numeros y origenes
     # distintos se investigan distinto — una del cron a las 3 AM no se mira igual que
     # una que alguien lanzo a mano.
@@ -261,8 +258,7 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
         f"{origen}:\n"
         f"- Tier 1: {len(t1)}\n"
         f"- Tier 2: {len(t2)}\n"
-        f"- Tier 3: {len(t3)}\n"
-        f"- Tier 4: {len(t4)}"
+        f"- Tier 3: {len(t3)}"
     )
     # v6: el salario en texto se puntua; la cuenta dice cuantos.
     sin_confirmar = sum(1 for tj in (t1 + t2 + t3)
@@ -344,7 +340,7 @@ def push(state: RunState, config: RunnableConfig) -> dict:
     """
     ctx = _rt(config)
     todos = ((state.get("tier1") or []) + (state.get("tier2") or []) +
-             (state.get("tier3") or []) + (state.get("tier4") or []))
+             (state.get("tier3") or []))
     if not todos:
         return {}
 
@@ -411,7 +407,7 @@ def run_pipeline(
         "profile": profile,
         "ttl_hours": ttl_hours,
         "jobs": [], "errors": [], "counters": {},
-        "tier1": [], "tier2": [], "tier3": [], "tier4": [],
+        "tier1": [], "tier2": [], "tier3": [],
         "status": "running", "error": None,
     }
     # una corrida, un seguimiento. Lo abre el unico punto de entrada comun a API,

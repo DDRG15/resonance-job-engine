@@ -280,11 +280,8 @@ def _salario_anual_detalle(texto: Optional[str]) -> tuple[Optional[int], bool]:
 
     # Fase 4 (2026-09-15): libras y euros, no solo dólares.
     #
-    # Los CINCO Tier 4 de la corrida del 2026-09-04 tenían salario numérico
-    # —£75k-£90k, €72k-€82k, €95k-€115k— y caían a revisión manual porque el
-    # parser solo entendía `$` y `usd`. Tier 4 no estaba capturando "salario en
-    # prosa": estaba capturando Europa. Cada aviso europeo con sueldo publicado
-    # se saltaba el gate de salario entero y terminaba en la pila manual.
+    # El parser reconoce GBP y EUR para que los salarios europeos publicados
+    # participen del eje de salario.
     #
     # El anclaje se mantiene igual de estricto: hace falta un símbolo o un código
     # de moneda. Sin eso, "401k match" volvería a parsear como 401.000 — que es
@@ -293,7 +290,7 @@ def _salario_anual_detalle(texto: Optional[str]) -> tuple[Optional[int], bool]:
     # que es como Greenhouse publica los rangos europeos. Exige separador de miles
     # o sufijo k a proposito: sin eso, los 10 salarios que el extractor habia
     # truncado a "EUR 109" se leerian como 109 euros al ano. Un salario inventado
-    # es peor que ninguno; esos siguen en Tier 4 hasta que se re-extraen bien.
+    # es peor que ninguno; esos se marcan como salario no confirmado.
     # Y 2-3 digitos iniciales, igual que la ruta del simbolo: 'USD 2,000' es el
     # presupuesto de formacion de Canonical, no un sueldo (medido en 239 avisos).
     #
@@ -427,17 +424,15 @@ class TieredJob(BaseModel):
     job: JobResult
     match_score: int = Field(
         ...,
-        ge=-1,
+        ge=0,
         le=115,
         description=(
             "0–115 match score for scored tiers (Tier 1/2/3). "
             "Base is 0–100; the +15 skill-overlap bonus (when CV is loaded) "
             "can push a strong Tier 2 into Tier 1 without changing the 80-pt threshold. "
-            "-1 is the sentinel value for Tier 4 (Manual Review) jobs "
-            "that bypass mathematical scoring entirely."
         ),
     )
-    tier: str = Field(..., description="'Tier 1', 'Tier 2', 'Tier 3', or 'Tier 4'.")
+    tier: str = Field(..., description="'Tier 1', 'Tier 2', or 'Tier 3'.")
     match_reasons: list[str] = Field(
         default_factory=list,
         description="Human-readable list of which criteria matched.",
@@ -504,7 +499,7 @@ class TieredJob(BaseModel):
         """
         El aviso publico salario en texto ("Competitive", "DOE") que no se pudo leer
         como sueldo anual. Ya no saca el aviso del
-        scoring —antes iba a Tier 4 aunque titulo, ubicacion y perfil calzaran—; se
+        scoring; se
         puntua sin el eje de salario y se marca. Calculado, no guardado: sale de
         `salary_raw`, asi que una fila vieja lo trae igual y no puede contradecirse.
         No publicar salario NO es esto: es un dato ausente, sin marca.
@@ -515,7 +510,7 @@ class TieredJob(BaseModel):
     @field_validator("tier")
     @classmethod
     def validate_tier(cls, v: str) -> str:
-        allowed = {"Tier 1", "Tier 2", "Tier 3", "Tier 4"}
+        allowed = {"Tier 1", "Tier 2", "Tier 3"}
         if v not in allowed:
             raise ValueError(f"tier must be one of {allowed}, got '{v}'")
         return v

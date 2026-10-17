@@ -136,8 +136,7 @@ class TestNoConfirmado:
         assert not any("below" in r.lower() for r in tj.miss_reasons)
 
     def test_bucket_no_produce_tier_4(self):
-        t1, t2, t3, t4 = matcher.bucket_jobs([_job("Competitive"), _job("DOE")], self.CFG)
-        assert t4 == []
+        t1, t2, t3 = matcher.bucket_jobs([_job("Competitive"), _job("DOE")], self.CFG)
         assert len(t1) + len(t2) + len(t3) == 2
 
     def test_metricas(self, monkeypatch):

@@ -71,7 +71,6 @@ _TIER_INK = {
     "Tier 1": "5EEAD4",   # --t1-ink (base --t1: 0D9488)
     "Tier 2": "FCD34D",   # --t2-ink (base --t2: D97706)
     "Tier 3": "FDA4AF",   # --t3-ink (base --t3: E11D48)
-    "Tier 4": "C4B5FD",   # --t4-ink (base --t4: 7C3AED)
 }
 _TEXTO_OSCURO = "0B1220"
 
@@ -91,7 +90,7 @@ _NULOS = {"none", "nan", "null", "nat", "undefined", "n/a", "#n/a"}
 _PLACEHOLDER_EMPRESA = "(empresa no listada)"
 _MAX_MOTIVOS = 240
 
-_ORDEN_TIER = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4}
+_ORDEN_TIER = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3}
 
 _MOTIVOS_PILA = {
     "url_no_verificable_titulo_real": "URL no verificable; título y empresa reales",
@@ -236,8 +235,6 @@ def motivos(tj: TieredJob) -> str:
         partes.append(f"Título coincide {titulo_pct}%")
     if skills:
         partes.append("Skills: " + ", ".join(skills[:5]))
-    if tj.tier == "Tier 4" and tj.match_score < 0:
-        partes.append("Sin puntaje: revisión manual")
     return _recortar(" · ".join(partes), _MAX_MOTIVOS)
 
 
@@ -357,7 +354,7 @@ def _hoja_avisos(wb: Workbook, ordenados: list[TieredJob]):
     for i, tj in enumerate(ordenados, start=2):
         j = tj.job
         sal = salario_anual_usd(j.salary_raw)
-        puntaje = tj.match_score if tj.match_score >= 0 else None
+        puntaje = tj.match_score
         cob = tj.cobertura_requisitos
         vals = (
             (tj.tier, None, False, True),
@@ -446,7 +443,7 @@ def _hoja_revision(wb: Workbook, manual_review: list, no_elegibles: list, causas
             "origen": origen, "motivo": motivo, "titulo": texto(j.title),
             "empresa": texto(j.company, placeholder=_PLACEHOLDER_EMPRESA),
             "ubicacion": texto(j.location_raw), "fuente": texto(j.source_domain),
-            "score": tj.match_score if tj.match_score >= 0 else None,
+            "score": tj.match_score,
             "capturado": a_fecha(j.scraped_at), "resuelto": "",
             "url": j.url, "sin_verificar": None, "listado": None,
             "orden": (1, origen, -tj.match_score),
@@ -540,7 +537,7 @@ def _hoja_resumen(wb: Workbook, ordenados: list[TieredJob], n_revision: int,
     por_tier = {t: [tj for tj in ordenados if tj.tier == t] for t in _ORDEN_TIER}
     filas = []
     for t, lista in por_tier.items():
-        puntajes = [tj.match_score for tj in lista if tj.match_score >= 0]
+        puntajes = [tj.match_score for tj in lista]
         filas.append((t, len(lista), _pct(len(lista), total),
                       round(sum(puntajes) / len(puntajes), 1) if puntajes else None))
     fila = _bloque(hoja, fila, "Por tier", ("Tier", "Avisos", "% del total", "Score promedio"),
@@ -603,7 +600,7 @@ def construir_excel(tiers: dict[str, list[TieredJob]],
     """
     El libro de resultados como bytes (.xlsx).
 
-    `tiers`: {"tier1": [...], ..., "tier4": [...]} (las claves no importan; manda
+    `tiers`: {"tier1": [...], "tier2": [...], "tier3": [...]} (las claves no importan; manda
     `TieredJob.tier`). `manual_review`: filas de `GemaDatabase.get_manual_review`.
     `no_elegibles`: avisos puntuados que no entraron al shortlist. `meta` (todo opcional):
     `fecha` (de la corrida) y `causas` ({url: "Vencido" | "Duplicado" | ...}, para los

@@ -46,19 +46,22 @@ class TestRunsTable:
         assert row["trigger"] == "api"
         assert row["completed_at"] is None
 
-        db.record_run_end("r1", status="ok", tier_counts=(3, 2, 1, 4),
+        db.record_run_end("r1", status="ok", tier_counts=(3, 2, 1),
                           domains_aborted=["arc.dev"], breaker_state_json="{}")
         row = db.get_run("r1")
         assert row["status"] == "ok"
         assert row["completed_at"] is not None
         assert json.loads(row["domains_aborted"]) == ["arc.dev"]
 
-    def test_tier4_count_is_persisted(self, db):
-        # ScrapeRunSummary nunca llevó tier4_count aunque bucket_jobs devuelve cuatro
-        # tiers. Esta columna es donde deja de perderse.
+    def test_se_persisten_los_tres_contadores(self, db):
         db.record_run_start("r1", trigger="cron")
-        db.record_run_end("r1", status="ok", tier_counts=(0, 0, 0, 7))
-        assert db.get_run("r1")["tier4_count"] == 7
+        db.record_run_end("r1", status="ok", tier_counts=(3, 2, 7))
+        row = db.get_run("r1")
+        assert [row[f"tier{i}_count"] for i in (1, 2, 3)] == [3, 2, 7]
+        with sqlite3.connect(db.db_path) as conn:
+            columns = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+        assert {c for c in columns if c.startswith("tier")} == {
+            "tier1_count", "tier2_count", "tier3_count"}
 
     def test_run_survives_a_restart(self, tmp_path):
         # El agujero que esta tabla cierra: en v2 el run_id y el summary vivían solo en

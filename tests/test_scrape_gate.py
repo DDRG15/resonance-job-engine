@@ -60,7 +60,7 @@ class TestRunManagerRespectsGate:
 
         monkeypatch.setattr("run_manager.run_scrape_session", _fake_session)
         monkeypatch.setattr("run_manager.bucket_jobs",
-                            lambda *a, **k: ([], [], [], []))
+                            lambda *a, **k: ([], [], []))
         monkeypatch.setattr("run_manager.reset_rate_limit_flags", lambda: None)
         monkeypatch.setattr("run_manager._fire_discord", lambda msg: None)
 

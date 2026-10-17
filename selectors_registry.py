@@ -70,7 +70,7 @@ class DomainSelectors:
     # Company selector — evaluated within each job_card element.
     company:    list[str] = field(default_factory=list)
 
-    # Salary selector — optional. None values are acceptable and route to Tier 4.
+    # Salary selector — optional. None values are scored without the salary dimension.
     salary:     list[str] = field(default_factory=list)
 
     # Location selector — optional. Extracts raw location string (e.g. "USA", "Anywhere").

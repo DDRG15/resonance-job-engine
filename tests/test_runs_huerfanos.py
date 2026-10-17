@@ -84,7 +84,7 @@ def _sembrar_ok(path: str, run_id: str = "run-ok",
     db.record_run_end(
         run_id, status="ok",
         summary_json=resumen.model_dump_json(),
-        tier_counts=(2, 5, 7, 1),
+        tier_counts=(2, 5, 7),
         completed_at="2026-09-29T08:20:00+00:00",
     )
     return db
@@ -194,7 +194,7 @@ class TestArranqueReconcilia:
                 assert ultimo["trigger"] == "cron"
                 assert ultimo["completed_at"] == "2026-09-29T08:20:00+00:00"
                 assert ultimo["tier_counts"] == {
-                    "tier1": 2, "tier2": 5, "tier3": 7, "tier4": 1}
+                    "tier1": 2, "tier2": 5, "tier3": 7}
                 assert ultimo["summary"]["new_processed"] == 42
                 assert ultimo["results_available"] is False
                 # El mensaje es honesto con lo que quedó fuera: el detalle de la sesión.
@@ -313,7 +313,7 @@ class TestCierreGanaSobreLaReconciliacion:
         db = _sembrar_running(db_path)
         db.reconcile_orphan_runs()
         assert db.get_run("run-huerfano")["interrupted_at"]
-        db.record_run_end("run-huerfano", status="ok", tier_counts=(0, 0, 0, 0))
+        db.record_run_end("run-huerfano", status="ok", tier_counts=(0, 0, 0))
         fila = db.get_run("run-huerfano")
         assert fila["status"] == "ok"
         assert fila["interrupted_at"] is None

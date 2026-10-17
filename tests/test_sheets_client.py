@@ -112,16 +112,15 @@ def test_append_batch_row_count_matches_input():
     assert len(rows_written) == 5
 
 
-def test_append_batch_sentinel_minus_one_writes_empty_string():
+def test_append_batch_score_cero_se_escribe_como_cero():
+    """Un puntaje real de 0 es un dato: no puede quedar como celda vacia en Sheets."""
     client = _make_client()
-    jobs = [_make_tiered_job(tier="Tier 4", match_score=-1)]
+    jobs = [_make_tiered_job(tier="Tier 3", match_score=0)]
 
     client.append_batch(jobs)
 
     rows = client._sheet.append_rows.call_args[0][0]
-    assert rows[0][6] == "", (
-        "Tier 4 sentinel (-1) must be stored as '' in Sheets, not -1"
-    )
+    assert rows[0][6] == 0
 
 
 def test_append_batch_uses_run_id_from_summary():

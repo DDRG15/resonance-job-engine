@@ -332,9 +332,6 @@ CREATE TABLE IF NOT EXISTS manual_review (
 # necesita migración inversa y la telemetría acumulada sobrevive.
 # =============================================================================
 
-# tier4_count existe acá y NO en ScrapeRunSummary, que nunca lo llevó pese a que
-# bucket_jobs devuelve cuatro tiers — el payload del SSE y el reporte de Discord lo
-# recalculaban cada uno por su lado.
 _DDL_RUNS = """
 CREATE TABLE IF NOT EXISTS runs (
     run_id             TEXT PRIMARY KEY,
@@ -347,12 +344,17 @@ CREATE TABLE IF NOT EXISTS runs (
     tier1_count        INTEGER,
     tier2_count        INTEGER,
     tier3_count        INTEGER,
-    tier4_count        INTEGER,
     domains_aborted    TEXT,
     breaker_state_json TEXT,
     error              TEXT
 );
 """
+
+_RUN_COLUMNS = (
+    "run_id, started_at, completed_at, trigger, status, config_json, summary_json, "
+    "tier1_count, tier2_count, tier3_count, domains_aborted, breaker_state_json, "
+    "error, interrupted_at"
+)
 
 # exec_ms y queue_wait_ms van SEPARADOS a propósito. Send despacha todas las ramas del
 # fan-out a la vez y el semáforo las frena adentro del nodo, así que veinte nodos pueden
@@ -620,6 +622,18 @@ class GemaDatabase:
                     else:
                         logger.error("[DB MIGRATION] ALTER node_traces failed unexpectedly: %s", exc)
                         raise
+            # Los avisos antiguos con Tier 4 conservan todos sus datos de origen.
+            # Un puntaje real se reclasifica; el centinela negativo queda sin puntuar
+            # para que vuelva al matcher. La version se invalida en ambos casos.
+            conn.execute(
+                "UPDATE seen_jobs_registry SET tier = CASE "
+                "WHEN match_score >= ? THEN 'Tier 1' "
+                "WHEN match_score >= ? THEN 'Tier 2' "
+                "WHEN match_score >= 0 THEN 'Tier 3' ELSE NULL END, "
+                "match_score = CASE WHEN match_score >= 0 THEN match_score ELSE NULL END, "
+                "score_version = NULL WHERE tier = 'Tier 4'",
+                (config.TIER1_MIN_SCORE, config.TIER2_MIN_SCORE),
+            )
         logger.info("Database initialized: %s", self.db_path)
 
     def backup(self) -> str:
@@ -1869,7 +1883,7 @@ class GemaDatabase:
         *,
         status: str,
         summary_json: Optional[str] = None,
-        tier_counts: Optional[tuple[int, int, int, int]] = None,
+        tier_counts: Optional[tuple[int, int, int]] = None,
         domains_aborted: Optional[list[str]] = None,
         breaker_state_json: Optional[str] = None,
         error: Optional[str] = None,
@@ -1878,27 +1892,25 @@ class GemaDatabase:
         """
         Cierra la fila del run.
 
-        `tier_counts` lleva los CUATRO tiers. ScrapeRunSummary solo carga tres pese a
-        que bucket_jobs devuelve cuatro, así que el cuarto se pierde salvo que se lo
-        pase explícitamente acá.
+        `tier_counts` lleva los tres conteos del resultado de la corrida.
 
         Cerrar una corrida limpia `interrupted_at`: si la reconciliación del arranque
         marcó por error una corrida que seguía viva (otro proceso sobre la misma DB), el
         cierre real gana y no deja una fila `ok` con huella de interrupción.
         """
-        t1, t2, t3, t4 = tier_counts or (None, None, None, None)
+        t1, t2, t3 = tier_counts or (None, None, None)
         try:
             with _get_connection(self.db_path) as conn:
                 conn.execute(
                     """UPDATE runs SET completed_at = ?, status = ?, summary_json = ?,
                               tier1_count = ?, tier2_count = ?, tier3_count = ?,
-                              tier4_count = ?, domains_aborted = ?,
+                              domains_aborted = ?,
                               breaker_state_json = ?, error = ?,
                               interrupted_at = NULL
                        WHERE run_id = ?""",
                     (
                         completed_at or _now_iso(), status, summary_json,
-                        t1, t2, t3, t4,
+                        t1, t2, t3,
                         json.dumps(domains_aborted) if domains_aborted is not None else None,
                         # 2000 para el run: es UNA fila por corrida y ahí el traceback
                         # completo sí vale más que el ahorro de espacio.
@@ -2119,13 +2131,13 @@ class GemaDatabase:
     def get_run(self, run_id: str) -> Optional[dict]:
         """Lee una fila de runs. Devuelve None si no existe."""
         with _get_connection(self.db_path) as conn:
-            row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+            row = conn.execute(f"SELECT {_RUN_COLUMNS} FROM runs WHERE run_id = ?", (run_id,)).fetchone()
         return dict(row) if row else None
 
     def get_recent_runs(self, limit: int = 20) -> list[dict]:
         with _get_connection(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?", (limit,)
+                f"SELECT {_RUN_COLUMNS} FROM runs ORDER BY started_at DESC LIMIT ?", (limit,)
             ).fetchall()
         return [dict(r) for r in rows]
 

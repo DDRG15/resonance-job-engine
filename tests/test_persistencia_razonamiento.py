@@ -85,8 +85,8 @@ class TestPersistencia:
         """Sale del shortlist, no del registro."""
         jobs = [_job("Backend Engineer with security clearance", n=3)]
         db.mark_seen_batch(jobs)
-        t1, t2, t3, t4 = matcher.bucket_jobs(jobs, CFG, db=db)
-        assert len(t1 + t2 + t3 + t4) == 0
+        t1, t2, t3 = matcher.bucket_jobs(jobs, CFG, db=db)
+        assert len(t1 + t2 + t3) == 0
         fila = _fila(db, "https://x.com/3")
         assert fila["match_score"] > 0
         assert fila["tier"]

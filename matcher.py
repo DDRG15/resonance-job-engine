@@ -1,7 +1,7 @@
 """
 matcher.py — Match Scoring & Tier Bucketing Engine for Project GEMA.
 
-Scores each JobResult against the SearchConfig and assigns Tier 1/2/3/4.
+Scores each JobResult against the SearchConfig and assigns Tier 1/2/3.
 No external API calls — pure Python logic, runs in milliseconds.
 
 Scoring weights (renormalized over the dimensions that have data):
@@ -11,7 +11,7 @@ Scoring weights (renormalized over the dimensions that have data):
     Must-exclude absent  : 10 points (penalty applied if found)
     Requisitos coverage  : weight 25 (Fase 7, only when the source sends a description)
 
-Salary in prose ('Competitive', 'DOE') no longer bypasses scoring to Tier 4 since v6:
+For salary in prose ('Competitive', 'DOE'),
 the salary dimension drops out, the rest is
 renormalized, and the job carries `salario_no_confirmado`.
 """
@@ -552,7 +552,7 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     Salary in prose (non-empty `salary_raw` that `parse_salary_usd()` cannot read,
     e.g. 'Competitive', 'DOE') is scored like a missing salary: the salary dimension
     does not participate and the weights renormalize. Whitespace-only `salary_raw`
-    counts as absent, not as prose (there is no Tier 4 bypass anymore).
+    counts as absent, not as prose.
 
     Score breakdown (max 100, renormalized over the dimensions that apply):
         Title match    : 0–50
@@ -578,12 +578,9 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     loc_verdict, loc_note = _veredicto_desde_delta(loc_delta, lm, ln)
     lang_verdict, lang_note = _language_verdict(job)
 
-    # ── Salario en texto: ya no es Tier 4 ──
+    # ── Salario en texto: puntuado sin el eje de salario ──
     #
-    # Hasta v5 un salario que no se podia leer ("Competitive", "DOE") sacaba el aviso
-    # del scoring: Tier 4, puntaje -1, revision manual. Un aviso con titulo, ubicacion
-    # y perfil perfectos quedaba debajo de uno mediocre solo porque la empresa no
-    # escribio un numero. Ahora es el mismo algoritmo con un dato faltante, igual que
+    # Un salario que no se puede leer ("Competitive", "DOE") es un dato faltante, igual que
     # un aviso sin salario: el eje de salario no participa (`salary_aplica` abajo ya lo
     # deja afuera, porque el parser devuelve None) y el peso se renormaliza. La marca
     # «salario no confirmado» la lleva `TieredJob.salario_no_confirmado` y la razon.
@@ -716,9 +713,8 @@ def aplicar_aprendizaje(tiered: TieredJob,
     Activo: suma el delta (ya con tope ±10) al puntaje, lo recorta a 0–115 como
     `score_job`, recalcula el tier con los umbrales de siempre y deja cada razón con el
     prefijo «Aprendizaje:», a favor en `match_reasons` y en contra en `miss_reasons`.
-    El Tier 4 centinela (-1) no se toca: no fue puntuado.
     """
-    if modelo is None or not modelo.activo or tiered.match_score < 0:
+    if modelo is None or not modelo.activo:
         return tiered
     ajuste = modelo.ajuste(tiered.job.title, tiered.job.company)
     if ajuste.vacio:
@@ -739,13 +735,12 @@ def bucket_jobs(
     profile: Optional[dict] = None,
     repuntuar_todo: bool = False,
     aprendizaje: Optional["aprendizaje_mod.ModeloAprendizaje"] = None,
-) -> tuple[list[TieredJob], list[TieredJob], list[TieredJob], list[TieredJob]]:
+) -> tuple[list[TieredJob], list[TieredJob], list[TieredJob]]:
     """
-    Scores and buckets all jobs into four tiers. Returns (t1, t2, t3, t4).
+    Scores and buckets all jobs into three tiers. Returns (t1, t2, t3).
 
-    Since v6 nothing reaches Tier 4 through the salary: prose salaries
-    are scored without the salary dimension and flagged `salario_no_confirmado`.
-    The fourth list is kept for the return contract.
+    Prose salaries are scored without the salary dimension and flagged
+    `salario_no_confirmado`.
 
     If db is provided, backfills tier + match_score in the seen_registry.
 
@@ -754,7 +749,7 @@ def bucket_jobs(
     ajusta nada. Inactivo —menos de 15 postulaciones con resultado— todo lo de abajo
     corre exactamente como antes: misma versión, mismos puntajes, mismas razones.
     """
-    tier1, tier2, tier3, tier4 = [], [], [], []
+    tier1, tier2, tier3 = [], [], []
     filtered_off_topic = 0
     filtrados_no_elegibles = 0
     no_elegibles: list[TieredJob] = []
@@ -871,8 +866,6 @@ def bucket_jobs(
             tier2.append(tiered)
         elif tiered.tier == "Tier 3":
             tier3.append(tiered)
-        else:
-            tier4.append(tiered)
 
         # Fase 8: se acumulan y se escriben en UNA transaccion al final.
         # Escribir fila por fila cuesta 107 ms por aviso medidos — abre conexion, corre
@@ -913,7 +906,7 @@ def bucket_jobs(
     # Cuantos avisos de esta corrida se puntuaron sin el eje de
     # salario porque lo publicaron en texto, y cuantos se llevaron a anual desde un
     # periodo. Si el primero sube de golpe, un board cambio el formato del salario.
-    puntuados = tier1 + tier2 + tier3 + tier4 + no_elegibles
+    puntuados = tier1 + tier2 + tier3 + no_elegibles
     no_confirmados = sum(1 for tj in puntuados if tj.salario_no_confirmado)
     anualizados = sum(1 for tj in puntuados if salario_anualizado(tj.job.salary_raw))
     if no_confirmados:
@@ -927,9 +920,9 @@ def bucket_jobs(
     metrics.emit("requisitos_evaluados", con_requisitos)
 
     logger.info(
-        "[BUCKET] T1=%d | T2=%d | T3=%d | T4(manual)=%d | off-topic=%d | "
+        "[BUCKET] T1=%d | T2=%d | T3=%d | off-topic=%d | "
         "no-elegibles=%d | vencidos=%d | duplicados=%d",
-        len(tier1), len(tier2), len(tier3), len(tier4), filtered_off_topic,
+        len(tier1), len(tier2), len(tier3), filtered_off_topic,
         filtrados_no_elegibles, filtrados_vencidos, filtrados_duplicados,
     )
     if filtrados_vencidos:
@@ -951,4 +944,4 @@ def bucket_jobs(
         for causa, n in por_causa.items():
             metrics.emit("jobs_no_elegibles", n, causa=causa)
         logger.info("[BUCKET] no-elegibles por causa: %s", por_causa)
-    return tier1, tier2, tier3, tier4
+    return tier1, tier2, tier3

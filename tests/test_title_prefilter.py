@@ -51,8 +51,8 @@ class TestBucketFiltersOffTopic:
             self._job("Human Resources Assistant"),
             self._job("SDET II"),
         ]
-        t1, t2, t3, t4 = bucket_jobs(jobs, cfg)
-        all_titles = [tj.job.title for tj in (t1 + t2 + t3 + t4)]
+        t1, t2, t3 = bucket_jobs(jobs, cfg)
+        all_titles = [tj.job.title for tj in (t1 + t2 + t3)]
         assert "File Clerk" not in all_titles
         assert "Human Resources Assistant" not in all_titles
         assert "Senior Python Backend Engineer" in all_titles

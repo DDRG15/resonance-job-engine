@@ -12,12 +12,12 @@ import type { ResultsResponse, TieredJobDto } from '../types'
 import JobDetail from './JobDetail'
 import { companyIsDirty } from './jobQuality'
 
-const TIERS = ['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'] as const
+const TIERS = ['Tier 1', 'Tier 2', 'Tier 3'] as const
 const TIER_CLASS: Record<string, string> = {
-  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3', 'Tier 4': 'b4',
+  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3',
 }
 const TIER_STRIPE: Record<string, string> = {
-  'Tier 1': 's1', 'Tier 2': 's2', 'Tier 3': 's3', 'Tier 4': 's4',
+  'Tier 1': 's1', 'Tier 2': 's2', 'Tier 3': 's3',
 }
 
 const COLUMNS: ColumnDef<TieredJobDto>[] = [
@@ -87,7 +87,6 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
     header: 'Score',
     cell: (c) => {
       const v = c.getValue<number>()
-      if (v < 0) return <span className="cell-manual">MANUAL</span>
       return (
         <>
           <span className="cell-score">{v}</span>
@@ -136,7 +135,7 @@ export default function Results({ results }: { results: ResultsResponse }) {
   const todos = useMemo(() => {
     if (!results.tiers) return []
     const t = results.tiers
-    return [...t.tier1, ...t.tier2, ...t.tier3, ...t.tier4]
+    return [...t.tier1, ...t.tier2, ...t.tier3]
   }, [results.tiers])
 
   const conteoTier = useMemo(() => {

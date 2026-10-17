@@ -117,9 +117,9 @@ class TestElCronTieneSusIntegraciones:
 
 class TestRunGraph:
 
-    def test_una_corrida_completa_devuelve_los_cuatro_tiers(self, fake_scrape):
+    def test_una_corrida_completa_devuelve_los_tres_tiers(self, fake_scrape):
         estado = run_pipeline(config=_cfg(), ctx=RuntimeContext(), trigger="cli")
-        for k in ("tier1", "tier2", "tier3", "tier4"):
+        for k in ("tier1", "tier2", "tier3"):
             assert k in estado
         assert estado["status"] == "ok"
 
@@ -152,7 +152,7 @@ class TestRunGraph:
         notion, sheets = _ClienteFalso(), _ClienteFalso()
         ctx = RuntimeContext(notion=notion, sheets=sheets)
 
-        rg.push({"tier1": [job], "tier2": [], "tier3": [], "tier4": [],
+        rg.push({"tier1": [job], "tier2": [], "tier3": [],
                  "summary": ScrapeRunSummary()},
                 {"configurable": {"ctx": ctx}})
 
@@ -177,7 +177,7 @@ class TestRunGraph:
 
         ctx = RuntimeContext(notion=_Explota(), sheets=None)
         # El scrape ya guardo todo en la DB: un push caido se reporta, no escala.
-        rg.push({"tier1": [job], "tier2": [], "tier3": [], "tier4": [],
+        rg.push({"tier1": [job], "tier2": [], "tier3": [],
                  "summary": ScrapeRunSummary()},
                 {"configurable": {"ctx": ctx}})
 

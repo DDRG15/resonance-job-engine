@@ -209,20 +209,20 @@ def main() -> int:
         send_discord_alert(f"🔴 GEMA scrape por CLI FALLO: {exc}")
         return 1
 
-    t1, t2, t3, t4 = (estado.get("tier1") or [], estado.get("tier2") or [],
-                      estado.get("tier3") or [], estado.get("tier4") or [])
+    t1, t2, t3 = (estado.get("tier1") or [], estado.get("tier2") or [],
+                      estado.get("tier3") or [])
     total = len(estado.get("jobs") or [])
 
     # El reporte a Discord ya lo mando el nodo `notify`, con el mismo formato que la API
     # y el cron. Duplicarlo aca era justamente la divergencia: dos mensajes distintos
     # para la misma corrida segun por donde entro.
-    logger.info("Run %s (%s) — T1:%d T2:%d T3:%d T4:%d",
+    logger.info("Run %s (%s) — T1:%d T2:%d T3:%d",
                 (estado.get("run_id") or "?")[:8], estado.get("status"),
-                len(t1), len(t2), len(t3), len(t4))
+                len(t1), len(t2), len(t3))
 
     print("\n" + "=" * 60)
     print(f"  DONE — {total} avisos nuevos | T1:{len(t1)} T2:{len(t2)} "
-          f"T3:{len(t3)} T4:{len(t4)}")
+          f"T3:{len(t3)}")
     print(f"  run_id: {estado.get('run_id')}  ·  status: {estado.get('status')}")
     print("=" * 60 + "\n")
     return 0

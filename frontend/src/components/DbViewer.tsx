@@ -15,7 +15,7 @@ interface Props {
 }
 
 const TIER_CLASS: Record<string, string> = {
-  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3', 'Tier 4': 'b4',
+  'Tier 1': 'b1', 'Tier 2': 'b2', 'Tier 3': 'b3',
 }
 
 const COLUMNS: ColumnDef<RegistryJob>[] = [

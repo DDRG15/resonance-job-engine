@@ -261,7 +261,7 @@ The FastAPI app serves the React UI and the API. The main endpoints:
 ```
 POST /api/parse              free text -> validated SearchConfig, cross-checked by a second provider
 POST /api/scrape             start a run;  GET /api/scrape/stream for live logs (SSE)
-GET  /api/results            the four tiers
+GET  /api/results            the three tiers
 GET  /api/export.xlsx        Excel export, with formula injection neutralized
 GET  /api/fuentes            per-source health;  GET /api/embudo for the funnel
 GET|POST /api/applications   application tracking with next action and due date
@@ -291,7 +291,7 @@ machine requires adding auth first.
 Everything stays in local SQLite, with no external services:
 
 ```sql
-SELECT run_id, trigger, status, tier1_count, tier4_count FROM runs
+SELECT run_id, trigger, status, tier1_count, tier2_count, tier3_count FROM runs
 ORDER BY started_at DESC LIMIT 5;
 
 SELECT provider, COUNT(*), ROUND(AVG(latency_ms)), SUM(prompt_tokens)

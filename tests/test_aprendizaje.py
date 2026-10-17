@@ -277,11 +277,6 @@ class TestTope:
         assert matcher.aplicar_aprendizaje(_tiered(112), sube).match_score == 115
         assert matcher.aplicar_aprendizaje(_tiered(4), baja).match_score == 0
 
-    def test_el_centinela_de_tier_4_no_se_toca(self):
-        modelo = _activo(_fila("Data Analyst", "Acme", *ENTREVISTA))
-        tj = TieredJob(job=_job(), match_score=-1, tier="Tier 4")
-        assert matcher.aplicar_aprendizaje(tj, modelo) is tj
-
 
 # ── Identidad del score ──────────────────────────────────────────────────────
 
@@ -410,7 +405,7 @@ class TestBase:
         job = _job("Backend Engineer", "Acme Inc", 77)
         db.mark_seen_batch([job])
         base = matcher.score_job(job, _config())
-        t1, t2, t3, _ = matcher.bucket_jobs([job], _config(), db=db)
+        t1, t2, t3 = matcher.bucket_jobs([job], _config(), db=db)
         tj = (t1 + t2 + t3)[0]
         esperado = min(115, base.match_score + config.LEARN_PUNTOS_ENTREVISTA * 2)
         assert tj.match_score == esperado   # empresa +4 y familia +4
@@ -424,7 +419,7 @@ class TestBase:
         assert sum(stats["by_tier"].values()) == 1
 
         # Segunda corrida con la misma escala: el atajo lo saltea.
-        t1, t2, t3, _ = matcher.bucket_jobs([job], _config(), db=db)
+        t1, t2, t3 = matcher.bucket_jobs([job], _config(), db=db)
         assert t1 + t2 + t3 == []
 
 

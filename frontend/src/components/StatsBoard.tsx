@@ -15,11 +15,11 @@ interface Props {
 
 const TIER_COLOR: Record<string, string> = {
   'Tier 1': 'var(--t1)', 'Tier 2': 'var(--t2)',
-  'Tier 3': 'var(--t3)', 'Tier 4': 'var(--t4)',
+  'Tier 3': 'var(--t3)',
 }
 const TIER_INK: Record<string, string> = {
   'Tier 1': 'var(--t1-ink)', 'Tier 2': 'var(--t2-ink)',
-  'Tier 3': 'var(--t3-ink)', 'Tier 4': 'var(--t4-ink)',
+  'Tier 3': 'var(--t3-ink)',
 }
 
 // F19 (07-10): board visual de estadísticas alimentado por
@@ -85,7 +85,7 @@ export default function StatsBoard({ onClose }: Props) {
             ) : (
               <>
                 <div className="tier-bar">
-                  {(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'] as const).map((t) => {
+                  {(['Tier 1', 'Tier 2', 'Tier 3'] as const).map((t) => {
                     const n = stats.by_tier[t] ?? 0
                     if (n === 0) return null
                     return (
@@ -101,7 +101,7 @@ export default function StatsBoard({ onClose }: Props) {
                   })}
                 </div>
                 <div className="tier-legend">
-                  {(['Tier 1', 'Tier 2', 'Tier 3', 'Tier 4'] as const).map((t) => (
+                  {(['Tier 1', 'Tier 2', 'Tier 3'] as const).map((t) => (
                     <span key={t}>
                       <i style={{ background: TIER_COLOR[t] }} />
                       {t}: <b style={{ color: TIER_INK[t] }}>{stats.by_tier[t] ?? 0}</b>

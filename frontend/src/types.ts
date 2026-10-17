@@ -128,7 +128,7 @@ export interface JobDto {
 export interface TieredJobDto {
   job: JobDto
   match_score: number
-  tier: string
+  tier: 'Tier 1' | 'Tier 2' | 'Tier 3'
   match_reasons: string[]
   miss_reasons: string[]
   // Fase 3: la elegibilidad sale del score. El backend los manda siempre
@@ -182,7 +182,7 @@ export interface LastRunDto {
   completed_at: string | null
   interrupted_at: string | null
   error: string | null
-  tier_counts: { tier1: number; tier2: number; tier3: number; tier4: number } | null
+  tier_counts: { tier1: number; tier2: number; tier3: number } | null
   results_available: boolean
   message: string
 }
@@ -197,7 +197,6 @@ export interface ResultsResponse {
     tier1: TieredJobDto[]
     tier2: TieredJobDto[]
     tier3: TieredJobDto[]
-    tier4: TieredJobDto[]
   } | null
 }
 

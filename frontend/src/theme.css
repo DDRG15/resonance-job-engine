@@ -1,6 +1,6 @@
 /* ── GEMA Pulse — tokens y componentes (spec: mockup A, artifact 716b640e) ──
    Paleta de tiers validada CVD/contraste sobre fondo dark (4/4 PASS):
-   T1 #0D9488 · T2 #D97706 · T3 #E11D48 · T4 #7C3AED — no cambiar sin re-validar.
+   T1 #0D9488 · T2 #D97706 · T3 #E11D48 — no cambiar sin re-validar.
    T3 re-validado 2026-09-04: #DC2626 daba dE 14.4 contra T2 para vision normal
    (piso 15). #E11D48 pasa los cinco chequeos con dE 16.6. */
 
@@ -18,7 +18,7 @@
   --t1: #0D9488; --t1-ink: #5EEAD4;
   --t2: #D97706; --t2-ink: #FCD34D;
   --t3: #E11D48; --t3-ink: #FDA4AF;
-  --t4: #7C3AED; --t4-ink: #C4B5FD;
+  --salary-flag: #7C3AED; --salary-flag-ink: #C4B5FD;
   /* La ausencia como material, no como guion mudo. */
   --absent:    #233042;
   --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
@@ -222,7 +222,6 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .badge.b1 { background: rgba(13,148,136,.16); color: var(--t1-ink); border: 1px solid rgba(13,148,136,.45); }
 .badge.b2 { background: rgba(217,119,6,.14);  color: var(--t2-ink); border: 1px solid rgba(217,119,6,.45); }
 .badge.b3 { background: rgba(225,29,72,.14);  color: var(--t3-ink); border: 1px solid rgba(225,29,72,.45); }
-.badge.b4 { background: rgba(124,58,237,.14); color: var(--t4-ink); border: 1px solid rgba(124,58,237,.45); }
 .mini-badge { font-size: 9.5px; padding: 2px 6px; letter-spacing: .06em; }
 
 .score { display: flex; align-items: center; gap: 9px; }
@@ -232,7 +231,6 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .score.s1 .bar i { background: var(--t1); } .score.s1 b { color: var(--t1-ink); }
 .score.s2 .bar i { background: var(--t2); } .score.s2 b { color: var(--t2-ink); }
 .score.s3 .bar i { background: var(--t3); } .score.s3 b { color: var(--t3-ink); }
-.manual { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--t4-ink); }
 
 /* -- Barra de filtros -- */
 .res-toolbar {
@@ -248,7 +246,6 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .tier-chip.b1 { color: var(--t1-ink); border-color: rgba(13,148,136,.45); }
 .tier-chip.b2 { color: var(--t2-ink); border-color: rgba(217,119,6,.45); }
 .tier-chip.b3 { color: var(--t3-ink); border-color: rgba(225,29,72,.45); }
-.tier-chip.b4 { color: var(--t4-ink); border-color: rgba(124,58,237,.45); }
 .tier-chip.off { color: var(--faint); border-color: var(--border); background: transparent;
                  text-decoration: line-through; }
 .tier-chip:disabled { opacity: .35; cursor: not-allowed; text-decoration: none; }
@@ -295,7 +292,6 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .res-row.s1 > td:first-child::before { background: var(--t1); }
 .res-row.s2 > td:first-child::before { background: var(--t2); }
 .res-row.s3 > td:first-child::before { background: var(--t3); }
-.res-row.s4 > td:first-child::before { background: var(--t4); }
 .res-row:hover td { background: rgba(45,212,191,.05); }
 .res-row.sel td { background: var(--accent-08); }
 .res-row.sel .cell-title { color: var(--accent); }
@@ -323,10 +319,9 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
   white-space: nowrap;
 }
 .cell-score { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
-.cell-manual { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--t4-ink); }
 /* Salario publicado en texto, puntuado sin ese eje. */
-.cell-nosal { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--t4-ink); cursor: help; }
-.nosal-note { color: var(--t4-ink); font-size: 12px; }
+.cell-nosal { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--salary-flag-ink); cursor: help; }
+.nosal-note { color: var(--salary-flag-ink); font-size: 12px; }
 .res-none { color: var(--muted); text-align: center; padding: 28px 12px; }
 
 /* -- Panel de detalle -- */

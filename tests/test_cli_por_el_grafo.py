@@ -30,7 +30,7 @@ class TestCLIEntraPorElGrafo:
             llamadas.update(kwargs)
             return {
                 "run_id": "abc123def456", "status": "ok", "jobs": [],
-                "tier1": [], "tier2": [], "tier3": [], "tier4": [],
+                "tier1": [], "tier2": [], "tier3": [],
             }
 
         monkeypatch.setattr("graph.run_graph.run_pipeline", _fake_run_pipeline)
@@ -63,7 +63,7 @@ class TestCLIEntraPorElGrafo:
         monkeypatch.setattr("scraper.run_scrape_session", _explota)
         monkeypatch.setattr("graph.run_graph.run_pipeline", lambda **k: {
             "run_id": "x", "status": "ok", "jobs": [],
-            "tier1": [], "tier2": [], "tier3": [], "tier4": [],
+            "tier1": [], "tier2": [], "tier3": [],
         })
         monkeypatch.setattr("database.GemaDatabase", lambda *a, **k: tmp_db)
         monkeypatch.setattr("integrations.webhook_client.send_discord_alert",
@@ -189,7 +189,7 @@ class TestTriggerEnElReporte:
         enviados = []
         fake_runtime_ctx.discord = enviados.append
         estado = {"trigger": trigger, "tier1": [], "tier2": [], "tier3": [],
-                  "tier4": [], "errors": []}
+                  "errors": []}
         notify(estado, {"configurable": {"ctx": fake_runtime_ctx}})
 
         assert enviados, "notify no mando nada"
@@ -269,9 +269,9 @@ class TestVencidosFueraDelShortlist:
 
         assert tmp_db.compute_hash(muerto.url) in tmp_db.hashes_vencidos()
 
-        t1, t2, t3, t4 = bucket_jobs([vivo, muerto], sample_config, tmp_db,
+        t1, t2, t3 = bucket_jobs([vivo, muerto], sample_config, tmp_db,
                                      repuntuar_todo=True)
-        urls = {tj.job.url for tj in (t1 + t2 + t3 + t4)}
+        urls = {tj.job.url for tj in (t1 + t2 + t3)}
         assert muerto.url not in urls, "un aviso vencido entro al shortlist"
         assert vivo.url in urls, "el aviso vivo tambien quedo afuera"
 
@@ -285,8 +285,8 @@ class TestVencidosFueraDelShortlist:
             salary_raw="$120k", location_raw="Worldwide",
         )
         assert tmp_db.hashes_vencidos() == set()
-        t1, t2, t3, t4 = bucket_jobs([job], sample_config, tmp_db, repuntuar_todo=True)
-        assert len(t1 + t2 + t3 + t4) == 1
+        t1, t2, t3 = bucket_jobs([job], sample_config, tmp_db, repuntuar_todo=True)
+        assert len(t1 + t2 + t3) == 1
 
 
 class TestLaBusquedaYLasTrazasDelCLI:

@@ -2371,7 +2371,7 @@ class GemaScraper:
         Reads title, company, and salary from one card element.
         Uses fallback chains for each field — survives minor DOM changes.
 
-        Salary/location optional: None → Tier 4 / neutral scoring in matcher.
+        Salary/location optional: None → neutral scoring in matcher.
 
         Phase 31b (2026-07-11): SOLO title es requerido. company era
         requerido y su selector stale nuleaba el 100% de los cards de un

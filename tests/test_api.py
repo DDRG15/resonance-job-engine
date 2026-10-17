@@ -343,7 +343,7 @@ class TestScrape:
         assert r.json()["run_id"]
         results = _wait_run_done(client)
         tiers = results["tiers"]
-        total = sum(len(tiers[k]) for k in ("tier1", "tier2", "tier3", "tier4"))
+        total = sum(len(tiers[k]) for k in ("tier1", "tier2", "tier3"))
         assert total == 3
         assert results["summary"]["new_processed"] == 3
         # v6: el salario en texto ("Competitive salary") ya
@@ -352,7 +352,7 @@ class TestScrape:
                   if tj["job"]["company"] == "Turing"]
         assert turing and turing[0]["salario_no_confirmado"] is True, (
             "el salario no numérico se puntúa y viaja marcado como no confirmado")
-        assert tiers["tier4"] == []
+        assert set(tiers) == {"tier1", "tier2", "tier3"}
 
     def test_concurrent_scrape_409(self, client, monkeypatch):
         release = threading.Event()

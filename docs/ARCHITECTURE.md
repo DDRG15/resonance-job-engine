@@ -94,7 +94,7 @@ init_run ─> scrape ─> bucket ─> summarize ─> persist_run ─> notify ─
 |---|---|
 | `init_run` | Abre la fila en `runs`, limpia los cooldowns de la corrida previa |
 | `scrape` | Llama a `run_scrape_session` — el scraper completo, las cuatro capas de arriba |
-| `bucket` | Corre los correlators de identidad (`correlacionar_duplicados`) y después `bucket_jobs`: puntúa y reparte en cuatro tiers |
+| `bucket` | Corre los correlators de identidad (`correlacionar_duplicados`) y después `bucket_jobs`: puntúa y reparte en tres tiers |
 | `summarize` | Cierra el `ScrapeRunSummary` con los conteos |
 | `persist_run` | Cierra la fila de `runs` con los **cuatro** tiers |
 | `notify` | Reporte a Discord: tiers, errores del run, avisos con salario sin confirmar y las próximas acciones vencidas |
@@ -208,9 +208,7 @@ el techo es 115.
 (hora x 2080, día x 260, semana x 52, mes x 12) solo si el monto es plausible para ese
 período, y convierte EUR y GBP con tasas fechadas (`TASAS_A_USD_FECHA`). Un salario en
 texto que no se puede leer ("Competitive", "DOE") ya no saca el aviso del scoring: se puntúa
-sin el eje de salario y se marca `salario_no_confirmado`. Hasta v5 iba a Tier 4 con puntaje
--1, y un aviso con título y perfil perfectos quedaba debajo de uno mediocre porque la
-empresa no escribió un número.
+sin el eje de salario y se marca `salario_no_confirmado`.
 
 **Requisitos.** Antes el matcher buscaba las skills del CV en título, empresa y salario: un
 aviso cuya descripción pedía Python y FastAPI no sumaba nada si el título no los nombraba.
@@ -227,9 +225,9 @@ Consecuencia: un puesto excelente bloqueado por security clearance y uno malo sa
 idénticos y no se podía preguntar cuántos Tier 1 se perdieron por elegibilidad. Decisión:
 el score mide ajuste y nada más.
 
-**Tiers** (`config.py`): Tier 1 desde 80, Tier 2 desde 50, Tier 3 desde 1. `bucket_jobs`
-sigue devolviendo cuatro listas por contrato, pero desde v6 nada llega a Tier 4 por el
-salario. Subir `SCORE_VERSION` no re-puntúa nada por sí solo (los avisos ya vistos no
+**Tiers** (`config.py`): Tier 1 desde 80, Tier 2 desde 50, Tier 3 de 0 a 49. `bucket_jobs`
+devuelve tres listas. La revisión manual de URLs vive en una pila independiente.
+Subir `SCORE_VERSION` no re-puntúa nada por sí solo (los avisos ya vistos no
 vuelven a pasar por `bucket_jobs`): hay que correr `tools/repuntuar_registry.py`, que deja
 una copia de la base antes de escribir.
 

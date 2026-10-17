@@ -145,13 +145,13 @@ class TestBucketJobs:
             _job("Backend Engineer must be authorized to work in the US"),
             _job("Backend Engineer with security clearance"),
         ]
-        t1, t2, t3, t4 = matcher.bucket_jobs(avisos, CFG)
-        assert len(t1 + t2 + t3 + t4) == 1
+        t1, t2, t3 = matcher.bucket_jobs(avisos, CFG)
+        assert len(t1 + t2 + t3) == 1
 
     def test_los_FLAG_se_quedan(self):
         avisos = [_job("Backend Engineer", loc="USA")]
-        t1, t2, t3, t4 = matcher.bucket_jobs(avisos, CFG)
-        todos = t1 + t2 + t3 + t4
+        t1, t2, t3 = matcher.bucket_jobs(avisos, CFG)
+        todos = t1 + t2 + t3
         assert len(todos) == 1
         assert todos[0].location_verdict == "FLAG"
 

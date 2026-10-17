@@ -30,7 +30,7 @@ se podan.
 
 ```sql
 run_id, started_at, completed_at, trigger, status, config_json, summary_json,
-tier1_count, tier2_count, tier3_count, tier4_count,
+tier1_count, tier2_count, tier3_count,
 domains_aborted, breaker_state_json, error
 ```
 
@@ -38,9 +38,9 @@ Cierra el agujero más viejo: en v2 el `run_id` y los tiers existían solo en me
 que reiniciar el server borraba la historia y `/api/results` solo sabía de la última
 corrida del proceso vivo.
 
-Lleva **`tier4_count`**, que `ScrapeRunSummary` nunca cargó pese a que `bucket_jobs`
-siempre devolvió cuatro tiers — el payload del SSE y el reporte de Discord lo recalculaban
-cada uno por su lado.
+Los tres conteos se escriben desde el mismo estado que alimenta la API y Discord.
+Las bases antiguas conservan sus columnas históricas; los lectores exponen los campos
+vigentes y las corridas nuevas escriben los tres conteos.
 
 `trigger` distingue `api` / `cron` / `cli`. Es lo que permite responder "¿el cron está
 sacando menos que las corridas manuales?", que antes no se podía ni preguntar.
@@ -201,7 +201,7 @@ fuente sospechosa no pone el digest en rojo por sí sola. Se ve en el digest com
 
 ```sql
 -- ¿Terminó bien?
-SELECT run_id, trigger, status, tier1_count, tier2_count, tier3_count, tier4_count,
+SELECT run_id, trigger, status, tier1_count, tier2_count, tier3_count,
        domains_aborted, error
 FROM runs ORDER BY started_at DESC LIMIT 5;
 

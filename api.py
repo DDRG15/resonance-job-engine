@@ -503,7 +503,7 @@ def _last_run_dto() -> Optional[dict]:
     if fila.get("tier1_count") is not None:
         contadores = {
             "tier1": fila.get("tier1_count"), "tier2": fila.get("tier2_count"),
-            "tier3": fila.get("tier3_count"), "tier4": fila.get("tier4_count"),
+            "tier3": fila.get("tier3_count"),
         }
     resumen = None
     if fila.get("summary_json"):
@@ -521,7 +521,7 @@ def _last_run_dto() -> Optional[dict]:
         partes = ""
         if contadores:
             partes = (f" Tier 1: {contadores['tier1']}, Tier 2: {contadores['tier2']}, "
-                      f"Tier 3: {contadores['tier3']}, Tier 4: {contadores['tier4']}.")
+                      f"Tier 3: {contadores['tier3']}.")
         mensaje = (f"Última corrida ({origen}, inicio {inicio} UTC): terminó bien.{partes} "
                    f"El detalle por tier no está disponible aquí tras un reinicio del "
                    f"servidor ni en corridas del cron; {en_db}.")
@@ -567,12 +567,11 @@ def get_results():
         out["summary"] = runs.summary.model_dump(mode="json")
         out["summary"]["duration_seconds"] = runs.summary.duration_seconds
     if runs.results is not None:
-        t1, t2, t3, t4 = runs.results
+        t1, t2, t3 = runs.results
         out["tiers"] = {
             "tier1": [tj.model_dump(mode="json") for tj in t1],
             "tier2": [tj.model_dump(mode="json") for tj in t2],
             "tier3": [tj.model_dump(mode="json") for tj in t3],
-            "tier4": [tj.model_dump(mode="json") for tj in t4],
         }
     return out
 
@@ -594,7 +593,7 @@ def export_excel():
     runs: RunManager = app.state.runs
     if runs.results is None:
         raise HTTPException(404, "no hay resultados para exportar")
-    t1, t2, t3, t4 = runs.results
+    t1, t2, t3 = runs.results
     try:
         revision = app.state.db.get_manual_review(include_resolved=False)
     except Exception:
@@ -602,7 +601,7 @@ def export_excel():
         # los resultados de la corrida sale igual.
         revision = []
     contenido = exportar_excel.construir_excel(
-        {"tier1": t1, "tier2": t2, "tier3": t3, "tier4": t4},
+        {"tier1": t1, "tier2": t2, "tier3": t3},
         manual_review=revision,
         meta={"fecha": datetime.now(timezone.utc)},
     )

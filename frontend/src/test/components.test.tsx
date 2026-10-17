@@ -42,14 +42,13 @@ const RESULTS: ResultsResponse = {
   },
   tiers: {
     tier1: [makeJob()],
-    tier2: [],
-    tier3: [],
-    tier4: [
+    tier2: [
       makeJob(
         { title: 'Backend Developer', company: 'Turing', salary_raw: 'Competitive', url: 'https://example.com/j2' },
-        { match_score: -1, tier: 'Tier 4', match_reasons: [], miss_reasons: [] },
+        { match_score: 60, tier: 'Tier 2', salario_no_confirmado: true, match_reasons: [], miss_reasons: [] },
       ),
     ],
+    tier3: [],
   },
 }
 
@@ -145,13 +144,13 @@ describe('StatTiles', () => {
     expect(screen.getByText(/con ubicación confirmada/)).toBeInTheDocument()
   })
 
-  it('cuenta los no confirmados de cualquier tier más los Tier 4 viejos', () => {
+  it('cuenta los salarios no confirmados de cualquier tier', () => {
     const conNoConfirmado: ResultsResponse = {
       ...RESULTS,
       tiers: {
         ...RESULTS.tiers!,
-        tier2: [makeJob({ url: 'https://example.com/j3', salary_raw: 'DOE' },
-                        { match_score: 60, tier: 'Tier 2', salario_no_confirmado: true })],
+        tier3: [makeJob({ url: 'https://example.com/j3', salary_raw: 'DOE' },
+                        { match_score: 30, tier: 'Tier 3', salario_no_confirmado: true })],
       },
     }
     render(<StatTiles results={conNoConfirmado} />)
@@ -168,9 +167,12 @@ describe('Results', () => {
     expect(screen.getByText('92%')).toBeInTheDocument()
   })
 
-  it('marca MANUAL los jobs con salario en texto (Tier 4)', () => {
+  it('puntúa el salario en texto y lo marca sin crear un tier adicional', () => {
     render(<Results results={RESULTS} />)
-    expect(screen.getByText('MANUAL')).toBeInTheDocument()
+    expect(screen.queryByText('MANUAL')).toBeNull()
+    expect(screen.getByText('$?')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /^T[123] / })).toHaveLength(3)
+    expect(screen.queryByRole('button', { name: /^T4/ })).toBeNull()
   })
 
   it('grita los errores del run (fail-loud, AUDIT #1)', () => {
@@ -200,7 +202,7 @@ describe('Results', () => {
             { location_verdict: 'PASS' },
           ),
         ],
-        tier2: [], tier3: [], tier4: [],
+        tier2: [], tier3: [],
       },
     }
     render(<Results results={results} />)

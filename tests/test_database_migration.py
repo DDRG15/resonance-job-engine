@@ -8,6 +8,7 @@ it — causing the location scorer to fire differently on the same job depending
 how it entered the registry.
 """
 
+import config
 import sqlite3
 import tempfile
 import os
@@ -194,3 +195,56 @@ class TestUpdateTiersBatch:
         conn.close()
         assert row[0] == "Tier 1"
         assert row[1] == 90
+
+
+def test_legacy_tiers_conservan_los_avisos_y_vuelven_a_puntuarse(tmp_db):
+    scores = [-1, None, 0, 49, 50, 79, 80, 115]
+    jobs = [_make_job(n=100 + i) for i in range(len(scores))]
+    tmp_db.mark_seen_batch(jobs)
+    tmp_db.add_to_manual_review(jobs[0], "https://example.com/jobs", "url sin verificar")
+    review_before = tmp_db.get_manual_review(include_resolved=True)
+    with sqlite3.connect(tmp_db.db_path) as conn:
+        for job, score in zip(jobs, scores):
+            conn.execute(
+                "UPDATE seen_jobs_registry SET tier='Tier 4', match_score=?, "
+                "salary_raw='Competitive', descripcion='Python required', "
+                "match_reasons='[\"Python\"]', score_version='v7' WHERE url=?",
+                (score, job.url),
+            )
+
+    migrated = GemaDatabase(tmp_db.db_path)
+    with sqlite3.connect(migrated.db_path) as conn:
+        rows = conn.execute(
+            "SELECT url, title, company, salary_raw, descripcion, match_reasons, "
+            "tier, match_score, score_version FROM seen_jobs_registry ORDER BY url"
+        ).fetchall()
+    assert len(rows) == len(jobs)
+    assert [r[6] for r in rows] == [None, None, 'Tier 3', 'Tier 3', 'Tier 2', 'Tier 2', 'Tier 1', 'Tier 1']
+    assert [r[7] for r in rows] == [None, None, 0, 49, 50, 79, 80, 115]
+    assert all(r[3:6] == ('Competitive', 'Python required', '["Python"]') for r in rows)
+    assert [r[:3] for r in rows] == [(j.url, j.title, j.company) for j in jobs]
+    assert all(r[8] is None for r in rows)
+    # Reclasificados por umbral, pero sin version: el matcher los vuelve a puntuar.
+    assert migrated.hashes_puntuados(config.SCORE_VERSION) == set()
+    assert migrated.get_manual_review(include_resolved=True) == review_before
+    GemaDatabase(tmp_db.db_path)
+    with sqlite3.connect(tmp_db.db_path) as conn:
+        again = conn.execute(
+            "SELECT url, title, company, salary_raw, descripcion, match_reasons, "
+            "tier, match_score, score_version FROM seen_jobs_registry ORDER BY url"
+        ).fetchall()
+    assert again == rows
+
+
+def test_legacy_run_counter_se_conserva_sin_exponerse(tmp_db):
+    with sqlite3.connect(tmp_db.db_path) as conn:
+        conn.execute("ALTER TABLE runs ADD COLUMN tier4_count INTEGER")
+        conn.execute(
+            "INSERT INTO runs (run_id, started_at, tier4_count) VALUES ('old', '2026-01-01', 7)"
+        )
+    migrated = GemaDatabase(tmp_db.db_path)
+    migrated.record_run_end('old', status='ok', tier_counts=(1, 2, 3))
+    assert 'tier4_count' not in migrated.get_run('old')
+    assert 'tier4_count' not in migrated.get_recent_runs()[0]
+    with sqlite3.connect(tmp_db.db_path) as conn:
+        assert conn.execute("SELECT tier4_count FROM runs WHERE run_id='old'").fetchone()[0] == 7

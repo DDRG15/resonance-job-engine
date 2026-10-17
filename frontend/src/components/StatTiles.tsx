@@ -9,17 +9,16 @@ export default function StatTiles({ results }: { results: ResultsResponse }) {
   const confirmados = tiers.tier1.filter(
     (t) => t.location_verdict === 'PASS' && !!t.job.location_raw,
   ).length
-  // Un salario en texto ya no saca el aviso del scoring. Tier 4 solo
-  // queda en filas viejas; el tile cuenta lo que hoy significa: salario sin confirmar.
+  // Un salario en texto participa del scoring sin el eje de salario.
   const sinConfirmar =
     [...tiers.tier1, ...tiers.tier2, ...tiers.tier3].filter((t) => t.salario_no_confirmado)
-      .length + tiers.tier4.length
+      .length
   const tiles = [
     { cls: 't1', sw: 'var(--t1)', k: 'Tier 1', n: tiers.tier1.length,
       d: `80–100 % — ${confirmados} con ubicación confirmada` },
     { cls: '',   sw: 'var(--t2)', k: 'Tier 2', n: tiers.tier2.length, d: '50–79 % — revisar' },
     { cls: '',   sw: 'var(--t3)', k: 'Tier 3', n: tiers.tier3.length, d: '<50 % — reciclaje' },
-    { cls: '',   sw: 'var(--t4)', k: 'Salario sin confirmar', n: sinConfirmar,
+    { cls: '',   sw: 'var(--salary-flag)', k: 'Salario sin confirmar', n: sinConfirmar,
       d: 'en texto — puntuado sin el eje de salario' },
   ]
   return (

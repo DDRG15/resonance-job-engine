@@ -108,8 +108,8 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 #   v3  desde 2026-09-19  score de titulo continuo (cobertura 0.70 / precision 0.30)
 #   v4  desde 2026-09-29  veredicto de ubicacion sin tildes y con ISO-3 de LATAM
 #   v5  desde 2026-09-29  salario: separador de miles con punto, codigo delante
-#   v6  desde 2026-10-01  salario por periodo anualizado; salario en texto ya no es
-#                         Tier 4: se puntua sin ese eje y se marca
+#   v6  desde 2026-10-01  salario por periodo anualizado; salario en texto se puntua
+#                         sin ese eje y se marca
 #   v7  desde 2026-10-04  eje "requisitos" (peso 0,25): cobertura por el CV de los
 #                         requisitos de la descripcion. Sin
 #                         descripcion el puntaje es identico al de v6.
@@ -150,9 +150,7 @@ LEARN_TOPE: int = 10                    # el ajuste total de un aviso nunca pasa
 
 
 # ── Fase 4 (2026-09-15): salarios en otra moneda ─────────────────────
-# Los cinco Tier 4 de la corrida del 2026-09-04 tenian salario NUMERICO -- GBP 75k-90k,
-# EUR 72k-82k, EUR 95k-115k -- y caian a revision manual porque el parser solo entendia
-# $ y "usd". Tier 4 no estaba capturando "salario en prosa": estaba capturando Europa.
+# Se convierten GBP y EUR ademas de USD para evaluar los salarios europeos.
 #
 # La fecha no es decorativa. Una tasa de cambio sin fecha es un numero que va a estar
 # mal y nadie va a saber desde cuando. Si pasa de TASAS_MAX_DIAS, el matcher emite un
@@ -544,7 +542,6 @@ NOTION_TIER_COLORS: dict[str, str] = {
     "Tier 1": "green",
     "Tier 2": "yellow",
     "Tier 3": "red",
-    "Tier 4": "purple",   # Manual Review — unstructured salary text
 }
 
 

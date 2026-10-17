@@ -1,15 +1,12 @@
 """
 tests/test_scoring_pipeline.py — Integration tests for the full score_job() execution order.
 
-score_job() has three mutually exclusive paths:
-  1. Hard location block (clearance/citizenship) → Tier 3 immediately, score=0
-  2. Tier 4 bypass (non-empty, non-numeric salary) → Tier 4, score=-1
-  3. Mathematical path (Tier 1/2/3) → title+salary+include+excl+skill+loc_delta
-
-The priority order is: hard block → Tier 4 bypass → math path.
-A regression that swaps this order (e.g. Tier 4 bypass fires before the hard block)
-silently buries clearance-required jobs in Tier 4 instead of Tier 3, where they
-accumulate unreviewed in the Notion database without any location flag.
+score_job() always takes the weighted path and returns Tier 1, 2 or 3:
+  - A hard location block (clearance/citizenship) is an eligibility veto: the job keeps
+    its real score and leaves the shortlist, it is not pushed to another tier.
+  - A salary written as prose ("Competitive") drops the salary dimension, the remaining
+    weights renormalize and the job is flagged `salario_no_confirmado`.
+  - Everything else: title + salary + include + exclude + requirements, renormalized.
 
 After BUG-2 fix, _score_location() is called exactly once per score_job() invocation.
 """
@@ -103,7 +100,7 @@ class TestScoreLocationCalledOnce:
             score_job(j, _CFG)
         assert mock_loc.call_count == 1
 
-    def test_score_location_called_once_on_tier4(self):
+    def test_score_location_called_once_on_prose_salary(self):
         j = _job(salary="Competitive", n=12)
         with patch("matcher._score_location", wraps=_score_location) as mock_loc:
             score_job(j, _CFG)
