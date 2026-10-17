@@ -113,7 +113,7 @@ def test_el_veto_duro_sigue_siendo_fail():
 
 
 def test_salario_en_texto_se_puntua_y_se_marca():
-    """v6 (D3): "Competitive" ya no es Tier 4 con -1; se puntua sin el eje de salario."""
+    """v6: "Competitive" ya no es Tier 4 con -1; se puntua sin el eje de salario."""
     from models import SearchConfig
     job = JobResult(title="Backend Engineer", company="Acme", url="https://x.com/3",
                     source_domain="x.com", salary_raw="Competitive", location_raw="Worldwide")
@@ -150,7 +150,7 @@ def test_eje_de_requisitos(descripcion, score, cobertura):
 
 
 def test_la_señal_de_deseable_no_cruza_el_punto():
-    """El bug anotado en el estado del 01-10: la ventana fija cruzaba la oracion."""
+    """Regresion: la ventana fija cruzaba la oracion."""
     import requisitos
     pesos = {r.requisito: r.peso for r in requisitos.extraer(
         "Kubernetes is required. Nice to have: Kafka.", _PERFIL_V7)}

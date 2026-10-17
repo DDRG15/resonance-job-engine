@@ -1,263 +1,64 @@
-# =============================================================================
-# GEMA — .gitignore
-# =============================================================================
-
-# Environment — NEVER commit secrets
-.env
-.env.local
-.env.*.local
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-
-# Virtual environments
+# Entornos
 .venv/
 venv/
 env/
 ENV/
 
-# Database files — local state, not source code
+# Caches y artefactos de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+
+# Artefactos de build
+dist/
+build/
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# Datos de runtime
 *.db
 *.db-shm
 *.db-wal
 *.bak
-# Snapshots de tools/repuntuar_registry.py (Plan30 Fase 3): copias completas del
-# registry. `*.db` ya las cubriria, pero un snapshot con otra extension no, y el
-# directorio entero no se versiona nunca.
 backups/
-
-# Credentials — ignore the key files but track the directory itself
-credentials/*.json
-credentials/*.p12
-*.json
-!requirements*.json
-
-# Perfil derivado del CV (rol/skills/region) retenido para el cron: dato personal.
-# Hoy lo cubre el comodin *.json de arriba; se nombra para que quitar o afinar el
-# comodin no lo exponga (revision externa 2026-09-30, punto 11).
-cv_profile.json
-
-# Session cookies — gitkeep the directory, ignore the actual cookie files
-cookies/*.json
-!cookies/README.md
-# Cookie jar auto-persistente (SessionJar) — clearance anti-bot, nunca al repo
-cookies/session/
-
-# camoufox Firefox binary — ~530MB, downloaded at runtime via `python -m camoufox fetch`
-.camoufox/
-
-# Logs
+drift_quarantine/
 *.log
 logs/
+api_state.json
+board_strategy.json
+cv_profile.json
+user_profile.yaml
+.camoufox/
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
+# Secretos
+.env
+.env.*
+!.env.example
+credentials/*.json
+credentials/*.p12
+client_secret*.json
+*_token.json
+*service_account*.json
+*service-account*.json
+cookies/*.json
+cookies/session/
 
-# OS
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# Streamlit
-.streamlit/secrets.toml
-
-# Claude Code
-.claude/
-
-# Personal data — LLM system prompt, never public
-
-
-# Archives — may contain .env with live credentials
+# Exportaciones y archivos comprimidos
+*.xlsx
+*.csv
 *.zip
 *.tar.gz
 *.rar
 
-# ── Private documents — NEVER push to GitHub ──────────────────────────────────
-# Rule: if a file is owner-only context, an internal log, a session brief,
-# or contains PII, it goes here. Use broad patterns so new files are caught
-# automatically without having to update this list.
-
-# Owner-context session briefs
-
-
-
-# Phase implementation reports (any phase number, any suffix)
-PHASE_*.md
-
-# Internal reports of any kind: audit, hotfix, implementation, backlog, etc.
-*_REPORT.md
-HOTFIX_*.md
-AUDIT_*.md
-AUDITORIA_*.md
-
-
-# Copilot-generated scaffolding — purged 2026-06-02, kept local only.
-# Dead VCR-cassette setup that was never wired up + a CI workflow broken by
-# construction (working-directory ./gema doesn't exist; the repo root IS gema).
-IMPROVEMENTS_*.md
-.github/workflows/ci.yml
-scripts/scan_fixtures.py
-tests/fixtures/
-tests/test_migrations.py
-tools/*
-!tools/watchdog.py
-# Fase 0 del . La excepción va acá, junto a la regla que la causa:
-# `tools/*` hizo que un `git add` se saltara en silencio una herramienta nueva
-# cuatro veces distintas. Herramienta nueva en tools/ = línea nueva acá.
-!tools/probe_endpoints.py
-# , Fase 5: tests/test_embudo.py importa la herramienta.
-!tools/embudo.py
-# , Fase 8: tests/test_descubrir_ats.py importa la herramienta. El agente
-# que la escribio la dejo fuera del repo sin saberlo (hallado el 06-10).
-!tools/descubrir_ats.py
-# , Fase 11: autoriza y prueba la lectura de alertas de Gmail.
-!tools/autorizar_gmail.py
-
-# Job search session results — scraped data with personal context
-
-
-
-
-# Distribution guide — references owner by name, not a public-facing doc
-BETA_GUIDE.md
-
-# Product roadmap — private strategy, not for public GitHub
-
-
-# README working drafts — review copies, not final documents
-README_DRAFT.md
-README_*.md
-!README.md
-
-# Misc
-*.xlsx
-*.csv
-
-
-# Personal CV data — use user_profile.yaml.example as template
-user_profile.yaml
-
-# Temporary scrape data files — not source code
-
-
-# Torre personal job search results — never public
-torre_job_analysis/
-
-# Archived / superseded code — moved out of the tree, not deleted (kept local)
-legacy/
-
-# Internal project maps + provider reference — local context, not for GitHub
-INVENTORY.md
-
-# =============================================================================
-# Excepciones v3 (2026-09-01) — la documentación de la nueva dirección SÍ se
-# versiona.
-#
-# Las reglas de arriba se escribieron cuando todo vivía en la raíz y los
-# reportes eran contexto privado de sesión. docs/ es otra cosa: es lo que hace
-# que alguien entienda el proyecto sin preguntar. Un repo que esconde su propia
-# arquitectura obliga a leer 1966 líneas de scraper.py para saber qué hace.
-# Los ~60 .md históricos de la raíz siguen ignorados exactamente como estaban.
-# =============================================================================
-!docs/
-!docs/**
-
-# ──  vuelve a estar ignorado (2026-09-14) ──
-# `!docs/**` de arriba es una negación total: desactiva TODOS los patrones
-# anteriores dentro de docs/, incluidos  BETA_GUIDE.md,
-#  y las corridas  con data personal.
-# Mientras esos archivos vivían en la raíz no pasaba nada; al archivarlos bajo
-# docs/ quedaron visibles para git, que es lo contrario de lo que el comentario
-# de arriba declara ("los ~60 .md históricos siguen ignorados exactamente como
-# estaban"). Esta regla restaura esa invariante.
-#
-# El archivo existe para despejar el directorio de trabajo, no para publicar
-# historia: lo que estaba ignorado sigue ignorado, solo que ahora ordenado.
-# ` ya estaba trackeado antes de
-# esta regla y sigue estándolo — .gitignore no afecta lo ya trackeado.
-
-
-# El harness de eval y su corpus son código y datos de test, no scaffolding.
-# tools/* y tests/fixtures/ se ignoraron cuando eran andamiaje de Copilot que se
-# purgó (ver arriba); el corpus de la Fase 7 se cura a mano y perderlo cuesta
-# horas de trabajo humano irrecuperable.
-!tools/eval_extraction.py
-# Distingue key vencida (401) de modelo dado de baja (404) — dos fallos que desde adentro
-# de GEMA se ven identicos y piden arreglos opuestos. Es la herramienta que evita repetir
-# el CRITICAL del 01-09; dejarla fuera del repo seria perder justo la defensa.
-!tools/check_provider_models.py
-# La herramienta que acompaña cada subida de SCORE_VERSION (29-09). Estaba ignorada por
-# `tools/*` mientras `tests/test_repuntaje_registry.py`, que si se versiona, la importa:
-# en un clon limpio la suite fallaba. Hallado el 01-10 a partir del punto 3 de revision externa.
-!tools/repuntuar_registry.py
-
-# git no re-incluye archivos dentro de un directorio excluido, así que hay que
-# reabrir tests/fixtures/ y volver a excluir su contenido antes de destapar solo
-# el corpus. El resto (utils.py, cassettes/) sigue ignorado como estaba.
-!tests/fixtures/
-tests/fixtures/*
-!tests/fixtures/extraction_corpus/
-!tests/fixtures/extraction_corpus/**
-# Respuestas REALES de las APIs de fuentes (), recortadas: el test sin red
-# de cada fuente nueva corre contra lo que la API devolvio de verdad, no contra un JSON
-# escrito a mano que dice lo que uno cree que devuelve.
-!tests/fixtures/fuentes/
-!tests/fixtures/fuentes/**
-# Fase 8 del : respuestas reales de las cuatro plataformas ATS nuevas y de
-# las paginas de careers que lee el descubridor. Las de ats/ entraron con `git add -f`;
-# sin esta excepcion, el proximo cambio a una de ellas se pierde en silencio.
-!tests/fixtures/ats/
-!tests/fixtures/ats/**
-!tests/fixtures/descubridor/
-!tests/fixtures/descubridor/**
-# Fase 11: alertas de Gmail SINTETICAS (ningun correo real se versiona).
-!tests/fixtures/gmail/
-!tests/fixtures/gmail/**
-
-# Anclado a la raiz. Sin la barra inicial, git lo matchea a CUALQUIER profundidad y se
-# comia docs/LLM_PROVIDERS.md — que si se versiona. La regla original queria mantener
-# local la copia de la raiz, no bloquear la de docs/.
-/LLM_PROVIDERS.md
-
-# B6 � frontend React
-node_modules/
-frontend/dist/
-!frontend/package.json
-!frontend/package-lock.json
-!frontend/tsconfig.json
-api_state.json
-
-# Reportes de auditoria: privados, se quedan en el disco local y no van al repo
-# publico (decision del 2026-10-12, antes del primer push de la rama).
-
-
-# Analisis de revision externa (29-09 y 30-09): privados, no van al repo publico.
--09-30.md
-
-# Analisis (estudios de fuentes, de otros proyectos, de corridas y de la auditoria de revision externa):
-# privados, no van al repo publico (decision del 2026-10-12).
--09-30.md
-
-
-
-
-
-
-# registro personal (estados, reportes de sesion, registros, guia de publicacion):
-# nombran al autor y su ubicacion. Se quedan en disco, no van al repo publico (2026-10-12).
-
-
-
-
-
+# Editor y sistema operativo
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+desktop.ini
+.streamlit/secrets.toml

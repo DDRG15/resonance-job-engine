@@ -1,7 +1,7 @@
 """
-tests/test_salary_from_text.py — FIX 1 del live test 2026-07-18.
+tests/test_salary_from_text.py — salario desde el texto del card.
 
-Salario desde el texto del card. Hallazgo: 1 de 68 jobs con salario porque los
+Salario desde el texto del card. Medido: 1 de 68 jobs con salario porque los
 boards no lo publican como elemento CSS — pero sí en el texto (HN: "$120k").
 Conservador: exige moneda o sufijo k/moneda; números sueltos jamás matchean.
 """

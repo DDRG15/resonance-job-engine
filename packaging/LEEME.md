@@ -18,8 +18,7 @@ Es PyInstaller **onedir**: arranca en segundos. `onefile` descomprimiría ciento
 cada arranque y dispara más falsos positivos de antivirus. Los dos ejecutables comparten
 un solo `_internal\`, así que el peso no se duplica.
 
-Tamaño aproximado: ver el resumen que imprime `build.ps1` (el último build midió el valor
-que figura en el reporte de la sesión). Los navegadores de Playwright **no** van incluidos.
+Tamaño aproximado: ver el resumen que imprime `build.ps1` (el valor depende del build). Los navegadores de Playwright **no** van incluidos.
 
 ## Cómo construir
 

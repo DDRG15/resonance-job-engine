@@ -1,5 +1,5 @@
 """
-tests/test_embudo.py — Fase 5 del : embudo por fuente y título, y poda.
+tests/test_embudo.py — Embudo por fuente y título, y poda.
 
 El riesgo de esta herramienta no es proponer de menos: es proponer de más. Un título que se
 saca de la búsqueda no vuelve solo, así que cada regla de abajo existe para impedir que un

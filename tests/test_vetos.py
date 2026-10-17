@@ -114,7 +114,7 @@ class TestElScoreConservaSuValor:
         assert abierta.match_score == base
 
     def test_salario_en_texto_tambien_lleva_veredictos(self):
-        """v6 (D3): ya no es Tier 4, pero sigue llevando sus veredictos."""
+        """v6: ya no es Tier 4, pero sigue llevando sus veredictos."""
         tj = matcher.score_job(_job("Backend Engineer", sal="Competitive"), CFG)
         assert tj.salario_no_confirmado is True
         assert tj.location_verdict in ("PASS", "FLAG", "FAIL")

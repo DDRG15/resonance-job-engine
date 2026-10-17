@@ -218,8 +218,7 @@ def test_exclusion_penalty_empty_list():
 # =============================================================================
 
 def test_score_job_salario_en_texto_se_puntua_sin_el_eje():
-    """Hasta v5 un salario en texto mandaba a Tier 4 con -1. Desde v6 (,
-    Fase 6, D3) se puntua sin el eje de salario y se marca «no confirmado»."""
+    """Hasta v5 un salario en texto mandaba a Tier 4 con -1. Desde v6 se puntua sin el eje de salario y se marca «no confirmado»."""
     job = _job("Backend Engineer", salary_raw="Competitive + equity")
     config = _config(titles=["Backend Engineer"])
     tiered = score_job(job, config)
@@ -303,7 +302,7 @@ def test_score_job_inline_returns_tier_string():
 
 
 def test_score_job_inline_salario_en_texto_ya_no_es_tier4():
-    """v6 (D3): el camino rapido y el completo dicen lo mismo."""
+    """v6: el camino rapido y el completo dicen lo mismo."""
     job = _job("Backend Engineer", salary_raw="DOE", url_id=51)
     config = _config()
     assert score_job_inline(job, config) == score_job(job, config).tier != "Tier 4"
@@ -323,7 +322,7 @@ def test_bucket_jobs_distributes_into_four_tiers():
     config = _config(titles=["Backend Engineer"], min_salary=130_000)
     t1, t2, t3, t4 = bucket_jobs(jobs, config)
 
-    # v6 (D3): el salario en texto ya no puebla Tier 4; se puntua y queda marcado.
+    # v6: el salario en texto ya no puebla Tier 4; se puntua y queda marcado.
     assert t4 == []
     assert any(tj.salario_no_confirmado for tj in t1 + t2 + t3)
     total = len(t1) + len(t2) + len(t3) + len(t4)

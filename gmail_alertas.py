@@ -1,7 +1,7 @@
 """
 gmail_alertas.py — avisos de LinkedIn e Indeed leidos desde las alertas en Gmail.
 
-Fase 11 del . LinkedIn prohibe `/jobs-guest/` en su robots.txt e Indeed
+LinkedIn prohibe `/jobs-guest/` en su robots.txt e Indeed
 bloquea el scraping; las alertas por correo son la unica via legitima a las dos. GEMA no
 toca ningun sitio: lee el buzon del usuario con el permiso minimo (`gmail.readonly`), parsea
 titulo, empresa, ubicacion y enlace de cada alerta, y los avisos entran por el mismo
@@ -417,7 +417,7 @@ def credenciales(token_path: Optional[str] = None):
     """
     Las credenciales del token guardado, renovadas si vencieron.
 
-    Rechaza un token con permisos de mas: el plan (R7) pide `gmail.readonly` y nada mas,
+    Rechaza un token con permisos de mas: el producto pide `gmail.readonly` y nada mas,
     y un token con `gmail.modify` filtrado puede borrar el correo del usuario.
     """
     path = token_path or config.GMAIL_TOKEN_PATH

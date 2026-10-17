@@ -1,5 +1,5 @@
 """
-Host permitido en la API (Plan30 Fase 3).
+Host permitido en la API.
 
 La API no tiene autenticacion. Un navegador de la maquina puede ser empujado a hablarle
 por DNS rebinding —`evil.example` pasa a resolver 127.0.0.1 y el navegador manda
@@ -144,7 +144,7 @@ class TestMiddleware:
         "127.0.0.1.evil.example",
         "evillocalhost",
         "localhost.",               # punto final: conservador, no esta en la lista
-        "[::1]:8000",               # IPv6 no esta en el default del plan
+        "[::1]:8000",               # IPv6 no esta en el default
         "0.0.0.0:8000",
         "192.168.1.50:8000",        # la IP de LAN: justo lo que se quiere cerrar
     ])

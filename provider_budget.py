@@ -1,8 +1,6 @@
 """
 provider_budget.py — contar antes de llamar, no castigar después.
 
-Fase 10 del .
-
 GEMA se entera de que un proveedor está limitado chocándolo. `_cooldowns`
 (`nlp_engine.py`) pone 60 segundos de castigo **después** de comerse el 429, así que
 cada descubrimiento cuesta una llamada perdida, un round-trip de latencia y un salto de
@@ -144,7 +142,7 @@ def hay_presupuesto(db, provider: str, umbral: float = UMBRAL) -> tuple[bool, fl
 # ── Cadena adaptativa ────────────────────────────────────────────────────────
 
 #: Mínimo de llamadas por (proveedor, propósito) antes de dejar que la evidencia
-#: reordene. Sin esto la cadena oscila con dos llamadas lentas seguidas — riesgo R7.
+#: reordene. Sin esto la cadena oscila con dos llamadas lentas seguidas.
 MIN_LLAMADAS = 8
 
 #: Cuánto mejor tiene que ser para desplazar al primario configurado. Sin histéresis,
@@ -199,7 +197,7 @@ def reordenar(cadena: list[str], purpose: str, db) -> list[str]:
 
     La histéresis es obligatoria: solo se desplaza al primario configurado si el
     candidato le saca `MARGEN` de ventaja. Sin eso el orden cambia en cada corrida y
-    la telemetría deja de ser comparable consigo misma — riesgo R7 del plan.
+    la telemetría deja de ser comparable consigo misma.
     """
     if not cadena:
         return cadena

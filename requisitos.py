@@ -1,7 +1,7 @@
 """
 requisitos.py — que pide un aviso y cuanto de eso tiene el CV, con evidencia.
 
-, Fase 7. Por que existe: `matcher._score_skill_overlap` buscaba las
+Por que existe: `matcher._score_skill_overlap` buscaba las
 skills del perfil en titulo + empresa + salario. Un aviso cuya descripcion pide Python y
 FastAPI no sumaba nada por eso si el titulo no los nombraba: el matcher leia la tapa del
 libro. Ahora, cuando la fuente trae descripcion, se leen los requisitos.
@@ -16,9 +16,9 @@ Diseño, en tres reglas:
    "bonus", "preferred", "deseable" —en su misma oracion o bajo un titulo de seccion
    asi— pesa la mitad: no saber algo deseable no es lo mismo que no saber algo
    requerido. La señal no cruza el fin de la oracion (ver `_peso`).
-3. **El LLM, si se prende (D4, apagado), no puede cambiar lo que dijo el
+3. **El LLM, si se prende (apagado por defecto), no puede cambiar lo que dijo el
    deterministico** ni inventar evidencia: solo puede sumar requisitos implicitos, que
-   no cuentan para la cobertura. Es la regla de Bert, reimplementada en
+   no cuentan para la cobertura. Lo aplica
    `fusionar_propuestas_llm`.
 """
 
@@ -407,7 +407,7 @@ def fusionar_propuestas_llm(deterministas: list[Requisito],
                             propuestas: Iterable[dict],
                             descripcion: str) -> list[Requisito]:
     """
-    La regla de diseño de la capa LLM (D4), aplicada en codigo y no en el prompt.
+    La regla de diseño de la capa LLM, aplicada en codigo y no en el prompt.
 
     - Un requisito que el deterministico ya encontro **no cambia**: ni estado ni peso ni
       evidencia, diga lo que diga el modelo.

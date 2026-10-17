@@ -11,8 +11,8 @@ Scoring weights (renormalized over the dimensions that have data):
     Must-exclude absent  : 10 points (penalty applied if found)
     Requisitos coverage  : weight 25 (Fase 7, only when the source sends a description)
 
-Salary in prose ('Competitive', 'DOE') no longer bypasses scoring to Tier 4
-(, Fase 6, D3): the salary dimension drops out, the rest is
+Salary in prose ('Competitive', 'DOE') no longer bypasses scoring to Tier 4 since v6:
+the salary dimension drops out, the rest is
 renormalized, and the job carries `salario_no_confirmado`.
 """
 
@@ -552,7 +552,7 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     Salary in prose (non-empty `salary_raw` that `parse_salary_usd()` cannot read,
     e.g. 'Competitive', 'DOE') is scored like a missing salary: the salary dimension
     does not participate and the weights renormalize. Whitespace-only `salary_raw`
-    counts as absent, not as prose (Fase 6, D3 — there is no Tier 4 bypass anymore).
+    counts as absent, not as prose (there is no Tier 4 bypass anymore).
 
     Score breakdown (max 100, renormalized over the dimensions that apply):
         Title match    : 0–50
@@ -578,7 +578,7 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     loc_verdict, loc_note = _veredicto_desde_delta(loc_delta, lm, ln)
     lang_verdict, lang_note = _language_verdict(job)
 
-    # ── Salario en texto: ya no es Tier 4 (, Fase 6, decision D3) ──
+    # ── Salario en texto: ya no es Tier 4 ──
     #
     # Hasta v5 un salario que no se podia leer ("Competitive", "DOE") sacaba el aviso
     # del scoring: Tier 4, puntaje -1, revision manual. Un aviso con titulo, ubicacion
@@ -612,7 +612,7 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
     all_match.extend(tm + sm + im + em + km + lm)
     all_miss.extend(tn + sn + in_ + en + kn + ln)
 
-    # ── , Fase 7: requisitos de la descripcion ──────────────────
+    # ── Requisitos de la descripcion ──────────────────
     # `_score_skill_overlap` busca las skills del CV en titulo + empresa + salario: un
     # aviso cuya descripcion pide Python y FastAPI no sumaba nada si el titulo no los
     # nombraba. Cuando la fuente trae descripcion, se leen sus requisitos (requisitos.py,
@@ -703,7 +703,7 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
 def aplicar_aprendizaje(tiered: TieredJob,
                         modelo: "aprendizaje_mod.ModeloAprendizaje") -> TieredJob:
     """
-    , Fase 10: el ajuste por postulaciones, DESPUÉS del puntaje base.
+    El ajuste por postulaciones, DESPUÉS del puntaje base.
 
     Va afuera de `score_job` a propósito. `score_job` es función del aviso, la búsqueda
     y el CV; el aprendizaje depende además del historial del usuario, que cambia con cada
@@ -760,7 +760,7 @@ def bucket_jobs(
     """
     Scores and buckets all jobs into four tiers. Returns (t1, t2, t3, t4).
 
-    Since v6 (Fase 6, D3) nothing reaches Tier 4 through the salary: prose salaries
+    Since v6 nothing reaches Tier 4 through the salary: prose salaries
     are scored without the salary dimension and flagged `salario_no_confirmado`.
     The fourth list is kept for the return contract.
 
@@ -770,7 +770,7 @@ def bucket_jobs(
     scraping for real-time webhook triggers. bucket_jobs() is the post-scrape
     full pass that populates all display data.
 
-    , Fase 10: `aprendizaje` es el modelo de las postulaciones. Si no
+    `aprendizaje` es el modelo de las postulaciones. Si no
     viene, se lee de `db` (`aprendizaje.cargar`); sin `db`, no hay historial y no se
     ajusta nada. Inactivo —menos de 15 postulaciones con resultado— todo lo de abajo
     corre exactamente como antes: misma versión, mismos puntajes, mismas razones.
@@ -789,11 +789,11 @@ def bucket_jobs(
     # y no aporta nada — salvo cuando cambia el algoritmo, que es justo el caso que
     # `repuntuar_todo` habilita.
     #
-    # Lo que NO se saltea es el barrido de deadlines de la Fase 6: cuesta cero red
-    # y corre siempre. La excepcion es deliberada y esta declarada en el plan.
+    # Lo que NO se saltea es el barrido de deadlines de deadlines: cuesta cero red
+    # y corre siempre. La excepcion es deliberada.
     from database import GemaDatabase   # import diferido: evita el ciclo
 
-    # ── , Fase 10: aprendizaje de las postulaciones ─────────────
+    # ── Aprendizaje de las postulaciones ─────────────
     # La version efectiva decide que se saltea y con que etiqueta se persiste. Inactivo
     # es SCORE_VERSION a secas; activo con reglas, SCORE_VERSION+ap.<huella>, asi que
     # cada regla nueva re-puntua lo que vuelve a pasar en vez de mezclar dos escalas.
@@ -858,7 +858,7 @@ def bucket_jobs(
             continue
 
         tiered = score_job(job, search_config, profile=profile)
-        # Fase 10: el ajuste va DESPUES del puntaje base y ANTES de decidir el tier
+        # El ajuste va DESPUES del puntaje base y ANTES de decidir el tier
         # de la lista. Inactivo devuelve el mismo objeto.
         ajustado = aplicar_aprendizaje(tiered, modelo)
         if ajustado is not tiered and ajustado.match_score != tiered.match_score:
@@ -926,12 +926,12 @@ def bucket_jobs(
                     saltados_ya_puntuados, version_efectiva or "?")
         metrics.emit("jobs_ya_puntuados", saltados_ya_puntuados)
     if modelo.activo:
-        # Fase 10: cuantos avisos de esta corrida cambiaron de puntaje por el historial.
+        # Cuantos avisos de esta corrida cambiaron de puntaje por el historial.
         # Activo y en cero corrida tras corrida = las reglas no matchean nada de lo que
         # entra (empresas que ya no publican, familias de titulo que no se repiten).
         metrics.emit("aprendizaje_ajustados", ajustados_aprendizaje)
 
-    # , Fase 6: cuantos avisos de esta corrida se puntuaron sin el eje de
+    # Cuantos avisos de esta corrida se puntuaron sin el eje de
     # salario porque lo publicaron en texto, y cuantos se llevaron a anual desde un
     # periodo. Si el primero sube de golpe, un board cambio el formato del salario.
     puntuados = tier1 + tier2 + tier3 + tier4 + no_elegibles

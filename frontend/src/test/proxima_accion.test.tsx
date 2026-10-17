@@ -1,5 +1,5 @@
 /**
- * Fase 9 — la próxima acción de una postulación (decisión D5), vista desde el front.
+ * La próxima acción de una postulación, vista desde el front.
  *
  * Regla del proyecto: no hay UI muerta. Cada control nuevo (editar acción, guardar,
  * cancelar, el badge del sidebar) tiene su test, y los que escriben verifican que el

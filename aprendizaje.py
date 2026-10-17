@@ -1,7 +1,7 @@
 """
 aprendizaje.py — lo que las postulaciones del usuario le enseñan al ranking.
 
-, Fase 10. Diseño de Bert, reimplementado. Construido e INACTIVO: hasta
+Construido e INACTIVO: hasta
 que haya `config.LEARN_MIN_RESULTADOS` postulaciones con resultado no mueve ningún
 puntaje, no agrega ninguna razón y no cambia la versión del score. Lo dice en el log y
 en la métrica `aprendizaje_resultados`: "aprendizaje inactivo: N de 15".

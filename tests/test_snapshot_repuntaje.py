@@ -1,5 +1,5 @@
 """
-Snapshot automatico de tools/repuntuar_registry.py (Plan30 Fase 3).
+Snapshot automatico de tools/repuntuar_registry.py.
 
 Re-puntuar pisa `tier`, `score` y `score_version` de miles de filas. El 29-09 se hicieron
 tres backups a mano antes de correrla; el backup dependia de que el usuario se acordara, y una
@@ -13,12 +13,14 @@ la imagen Docker.
 import importlib.util
 import shutil
 import sqlite3
+import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
 
 import config
+from _dockerignore import entra_a_la_imagen
 from models import JobResult
 
 _RAIZ = Path(__file__).resolve().parent.parent
@@ -206,18 +208,22 @@ class TestMain:
 
 class TestElDirectorioNoPuedeTerminarEnGitNiEnLaImagen:
     """
-    El 29-09 un `.dockerignore` con comentarios al final de linea no excluyo NADA y la
-    imagen salio con 8 archivos de cookies de sesion. Un snapshot es el registry completo:
-    el mismo error aca filtraria todo el historial de avisos y postulaciones.
+    Un `.dockerignore` con comentarios al final de linea no excluye nada. Un snapshot es
+    el registry completo: el mismo error aca filtraria todo el historial de avisos y
+    postulaciones.
     """
 
     @staticmethod
     def _lineas(nombre):
         return (_RAIZ / nombre).read_text(encoding="utf-8").splitlines()
 
-    @pytest.mark.parametrize("archivo", [".gitignore", ".dockerignore"])
-    def test_backups_esta_excluido_como_linea_propia(self, archivo):
-        assert "backups/" in [l.strip() for l in self._lineas(archivo)]
+    def test_backups_esta_en_gitignore_como_linea_propia(self):
+        assert "backups/" in [l.strip() for l in self._lineas(".gitignore")]
+
+    @pytest.mark.parametrize("ruta", ["backups/gema_registry_x.db", "backups/otro.sqlite3"])
+    def test_backups_no_entra_a_la_imagen(self, ruta):
+        """Se evalua con la semantica de Docker (gana el ultimo patron que coincide)."""
+        assert not entra_a_la_imagen(ruta)
 
     def test_dockerignore_no_tiene_comentarios_al_final_de_linea(self):
         """`#` solo es comentario al inicio de linea; despues de un patron forma parte de
@@ -226,6 +232,10 @@ class TestElDirectorioNoPuedeTerminarEnGitNiEnLaImagen:
                  if l.strip() and not l.lstrip().startswith("#") and "#" in l]
         assert malas == []
 
-    def test_la_herramienta_esta_destapada_en_gitignore(self):
-        """`tools/*` la ignoraba: sin esta excepcion el cambio no se podia commitear."""
-        assert "!tools/repuntuar_registry.py" in [l.strip() for l in self._lineas(".gitignore")]
+    @pytest.mark.skipif(shutil.which("git") is None or not (_RAIZ / ".git").exists(),
+                        reason="sin git o fuera del repo")
+    def test_la_herramienta_no_esta_ignorada_por_git(self):
+        """Un patron de ignore demasiado ancho la dejaria fuera del repo en silencio."""
+        r = subprocess.run(["git", "check-ignore", "-q", "--no-index",
+                            "tools/repuntuar_registry.py"], cwd=_RAIZ, capture_output=True)
+        assert r.returncode != 0

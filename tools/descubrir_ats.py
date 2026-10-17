@@ -1,7 +1,7 @@
 """
 descubrir_ats.py — ¿qué empresa publica en qué ATS, y con qué token?
 
-Fase 8 del . La idea es de Job-Radar: la página de careers de una empresa
+La idea es de Job-Radar: la página de careers de una empresa
 embebe el tablero de su ATS, y el token está en el HTML (`jobs.lever.co/spotify`,
 `bunq.recruitee.com`, `gorillalogic.bamboohr.com`). Leerlo es más barato que adivinarlo,
 y los 404 del 30-09 a la mañana salieron justamente de tokens adivinados.
@@ -20,8 +20,8 @@ plataforma no reporta nombre (Lever, Ashby, BambooHR), se compara el token y la
 propuesta lo dice: es una validación más débil y no se esconde.
 
 **Propone, nunca escribe.** La salida es texto o JSON con la línea lista para pegar en
-`ats_registry.py`, siempre con `activa=False`. Activar una empresa es una decisión de
-el usuario (D1 del plan), no de un script.
+`ats_registry.py`, siempre con `activa=False`. Activar una empresa es una decisión del
+usuario, no de un script.
 
 Disciplina de red: respeta el robots.txt de cada host (RFC 9309: 4xx = sin política,
 5xx o sin red = todo prohibido), su `Crawl-delay`, el `crawl_delay_s` de la plataforma
@@ -445,8 +445,8 @@ def _linea_registro(plataforma: str, token: str, empresa: str, v: Validacion,
                     hoy: str) -> str:
     nota = (f"propuesto por descubrir_ats {hoy}: {v.avisos} avisos, "
             f"nombre '{v.nombre}' ({v.nombre_desde})")
-    if plataforma in ats_registry.PENDIENTES_D1:
-        nota = "D1 pendiente; " + nota
+    if plataforma in ats_registry.PENDIENTES_ACTIVACION:
+        nota = "pendiente de activar; " + nota
     # json.dumps: un literal de string valido en Python aunque el nombre traiga comillas.
     q = lambda s: json.dumps(s, ensure_ascii=False)  # noqa: E731
     return f"FuenteATS({q(plataforma)}, {q(token)}, {q(empresa)}, False, {q(nota)}),"
@@ -572,7 +572,7 @@ def _tabla(hallazgos: list[Hallazgo]) -> str:
     propuestas = [h.linea_registro for h in hallazgos if h.estado == "propuesta"]
     if propuestas:
         lineas.append("")
-        lineas.append("# Para ats_registry.FUENTES (apagadas; activar es decision de D1):")
+        lineas.append("# Para ats_registry.FUENTES (apagadas; activar es decision del usuario):")
         lineas.extend("    " + p for p in propuestas)
     return "\n".join(lineas)
 

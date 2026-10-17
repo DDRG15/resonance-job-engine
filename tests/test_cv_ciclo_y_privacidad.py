@@ -1,8 +1,8 @@
 """
-tests/test_cv_ciclo_y_privacidad.py — puntos 11 y 12 de la auditoria de revision externa (2026-09-30).
+tests/test_cv_ciclo_y_privacidad.py — ciclo de vida del perfil del CV y privacidad del texto que sale a terceros.
 
-Punto 11: el ciclo de vida del perfil del CV contradice los controles de la UI.
-Punto 12: el CV crudo sale a terceros sin aviso previo y el upload no tiene limite.
+El ciclo de vida del perfil del CV contradice los controles de la UI.
+El CV crudo sale a terceros sin aviso previo y el upload no tiene limite.
 
 Cada test nombra la falla que reproduce. Se escribieron ANTES del fix y se corrieron
 contra b871963: los marcados [ROJO] fallaron ahi; los marcados [GUARDA] ya pasaban y
@@ -32,6 +32,7 @@ import api as api_module
 import config as config_module
 import nlp_engine
 import run_manager as run_manager_module
+from _dockerignore import entra_a_la_imagen
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -146,7 +147,7 @@ def estado_en_disco() -> dict:
 def perfil_que_usa_el_cron(monkeypatch):
     """
     Dispara el cron de verdad (SchedulerService._fire) con el grafo stubbeado y devuelve
-    el perfil que le llego a run_pipeline. "Presente" no alcanza para el punto 11: tiene
+    el perfil que le llego a run_pipeline. "Presente" no alcanza para el ciclo del perfil: tiene
     que estar USADO por la corrida desatendida.
     """
     visto: dict = {}
@@ -188,7 +189,7 @@ class TestPerfilCronConRetencion:
 
     def test_dos_reinicios_conservan_y_usan_el_perfil(self, client, perfil_stub, monkeypatch):
         """
-        [ROJO] Escenario de revision externa: cron activo con retencion, reinicio 1 -> _apply_pending_
+        [ROJO] Escenario: cron activo con retencion, reinicio 1 -> _apply_pending_
         schedule reconfigura con retain_profile=False y _discard_profile borra el archivo;
         reinicio 2 -> cron sin perfil.
         """
@@ -365,14 +366,25 @@ class TestClearProfile:
 
 class TestIgnoreFiles:
     def test_gitignore_nombra_el_perfil_derivado(self):
-        """[ROJO] Hoy lo cubre el comodin *.json: un cambio al comodin lo expone."""
+        """[ROJO] El perfil derivado del CV es dato personal: tiene su propia linea."""
         lineas = (REPO / ".gitignore").read_text(encoding="utf-8").splitlines()
         assert "cv_profile.json" in [l.strip() for l in lineas]
 
-    def test_dockerignore_excluye_el_perfil_derivado(self):
-        """[ROJO] El perfil retenido es dato personal: no puede viajar en la imagen."""
-        lineas = (REPO / ".dockerignore").read_text(encoding="utf-8").splitlines()
-        assert "cv_profile.json" in [l.strip() for l in lineas]
+    @pytest.mark.parametrize("ruta", ["cv_profile.json", "user_profile.yaml", ".env",
+                                      "cookies/remoteok.com.json", "gema_registry.db"])
+    def test_dockerignore_excluye_el_perfil_y_los_secretos(self, ruta):
+        """[ROJO] El perfil retenido es dato personal: no puede viajar en la imagen.
+        Se evalua con la semantica de Docker (gana el ultimo patron que coincide)."""
+        assert not entra_a_la_imagen(ruta)
+
+    def test_dockerignore_deja_pasar_lo_que_el_build_necesita(self):
+        """[GUARDA] Una allowlist demasiado estricta rompe el build sin avisar."""
+        for ruta in ("api.py", "requirements.txt", "graph/__init__.py",
+                     "integrations/session_jar.py", "frontend/package.json",
+                     "frontend/src/main.tsx", ".env.example"):
+            assert entra_a_la_imagen(ruta), f"{ruta} no llega a la imagen"
+        assert not entra_a_la_imagen("frontend/node_modules/x/index.js")
+        assert not entra_a_la_imagen("frontend/dist/index.html")
 
     def test_dockerignore_sin_comentarios_al_final_de_linea(self):
         """
@@ -669,7 +681,7 @@ def _pdf_sintetico(paginas: int) -> bytes:
     return bytes(salida)
 
 
-# -- redaccion local de email/telefono (Solucion B parcial de revision externa) -------------
+# -- redaccion local de email/telefono (redaccion parcial) -------------
 
 CV_SINTETICO = """Ana Perez Gomez
 Backend Engineer | SRE

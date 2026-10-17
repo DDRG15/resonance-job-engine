@@ -15,7 +15,7 @@ SIEMPRE en un thread daemon — nunca en el event loop de FastAPI.
 
 Las START/END_PHRASES están duplicadas de main.py a propósito: importar
 main.py ejecutaría la app Streamlit entera. La duplicación muere cuando
-main.py se retire al alcanzar paridad (B6.4).
+main.py se retire al alcanzar paridad.
 """
 
 import logging
@@ -115,8 +115,7 @@ class RunManager:
 
     NO HAY CANCELACION REAL. Una corrida en curso (Playwright + escrituras a la DB) no
     se puede detener desde afuera: el hilo es daemon y no escucha ninguna señal. Por eso
-    `reset()` se rechaza mientras corre en vez de fingir que cancela (revision externa 2026-09-30,
-    punto 1, Solucion A). Cancelar de verdad es la Solucion B: un threading.Event que
+    `reset()` se rechaza mientras corre en vez de fingir que cancela. Cancelar de verdad requeriria un threading.Event que
     `run_pipeline` y el scraper revisen entre fuentes — no entra en este cambio.
     """
 
@@ -132,7 +131,7 @@ class RunManager:
         self.results: Optional[tuple] = None      # (tier1..tier4: list[TieredJob])
         self.summary: Optional[ScrapeRunSummary] = None
         # True entre un reset() y el proximo start(): la sesion se limpio a proposito y
-        # /api/results NO debe rellenarla con el historial de la DB (punto 9).
+        # /api/results NO debe rellenarla con el historial de la DB.
         self.session_cleared: bool = False
 
     # ── Estado ────────────────────────────────────────────────────────────────
@@ -159,7 +158,7 @@ class RunManager:
             self.session_cleared = False
             # run_id y log_queue viajan COMO ARGUMENTOS, no se releen de `self` en el
             # hilo: el worker trabaja con la cola que se le entrego aunque otro hilo
-            # reasigne el atributo (revision externa punto 1: leer `self.log_queue` dentro del
+            # reasigne el atributo (leer `self.log_queue` dentro del
             # worker era lo que explotaba cuando Reset lo ponia en None).
             self.thread = threading.Thread(
                 target=self._worker,
@@ -173,7 +172,7 @@ class RunManager:
     def reset(self) -> None:
         """Limpia el estado de la sesión. Rechaza (409) si hay una corrida activa.
 
-        Escenario (revision externa 2026-09-30, punto 1, P0): clic en Reset con el hilo vivo. El
+        Escenario: clic en Reset con el hilo vivo. El
         reset viejo ponía `thread` y `log_queue` en None sin detener nada. Si caía entre
         el arranque del hilo y su primera lectura de `log_queue`, el worker moría con
         AttributeError antes de su try/finally y el gate quedaba tomado: todo scrape
@@ -233,7 +232,7 @@ class RunManager:
         una de las dos copias no tenía las veinte líneas del push. Ahora ambos llaman al
         mismo grafo con distinto `trigger`.
 
-        revision externa 2026-09-30, punto 1: TODO lo que el worker hace —incluida la lectura de la
+        TODO lo que el worker hace —incluida la lectura de la
         cola de logs— vive dentro del try/finally que libera el gate. Antes la primera
         línea (`log = self.log_queue.put`) quedaba afuera: si fallaba, el hilo moría sin
         liberar el gate y el sistema quedaba sin poder scrapear hasta reiniciar.
@@ -255,7 +254,7 @@ class RunManager:
                     cola.put(msg)
                 except Exception:
                     pass
-                progreso.latido()   # Pieza 4: cada linea del pipeline es una senal de vida
+                progreso.latido()   # cada linea del pipeline es una senal de vida
 
             try:
                 ctx = RuntimeContext(
@@ -278,7 +277,7 @@ class RunManager:
 
                 # Solo se publica si esta corrida sigue siendo LA de la sesión. Con
                 # Reset rechazado mientras corre no debería ocurrir; el guard es el
-                # cinturón para el día que exista cancelación (Solución B).
+                # cinturón para el día que exista cancelación.
                 if self.run_id == run_id:
                     self.results = (estado.get("tier1") or [], estado.get("tier2") or [],
                                     estado.get("tier3") or [], estado.get("tier4") or [])

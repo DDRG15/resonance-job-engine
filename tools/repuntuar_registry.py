@@ -18,7 +18,7 @@ Lo que NO re-puntua: las filas off-topic para esa busqueda. bucket_jobs las desc
 antes de puntuar —es su regla, no una de esta herramienta— y quedan en su version
 vieja. El dashboard las cuenta aparte, como fuera de escala, en vez de mezclarlas.
 
-Snapshot (Plan30 Fase 3). Esta herramienta reescribe `tier`, `score` y `score_version`
+Snapshot. Esta herramienta reescribe `tier`, `score` y `score_version`
 de miles de filas, y el 29-09 se hicieron tres backups a mano antes de correrla: el
 backup dependia de que el usuario se acordara. Una re-puntuacion con una version del scoring
 mala no tiene "deshacer" —la fila vieja se pisa—, y la unica reversion es volver a una
@@ -169,7 +169,7 @@ def main(argv=None) -> int:
             print("  para volver atras: cerrar la API y copiar ese archivo sobre la base.")
 
     db = GemaDatabase()
-    # Fase 10 (): la escala que escribe bucket_jobs. SCORE_VERSION mientras
+    # La escala que escribe bucket_jobs. SCORE_VERSION mientras
     # el aprendizaje este inactivo; activo, SCORE_VERSION+ap.<huella>. Con la base sola,
     # la herramienta re-puntuaria a "v7" filas que bucket_jobs etiqueta "v7+ap.<huella>"
     # y nunca terminaria de llevar el registry a una escala.

@@ -1,5 +1,5 @@
 /**
- * Pieza 4 — la barra de progreso de la corrida.
+ * la barra de progreso de la corrida.
  *
  * Escenario: la corrida dura 10-20 minutos. Lo que el usuario tiene que poder leer de un
  * vistazo es: cuánto va, cuánto falta (aproximado), y que sigue viva. Y cuando el

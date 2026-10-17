@@ -50,7 +50,7 @@ def sanitize_input(raw_text: str) -> str:
 
 
 # =============================================================================
-# Cerco de texto de terceros (Plan30 Fase 3)
+# Cerco de texto de terceros
 # =============================================================================
 #
 # El fallback de extraccion por drift le da a un LLM el texto de un board que no
@@ -133,7 +133,7 @@ def cercar_texto_de_terceros(texto: str, origen: str = "extraccion") -> str:
     `origen` solo etiqueta la metrica. Si el contenido traia el delimitador (o cualquier
     corrida de 3 corchetes) se emite `cerco_delimitador_escapado_total`: un aviso real casi
     nunca escribe `[[[`, asi que una sola ocurrencia es una prueba, no un falso positivo
-    esperable. Es una metrica fuera de la lista del plan, agregada porque el escape es una
+    esperable. Se agrego porque el escape es una
     transicion de estado anomala y, por contrato, las anomalias se cuentan.
 
     Pura salvo por la metrica; nunca lanza por el contenido.
@@ -195,7 +195,7 @@ TRANSLATION RULES:
 - "$90k" / "90000" / "90K" → min_salary: 90000
 - If no domains mentioned → target_domains: ["himalayas.app","trueup.io"]
 
-STRICT RULES (live-test 2026-07-18):
+STRICT RULES:
 - must_exclude: ONLY exclusions the user EXPLICITLY requested ("no X",
   "excluir X", "sin X"). NEVER infer or add exclusions the user did not state.
   The translation examples above are translations, not defaults to inject.
@@ -230,7 +230,7 @@ perfectly captures the user's intent. Point out any of the following issues:
     - Missing exclusions (the user said 'no X' but X is not in must_exclude)
     - Missing or wrong target_domains
 
-MATCHER SEMANTICS — do NOT advise against these (live-test 2026-07-18):
+MATCHER SEMANTICS — do NOT advise against these:
     - must_include is scored ONLY against the job TITLE + company + salary text
       (cards have no description). Filling it with technology lists TANKS every
       score. An EMPTY must_include is valid and often optimal — do NOT flag
@@ -1242,7 +1242,7 @@ _CV_TEXT_CAP = 8_000
 
 def _extract_pdf_text(file_bytes: bytes) -> str:
     """
-    Texto de un PDF con tres topes (revision externa 2026-09-30, punto 12): paginas, caracteres y
+    Texto de un PDF con tres topes: paginas, caracteres y
     reloj. Antes se recorrian TODAS las paginas para quedarse con 8 000 caracteres: un
     PDF de 500 paginas (o una sola pagina patologica) bloqueaba la peticion y la CPU de
     la maquina hasta terminar, y nadie podia cortarlo.
@@ -1316,7 +1316,7 @@ def extract_cv_text(filename: str, file_bytes: bytes) -> str:
     Truncates output to 8 000 chars — sufficient for any real CV and
     stays safely below the LLM token limit for the parse call.
 
-    Punto 12 de revision externa: PDF acotado por paginas/caracteres/reloj (_extract_pdf_text) y
+    PDF acotado por paginas/caracteres/reloj (_extract_pdf_text) y
     DOCX rechazado si su descompresion excede el tope. Contrato intacto: nunca lanza;
     un archivo rechazado devuelve "" y la API responde 422 como con cualquier parser caido.
     """
@@ -1339,7 +1339,7 @@ def extract_cv_text(filename: str, file_bytes: bytes) -> str:
     return text[:_CV_TEXT_CAP]
 
 
-# --- Redaccion local de contacto antes de salir al proveedor (revision externa punto 12, sol. B) ---
+# --- Redaccion local de contacto antes de salir al proveedor ---
 # Email y telefono no aportan nada al perfil (rol, skills, region) y son lo mas facil de
 # detectar sin falsos positivos. Nombre, historial y direccion NO se redactan: no hay
 # regex que los distinga de un cargo o un proyecto sin destruir el perfil, y el aviso de la
@@ -1380,7 +1380,7 @@ def generate_ephemeral_profile(raw_cv_text: str, raise_on_failure: bool = False)
     Parses raw CV text into a sanitized profile dict via the FULL provider
     chain (_build_caller_chain — same resilience as the SearchConfig path).
 
-    Live test 2026-07-09: la versión anterior estaba cableada solo a Gemini;
+    la versión anterior estaba cableada solo a Gemini;
     con la cuota free de Gemini en 0, el perfil caía al fallback genérico EN
     SILENCIO y el matcher puntuaba sin skills. Punto único de falla eliminado.
     Costo: un (1) request extra al proveedor primario por sesión de CV —
@@ -1402,7 +1402,7 @@ def generate_ephemeral_profile(raw_cv_text: str, raise_on_failure: bool = False)
             raise RuntimeError("CV text vacío — nada que analizar")
         return _GENERIC_FALLBACK_PROFILE.copy()
 
-    # Punto 12 de revision externa: lo unico que sale al proveedor es el texto con email y telefono
+    # Lo unico que sale al proveedor es el texto con email y telefono
     # ya redactados. Solo se loguean conteos, jamas el contenido.
     safe_cv_text = _redact_contact_data(raw_cv_text)
     logger.info("[CV] Redaccion local: %d chars -> %d chars antes de enviar al LLM.",
@@ -1639,7 +1639,7 @@ def prompt_version(prompt: Optional[str] = None) -> str:
     son diagnósticos opuestos. El prompt cambia con el perfil del CV, así que la versión
     se calcula sobre el prompt REAL que se usó, no sobre el genérico.
 
-    Plan30 Fase 3: la huella incluye la instrucción del cerco de texto de terceros, que
+    La huella incluye la instrucción del cerco de texto de terceros, que
     viaja en el turno del usuario y no en el system prompt. Si no entrara, cambiar esa
     instrucción movería el comportamiento del modelo sin mover la versión, y dos corridas
     del corpus con la misma versión no serían comparables. Subir esta fase cambia la
@@ -1708,7 +1708,7 @@ def extract_jobs_from_text(
 
     # Inject source_url into the prompt so the LLM echoes it back
     url_context = f"\nSOURCE URL: {source_url}" if source_url else ""
-    # Plan30 Fase 3: el texto es de un board. Se limpia el HTML, se escapa el delimitador
+    # El texto es de un board. Se limpia el HTML, se escapa el delimitador
     # y se cerca como dato no confiable ANTES de que llegue al modelo (ver
     # cercar_texto_de_terceros). El orden importa: sanitize_input borra `<...>`, asi que
     # escapar despues es lo que garantiza que ningun marcador sobreviva a la limpieza.

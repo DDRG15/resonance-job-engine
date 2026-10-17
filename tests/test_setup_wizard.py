@@ -7,7 +7,7 @@ Lo que se fija:
    tenía solo Mistral (primario de `parse`), Cerebras o SambaNova le pedía el wizard.
 2. Ninguna de las dos funciones recarga `config`. La recarga pisaba con el .env todo
    valor ya cargado en el proceso, y el .env del usuario define GEMA_DB_PATH: después de un
-   GET /api/status, un `GemaDatabase()` nuevo apuntaba a la base real (hallazgo 03-10).
+   GET /api/status, un `GemaDatabase()` nuevo apuntaba a la base real.
    El conftest lo tapaba en la suite; desde el 08-10 el parche no existe y estos tests
    son la garantía.
 3. `_save_keys` aplica al proceso solo lo que guarda, e invalida los clientes LLM que
@@ -54,7 +54,7 @@ class TestNeedsSetup:
         assert setup_wizard.needs_setup() is True
 
     def test_no_pisa_valores_ya_cargados_en_config(self, sin_keys, monkeypatch):
-        # La forma exacta del hallazgo del 03-10: un valor en memoria distinto del .env.
+        # La forma exacta del problema: un valor en memoria distinto del .env.
         monkeypatch.setattr(config, "GEMA_DB_PATH", "/tmp/base-de-test.db")
         setup_wizard.needs_setup()
         assert config.GEMA_DB_PATH == "/tmp/base-de-test.db"

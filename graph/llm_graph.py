@@ -28,7 +28,7 @@ v2 tracked rate limits in module-level booleans (_groq_rate_limited and friends)
 persisted across calls for a mundane reason: module globals do. A graph channel does not
 — every invoke starts from the initial state — so moving them into LLMState would silently
 reset them between the parse call and the extract call, and GEMA would hammer a provider
-that just returned 429. The plan proposed copying them in and out of the state per
+that just returned 429. The obvious alternative is copying them in and out of the state per
 invocation; that is the exact place the bug gets reintroduced, because it only works if
 every call site remembers to copy back.
 
@@ -149,7 +149,7 @@ def select_provider(state: LLMState, config: RunnableConfig) -> dict:
     chain = state["chain"]
     idx = state.get("provider_index", 0)
 
-    # Fase 10: el presupuesto se consulta ANTES de llamar, no despues de comerse el
+    # El presupuesto se consulta ANTES de llamar, no despues de comerse el
     # 429. `_cooldowns` es reactivo — cada descubrimiento cuesta una llamada perdida,
     # un round-trip y un salto de fallback. El 2026-09-03 sambanova devolvio 429 en el
     # primer intento y cerebras 402, y los dos eran primarios de un proposito.

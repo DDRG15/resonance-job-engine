@@ -90,7 +90,7 @@ export const getCvProfile = () =>
 export async function postCv(file: File): Promise<{ profile: CvProfile }> {
   const form = new FormData()
   form.append('file', file)
-  // Versión del aviso de envío que el usuario aceptó (punto 12 de revision externa): el servidor
+  // Versión del aviso de envío que el usuario aceptó: el servidor
   // responde 428 sin ella y no manda nada al LLM.
   form.append('llm_consent', CV_CONSENT_VERSION)
   // Sin Content-Type manual: el browser setea el boundary de multipart

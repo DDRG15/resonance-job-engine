@@ -1,5 +1,5 @@
 """
-Origin permitido en los metodos que mutan estado (Plan30 Fase 3, revision externa 13).
+Origin permitido en los metodos que mutan estado.
 
 TrustedHost corta el DNS rebinding. No corta el camino barato: la pagina de `evil.example`
 manda un `<form method=POST action="http://localhost:8000/api/reset">`. Ese request lleva

@@ -91,8 +91,8 @@ LLM_REQUEST_TIMEOUT: int = int(os.getenv("LLM_REQUEST_TIMEOUT", "30"))
 LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 
 # ── Fase 5 (2026-09-16): version del algoritmo de scoring ─────────────────
-# Riesgo R6 del , con dos fases de deuda encima. La Fase 3 saco la
-# ubicacion del puntaje y la Fase 4 renormalizo las dimensiones: un score guardado el
+# Dos cambios previos movieron la escala. Uno saco la
+# ubicacion del puntaje y otro renormalizo las dimensiones: un score guardado el
 # 2026-09-01 y uno guardado hoy NO son comparables entre si. Sin esta marca en la fila
 # no hay forma de saberlo mirandola, y comparar dos numeros incomparables es peor que
 # no tener ninguno.
@@ -109,9 +109,9 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 #   v4  desde 2026-09-29  veredicto de ubicacion sin tildes y con ISO-3 de LATAM
 #   v5  desde 2026-09-29  salario: separador de miles con punto, codigo delante
 #   v6  desde 2026-10-01  salario por periodo anualizado; salario en texto ya no es
-#                         Tier 4: se puntua sin ese eje y se marca (D3, )
+#                         Tier 4: se puntua sin ese eje y se marca
 #   v7  desde 2026-10-04  eje "requisitos" (peso 0,25): cobertura por el CV de los
-#                         requisitos de la descripcion (Fase 7, ). Sin
+#                         requisitos de la descripcion. Sin
 #                         descripcion el puntaje es identico al de v6.
 #
 # El salto a v3 es retroactivo: 9bc8e4b cambio _score_title y dejo la version en v2,
@@ -126,7 +126,7 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v7")
 
 
-# ── , Fase 10: aprender de las postulaciones (aprendizaje.py) ──
+# ── Aprender de las postulaciones (aprendizaje.py) ──
 # Construido e INACTIVO. Con 3 postulaciones con resultado, un rechazo de una empresa
 # bajaria cada aviso futuro de esa empresa por un solo dato: ruido con forma de feature.
 # Debajo de LEARN_MIN_RESULTADOS el ajuste es cero, las razones no cambian y la version
@@ -135,7 +135,7 @@ SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v7")
 #
 # Activo, el ajuste va DESPUES de score_job (matcher.aplicar_aprendizaje) y la version
 # pasa a ser SCORE_VERSION + "+ap.<huella de las reglas que mueven puntos>": un puntaje
-# con aprendizaje no se compara con uno sin el. Ver .
+# con aprendizaje no se compara con uno sin el.
 #
 # GEMA_APRENDIZAJE=0 es la palanca de rollback: apaga el ajuste aunque haya datos, y la
 # version vuelve a ser SCORE_VERSION a secas.
@@ -166,8 +166,8 @@ TASAS_A_USD: dict = {
 TASAS_MAX_DIAS: int = int(os.getenv("TASAS_MAX_DIAS", "90"))
 
 
-# ── , Fase 1: el pais desde donde trabaja el candidato ──────────
-# Decision D2: Himalayas filtra por pais EN LA FUENTE (`country=<pais>`). La pregunta
+# ── El pais desde donde trabaja el candidato ──────────
+# Himalayas filtra por pais EN LA FUENTE (`country=<pais>`). La pregunta
 # "¿se puede trabajar desde este pais?" la responde quien publica la lista de paises, no un
 # regex nuestro sobre esa lista. Medido el 2026-09-30: con `country=<pais>` la API
 # incluye los avisos sin restriccion (`locationRestrictions: []`) y los que nombran a
@@ -277,7 +277,7 @@ LLM_FALLBACK_MAX_INPUT_CHARS: int = int(os.getenv("LLM_FALLBACK_MAX_INPUT_CHARS"
 # NEW #6 (auditoría 07-10) — replayability del drift: cuando el fallback LLM
 # recupera 0 jobs de un board drifteado, guardamos {url, html/texto enviado,
 # output} a este dir para debuggear offline por qué falló (builtin/greenhouse
-# recuperaron 0 en runs reales y no se podía investigar). Feeds Phase 30.
+# recuperaron 0 en runs reales y no se podía investigar).
 DRIFT_QUARANTINE_DIR: str = os.getenv("DRIFT_QUARANTINE_DIR", "drift_quarantine")
 # v3 Fase 5: subido de 50 a 300. El cap de 50 servía para debug puntual; ahora estos
 # snapshots SON el corpus de evaluación de la Fase 7, y a 3 boards drifteados por
@@ -301,7 +301,7 @@ SCHEDULER_CRON_HOUR: int = int(os.getenv("SCHEDULER_CRON_HOUR", "9"))       # lo
 # (role/skills/signals) — NEVER the raw CV document. Opt-in; default = discard.
 CV_PROFILE_PATH: str = os.getenv("CV_PROFILE_PATH", "cv_profile.json")
 
-# --- Subida y parseo del CV (revision externa 2026-09-30, punto 12) -----------------------------
+# --- Subida y parseo del CV -----------------------------
 # El CV sale a un proveedor LLM externo y entra por un endpoint sin autenticacion: cada
 # tope de abajo existe porque sin el, un archivo hostil (o un PDF patologico) cuesta CPU,
 # memoria o una llamada de pago, y quien paga es la maquina del usuario.
@@ -388,7 +388,7 @@ GEMA_BACKUP_DIR: str = os.getenv("GEMA_BACKUP_DIR", "backups")
 
 
 # =============================================================================
-# API: hosts permitidos (Plan30 Fase 3)
+# API: hosts permitidos
 # =============================================================================
 #
 # La API no tiene autenticacion: CV, setup, scheduler y reset quedan abiertos a quien
@@ -559,9 +559,9 @@ GOOGLE_SHEET_ID: str = os.getenv("GOOGLE_SHEET_ID", "")
 
 
 # =============================================================================
-# Integration: alertas de LinkedIn e Indeed desde Gmail (, Fase 11)
+# Integration: alertas de LinkedIn e Indeed desde Gmail
 # =============================================================================
-# APAGADA por defecto. Es la unica integracion con credenciales del plan y la unica via
+# APAGADA por defecto. Es la unica integracion con credenciales y la unica via
 # legitima a LinkedIn e Indeed: se lee el correo del usuario con `gmail.readonly`, no se
 # scrapea ningun sitio. Prenderla exige (1) GEMA_GMAIL_ALERTAS=1 y (2) un token emitido
 # por `tools/autorizar_gmail.py`. El token vive en credentials/, que .gitignore y

@@ -186,7 +186,7 @@ async def test_fallback_recovers_distinct_and_drops_collisions(tmp_path, monkeyp
     assert len(out) == 2                                  # collision dropped
     assert {j.url for j in out} == {"https://board.com/job/1", "https://board.com/job/2"}
     # PERSISTENCE: recovered jobs must reach the write queue (feeds _all_jobs+DB),
-    # not just a discarded local list — the bug the live test exposed.
+    # not just a discarded local list — the bug this guards.
     assert s._write_q.qsize() == 2
     # a successful recovery flips the board's extraction_mode in the registry
     assert s._strategy.get("board.com").extraction_mode == ExtractionMode.LLM_FALLBACK
@@ -216,7 +216,7 @@ async def test_fallback_drops_hallucinated_url_not_in_source(tmp_path, monkeypat
 
 async def test_fallback_truncates_oversized_input(tmp_path, monkeypatch):
     """Phase 27.5b: a full SRP (~40k chars) must be capped before the LLM call
-    or free-tier TPM limits reject it (Groq 413 in the live test)."""
+    or free-tier TPM limits reject it (Groq 413)."""
     monkeypatch.setattr(config, "LLM_EXTRACTION_FALLBACK_ENABLED", True)
     monkeypatch.setattr(config, "LLM_FALLBACK_MAX_BOARDS_PER_RUN", 3)
     monkeypatch.setattr(config, "LLM_FALLBACK_MAX_INPUT_CHARS", 5000)

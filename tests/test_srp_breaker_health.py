@@ -1,5 +1,5 @@
 """
-tests/test_srp_breaker_health.py — FIX A del live test 2026-07-18.
+tests/test_srp_breaker_health.py — veredicto de salud del breaker a nivel SRP.
 
 El circuit breaker mide salud del BOARD (SRP roto / anti-bot / drift), NO calidad
 de cards individuales. Antes, cada card sin href o sin title llamaba record_null
@@ -55,7 +55,7 @@ class _Card:
         return None
 
     async def inner_text(self):
-        return ""   # FIX 1 salary-from-text hace card.inner_text(); no debe romper
+        return ""   # salary-from-text hace card.inner_text(); no debe romper
 
 
 class _Page:

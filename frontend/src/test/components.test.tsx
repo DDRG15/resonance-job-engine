@@ -124,7 +124,7 @@ describe('CommandCenter — F10 Usar mi perfil', () => {
 describe('Header', () => {
   it('muestra los datos reales del live status', () => {
     render(<Header status={STATUS} />)
-    // FIX 5 live-test 07-18: activos primero, registrados entre paréntesis
+    // activos primero, registrados entre paréntesis
     expect(screen.getByText(/10 boards activos \(17 reg\.\)/)).toBeInTheDocument()
     expect(screen.getByText(/1 selectores stale \(activos\)/)).toBeInTheDocument()
     expect(screen.getByText('Atención')).toBeInTheDocument()

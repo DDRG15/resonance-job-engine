@@ -1,10 +1,9 @@
 """
 embudo_fuentes.py — qué títulos de la búsqueda no producen nada, y qué rinde cada fuente
-(Fase 5 del )
 
 La búsqueda del CLI tiene 51 títulos y cada título es UNA rama de Playwright por cada board
 CSS: 51 × 8 boards = 408 pestañas por corrida, 18,9 min el 29-09. Un título que ningún board
-contesta cuesta esas ramas completas corrida tras corrida, y hasta la Fase 4 no había forma
+contesta cuesta esas ramas completas corrida tras corrida, y hasta que se guardó el conteo por rama no había forma
 de saber cuáles eran: `node_traces` guardaba cuánto tardó cada rama y no cuánto trajo.
 
 Con `items` en cada traza el rendimiento por (fuente × título) es una consulta. Este módulo

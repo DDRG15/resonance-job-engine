@@ -54,7 +54,7 @@ export default function App() {
       fetch('/api/applications?overdue=true').then((r) => r.json() as Promise<{ vencidas: number }>),
   })
 
-  // revision externa 2026-09-30, punto 9: el último run según la DB. Tras reiniciar el servidor la
+  // El último run según la DB. Tras reiniciar el servidor la
   // sesión no tiene resultados, y sin esto la pantalla quedaba vacía sin decir por qué.
   const lastRunQ = useQuery({ queryKey: ['last-run'], queryFn: getResults })
   const lastRun = lastRunQ.data?.last_run ?? null
@@ -94,8 +94,7 @@ export default function App() {
     void getResults().then(setResults)
   }
 
-  // Rehidratar la búsqueda confirmada y una corrida EN CURSO (2026-09-29, hallado por
-  // la auditoría de revision externa). Refrescar a mitad de una corrida perdía el panel de
+  // Rehidratar la búsqueda confirmada y una corrida EN CURSO (2026-09-29). Refrescar a mitad de una corrida perdía el panel de
   // progreso aunque el SSE reenvía el historial a quien se conecta tarde: solo
   // faltaba volver a pedir el run_id. Una sola vez por carga — un Reset posterior
   // deja config en null a propósito y no tiene que volver a aparecer.

@@ -6,7 +6,7 @@ interface Props {
   onChanged: () => void
 }
 
-// Phase 30a — pila de revisión manual: jobs con title+empresa REALES pero URL
+// pila de revisión manual: jobs con title+empresa REALES pero URL
 // no verificable (el LLM fallback la produjo mal). En vez de tirarlos, el humano
 // corrige la URL (usando la pista del SRP) o los descarta como no-rescatables.
 export default function ReviewPanel({ onClose, onChanged }: Props) {

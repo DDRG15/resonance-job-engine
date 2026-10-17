@@ -1,8 +1,8 @@
 """
-tests/test_runs_huerfanos.py — revision externa 2026-09-30, punto 9 (P1): reiniciar el servidor
+tests/test_runs_huerfanos.py — Reiniciar el servidor
 borra resultados visibles y puede dejar runs huérfanos.
 
-Lo que fija este archivo (Solución A de revision externa, parte acotada):
+Lo que fija este archivo (parte acotada):
 
   * Al arrancar la API, toda fila de `runs` en `running` es huérfana (un solo proceso:
     el proceso anterior murió) y pasa a `interrupted`, con causa y hora.

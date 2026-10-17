@@ -1,7 +1,7 @@
 """
 embudo.py — qué títulos de la búsqueda nunca producen nada, y qué rinde cada fuente.
 
-Fase 5 del . Lee `node_traces` (columna `items`, de la Fase 4) y responde
+Lee `node_traces` (columna `items`, de la Fase 4) y responde
 lo que hasta el 29-09 solo se podía contestar sumando tiempos a mano: de los 51 títulos de la
 búsqueda, ¿cuáles no trajeron un solo aviso en ningún board, corrida tras corrida?
 

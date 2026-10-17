@@ -10,7 +10,7 @@ los correos de verdad.
 
 Antes de prender `GEMA_GMAIL_ALERTAS` hay que correr `tools/autorizar_gmail.py --probar`
 contra el buzon real. Cuando haya una alerta real, anonimizarla y agregarla aca como
-fixture nueva: ese es el test que de verdad cierra la Fase 11.
+fixture nueva: ese es el test que de verdad cierra la integración.
 
 - `linkedin_alerta_varios.html`  3 avisos, uno con salario, encabezado y pie
 - `linkedin_alerta_uno.html`     1 aviso, en castellano, empresa y ubicacion en lineas aparte

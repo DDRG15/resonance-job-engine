@@ -96,7 +96,7 @@ class DomainSelectors:
     # con title_is_relevant, igual que para cualquier otro aviso.
     feed_fijo: bool = False
 
-    # , Fase 6. La moneda de los montos que el board publica SIN moneda.
+    # La moneda de los montos que el board publica SIN moneda.
     # builtin.com muestra "75K-195K Annually" junto al icono fa-sack-dollar: sin simbolo,
     # el parser no lo lee y salia 0 de 50 cards con salario. Es un board de EE.UU.: sus
     # montos son dolares. Transformacion con nombre (`scraper.con_moneda_implicita`),
@@ -273,7 +273,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # null_threshold=3: strict — WWR cards are very consistent; nulls = drift.
     "weworkremotely.com": DomainSelectors(
         domain               = "weworkremotely.com",
-        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (roadmap).
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (pendiente).
         active               = False,
         search_url_template  = "https://weworkremotely.com/remote-jobs/search?term={title}",
         wait_for_selector    = "li.feature",
@@ -412,7 +412,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # gracefully. No action needed — zero results is the expected outcome.
     "wellfound.com": DomainSelectors(
         domain               = "wellfound.com",
-        # RETIRADO 2026-07-11: HTTP 403 Cloudflare JS Challenge. Reactivar con camoufox (roadmap).
+        # RETIRADO 2026-07-11: HTTP 403 Cloudflare JS Challenge. Reactivar con camoufox (pendiente).
         active               = False,
         search_url_template  = "https://wellfound.com/jobs?q={title}&remote=true",
         wait_for_selector    = "div[class*='JobListing']",
@@ -454,7 +454,7 @@ SELECTORS: dict[str, DomainSelectors] = {
         wait_for_selector    = "div[data-testid='job-card']",
         last_verified        = "2026-09-28",
         null_threshold       = 3,
-        # FIX 4 live-test 07-18: títulos multi-palabra ("SRE (Site Reliability
+        # títulos multi-palabra ("SRE (Site Reliability
         # Engineer)") → 0 resultados → nulls → breaker abierto (run #1). Mismo
         # patrón que builtin (31a): buscar con 1 keyword técnico.
         query_style          = "keyword",
@@ -807,7 +807,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Selectors verified 2026-05-25 — run God Mode if null_rate trips.
     "startup.jobs": DomainSelectors(
         domain               = "startup.jobs",
-        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (roadmap).
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (pendiente).
         active               = False,
         search_url_template  = "https://startup.jobs/?q={title}&remote=true",
         wait_for_selector    = "div.css-1wts5rl",

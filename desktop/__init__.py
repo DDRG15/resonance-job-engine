@@ -1,1 +1,1 @@
-"""App de escritorio de Resonance: ver ."""
+"""App de escritorio de Resonance."""

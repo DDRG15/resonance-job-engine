@@ -20,7 +20,7 @@ congelados acá contra HTML REAL, copiado tal cual del DOM renderizado:
 
 Pasa por el camino real, `GemaScraper._extract_all_cards` sobre un DOM de Chromium
 (`page.set_content`, sin red), y no por un querySelector suelto ni un card falso: la
-falla del punto 2 vivía en la cadena de job_card, que un card falso se saltea.
+falla vivía en la cadena de job_card, que un card falso se saltea.
 """
 
 import asyncio

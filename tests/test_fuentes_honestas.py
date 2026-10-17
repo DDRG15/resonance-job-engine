@@ -1,5 +1,5 @@
 """
-tests/test_fuentes_honestas.py — Fase 4 del : "no pude leer" es un estado.
+tests/test_fuentes_honestas.py — "no pude leer" es un estado.
 
 Lo que estos tests fijan, en el orden en que se rompería:
 

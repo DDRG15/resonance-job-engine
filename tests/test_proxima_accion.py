@@ -1,6 +1,6 @@
 """
-tests/test_proxima_accion.py — Fase 9 del : la próxima acción de una
-postulación y su alerta de vencida (decisión D5).
+tests/test_proxima_accion.py — La próxima acción de una
+postulación y su alerta de vencida.
 
 `follow_up_at` se escribía desde la Fase 7 y ningún código lo leía. Estos tests fijan los
 tres lectores que lo conectan: la regla de «vencida» (base), el endpoint (API) y el

@@ -179,7 +179,7 @@ class NotionClient:
                             f"[MANUAL REVIEW] Employer stated: '{job.salary_raw}' — "
                             "evaluate compensation manually before applying."
                             if tiered_job.tier == "Tier 4" and job.salary_raw
-                            # v6 (, D3): el salario en texto ya no es
+                            # v6: el salario en texto ya no es
                             # Tier 4; se puntua sin ese eje y Notion lo sigue diciendo.
                             else f"[SALARIO NO CONFIRMADO] '{job.salary_raw}' — "
                                  "puntuado sin el eje de salario."

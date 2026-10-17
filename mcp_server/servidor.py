@@ -115,7 +115,7 @@ def _estado_corrida() -> dict:
         "otra_corrida_en_curso": bool(s.get("scrape_gate_busy")) and not corriendo,
         "hay_resultados": s.get("has_results"),
     }
-    if s.get("progreso"):  # lo agrega la Pieza 4; sin él, no se inventa
+    if s.get("progreso"):  # lo agrega el seguimiento de progreso; sin él, no se inventa
         out["progreso"] = s["progreso"]
     if not corriendo and s.get("has_results"):
         out["siguiente"] = "Hay resultados: usá resultados()."

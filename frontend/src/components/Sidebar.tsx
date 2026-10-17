@@ -51,7 +51,7 @@ export default function Sidebar({
     return () => clearTimeout(t)
   }, [killArmed])
 
-  // revision externa 2026-09-30, punto 1: el botón se llamaba "Kill Switch" y nunca mató nada —
+  // El botón se llamaba "Kill Switch" y nunca mató nada —
   // una corrida en curso no se puede cancelar. Mientras haya una (manual o del cron) el
   // backend responde 409, así que el botón se deshabilita y dice por qué en vez de
   // dejar que el clic falle.

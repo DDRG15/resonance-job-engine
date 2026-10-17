@@ -1,5 +1,5 @@
 """
-tests/test_salary_persistence.py — FIX 2 del live test 2026-07-18.
+tests/test_salary_persistence.py — salario persistido en el registry.
 
 salary_raw persiste en el registry: DB nueva lo trae en el DDL, DB vieja lo
 gana por migración idempotente, y los tres write-paths lo escriben.

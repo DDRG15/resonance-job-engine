@@ -1,5 +1,5 @@
 """
-, Fase 7 — la descripcion llega desde la fuente y el match la lee.
+La descripcion llega desde la fuente y el match la lee.
 
 Lo que fija este archivo:
 - la descripcion se guarda como texto con saltos de linea (los titulos de seccion de
@@ -7,7 +7,7 @@ Lo que fija este archivo:
 - cada fuente con descripcion la mapea (fixtures reales de las Fases 1 y 2; Lever con la
   estructura verificada contra spotify el 2026-10-03);
 - el eje "requisitos" de score_job: un aviso cuya descripcion pide Python y FastAPI suma
-  por eso aunque el titulo no los nombre (la verificacion del plan), y sin descripcion el
+  por eso aunque el titulo no los nombre, y sin descripcion el
   puntaje es el mismo que sin la fase.
 """
 
@@ -111,7 +111,7 @@ def _job(descripcion=None, titulo="Software Engineer", url="https://x.com/1"):
 
 class TestEjeRequisitos:
     def test_la_descripcion_suma_aunque_el_titulo_no_nombre_las_skills(self):
-        # La verificacion del plan: matcher.py:247 leia solo titulo + empresa + salario.
+        # Antes el matcher leia solo titulo + empresa + salario.
         sin = matcher.score_job(_job(), CFG, PERFIL)
         con = matcher.score_job(_job("Requirements\nPython\nFastAPI\nPostgreSQL"), CFG, PERFIL)
         assert con.cobertura_requisitos == pytest.approx(1.0)

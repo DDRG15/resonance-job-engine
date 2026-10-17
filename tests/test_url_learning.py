@@ -1,5 +1,5 @@
 """
-tests/test_url_learning.py — Phase 30b: cerebro puro de aprendizaje de URLs.
+tests/test_url_learning.py — cerebro puro de aprendizaje de URLs.
 
 Aprende, desde las resoluciones manuales de 30a, la regla de reparación de URL
 por board. Disciplina Phase 29: el brain es puro y exhaustivamente testeado; el

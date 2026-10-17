@@ -1,4 +1,4 @@
-// Tipos espejo del contrato API (api.py — B6.0, PHASE_FIX_)
+// Tipos espejo del contrato API (api.py)
 
 export interface Status {
   boards: number
@@ -9,7 +9,7 @@ export interface Status {
   nominal: boolean
   scheduler: { enabled: boolean; next_run: string | null }
   is_running: boolean
-  // revision externa 2026-09-30, punto 1: gate de scrape tomado (corrida manual O del cron).
+  // Gate de scrape tomado (corrida manual O del cron).
   // Opcional: un backend anterior no lo manda y la UI cae a `is_running`.
   scrape_gate_busy?: boolean
   has_results: boolean
@@ -19,7 +19,7 @@ export interface Status {
   // Fase 4: el estado REAL del token de Notion, no solo "hay una key". Opcional para que
   // un backend anterior al 30-09 siga siendo un Status válido.
   notion_estado?: NotionEstado
-  // Pieza 4: null si no corre nada. Opcional para un backend anterior.
+  // null si no corre nada. Opcional para un backend anterior.
   progreso?: Progreso | null
 }
 
@@ -101,7 +101,7 @@ export interface SchedulerState {
   next_run: string | null
   last_run: string
   has_config: boolean
-  // Preferencia real de retener el perfil del CV en disco (punto 11 de revision externa)
+  // Preferencia real de retener el perfil del CV en disco
   retain_cv: boolean
 }
 
@@ -138,10 +138,10 @@ export interface TieredJobDto {
   location_note: string
   language_verdict: string
   language_note: string
-  // Plan 30-09, Fase 6 (D3): el aviso publico salario en texto ("Competitive") y se
+  // El aviso publico salario en texto ("Competitive") y se
   // puntuo sin el eje de salario. Opcional: filas de antes de v6 no lo traen.
   salario_no_confirmado?: boolean
-  // Plan 30-09, Fase 7: requisitos que nombra la descripcion y cuanto los cubre el CV.
+  // Requisitos que nombra la descripcion y cuanto los cubre el CV.
   // Opcionales: filas de antes de v7 no los traen. `cobertura_requisitos` null = el eje
   // no participo (sin descripcion, sin CV o menos de 3 requisitos).
   requisitos?: RequisitoDto[]
@@ -171,7 +171,7 @@ export interface SummaryDto {
   duration_seconds: number | null
 }
 
-// revision externa 2026-09-30, punto 9: el último run según la DB, para cuando la sesión no sabe
+// El último run según la DB, para cuando la sesión no sabe
 // nada de ninguna corrida (típicamente tras reiniciar el servidor). `results_available`
 // es false siempre: los tiers completos no se reconstruyen desde la DB.
 export interface LastRunDto {
@@ -353,7 +353,7 @@ export interface AprendizajeEstado {
   reglas: AprendizajeRegla[]
 }
 
-// Pieza 4 — avance y tiempo estimado de la corrida (bloque `progreso` de /api/status y
+// avance y tiempo estimado de la corrida (bloque `progreso` de /api/status y
 // evento `progreso` del SSE). `restante_s` es null cuando no hay referencia («calculando…»)
 // o cuando `excedido` (la corrida va más lenta que el historial).
 export type FaseProgreso = 'endpoints' | 'ats' | 'gmail' | 'navegador' | 'puntuando' | 'listo'

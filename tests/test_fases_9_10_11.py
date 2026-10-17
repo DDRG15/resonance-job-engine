@@ -126,7 +126,7 @@ class TestCadenaAdaptativa:
 
     def test_con_pocas_llamadas_todavia_manda_la_config(self, tmp_path):
         """Histéresis: sin un mínimo de llamadas la cadena oscilaría con dos
-        resultados lentos seguidos — riesgo R7 del plan."""
+        resultados lentos seguidos."""
         db = self._con_llamadas(tmp_path, [("gemini", 10.0, "ok")] * 3 +
                                           [("groq", 900.0, "error")] * 3)
         cadena = ["groq", "gemini"]
@@ -188,8 +188,7 @@ class TestCorrelators:
     def test_entre_boards_solo_agrupa_el_correlator_de_fuentes(self):
         """El 17-09 la duplicación cross-board era un solo caso en toda la base y este
         test fijaba que no se agrupara. El 30-09 se midieron 97 grupos (título, empresa)
-        en más de una fuente —con Greenhouse, Lever y Ashby ya activos—, y la Fase 2 del
-         agregó `titulo_empresa_entre_fuentes`. Lo que se sigue fijando:
+        en más de una fuente —con Greenhouse, Lever y Ashby ya activos—, y se agregó `titulo_empresa_entre_fuentes`. Lo que se sigue fijando:
         los correlators de UN board no cruzan boards; solo el de fuentes lo hace."""
         cands = corr.correr([
             {"url": "https://a.com/1", "title": "Dev", "company": "X",

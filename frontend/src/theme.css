@@ -324,7 +324,7 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 }
 .cell-score { font-family: var(--mono); font-weight: 600; font-variant-numeric: tabular-nums; }
 .cell-manual { font-family: var(--mono); font-size: 9.5px; letter-spacing: .08em; color: var(--t4-ink); }
-/* Fase 6 (D3): salario publicado en texto, puntuado sin ese eje. */
+/* Salario publicado en texto, puntuado sin ese eje. */
 .cell-nosal { margin-left: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--t4-ink); cursor: help; }
 .nosal-note { color: var(--t4-ink); font-size: 12px; }
 .res-none { color: var(--muted); text-align: center; padding: 28px 12px; }
@@ -399,7 +399,7 @@ main { flex: 1; min-width: 0; padding: 28px 34px 56px; max-width: 1120px; }
 .seg button.on { background: var(--accent-16); color: var(--accent); font-weight: 550; }
 .seg button:disabled { opacity: .4; cursor: not-allowed; }
 /* Los controles del sidebar no son texto seleccionable — un clic sobre un
-   control disabled no debe pintar selección azul (live test 2026-07-09) */
+   control disabled no debe pintar selección azul */
 .sidebar .seg, .sidebar .days, .sidebar .toggle-row, .sidebar .side-label,
 .sidebar .switch, .sidebar .kill { user-select: none; }
 .days { display: flex; gap: 5px; }
@@ -531,7 +531,7 @@ details.warn-details .warn-list {
 .db-search:focus { outline: none; border-color: var(--accent); }
 .db-search::placeholder { color: var(--faint); }
 
-/* ── Phase 30a: pila de revisión manual ── */
+/* ── pila de revisión manual ── */
 .review-list { display: flex; flex-direction: column; gap: 10px; }
 .review-card {
   background: var(--surface2); border: 1px solid var(--border);
@@ -695,7 +695,7 @@ details.warn-details .warn-list {
   color: var(--muted); flex-wrap: wrap; }
 .app-historial time { font-family: var(--mono); font-size: 11px; color: var(--faint); }
 
-/* ── Progreso de la corrida (Pieza 4) ── */
+/* ── Progreso de la corrida ── */
 .progreso { margin-bottom: 14px; }
 .progreso-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .progreso-fase { font-size: 13px; color: var(--text); }

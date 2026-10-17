@@ -1,119 +1,38 @@
-# =============================================================================
-# .dockerignore — Project GEMA
-# Files excluded from the Docker build context.
-# Rule: if it's secret → exclude. If it's large and rebuilt in the image → exclude.
-# If it's runtime state mounted as a volume → exclude.
-# =============================================================================
+# Allowlist: se excluye todo y se re-incluye solo lo que el Dockerfile necesita.
+# En .dockerignore gana el ULTIMO patron que coincide. Nada de comentarios al final
+# de una linea: el '#' y lo que sigue pasarian a formar parte del patron.
+*
 
-# REGLA DE ESTE ARCHIVO: NADA de comentarios al final de una linea.
-# .dockerignore no los soporta: el '#' y todo lo que sigue forma parte del patron.
-# Asi fue como `cookies/*.json   # manual cookie exports...` no excluyo NADA y la
-# imagen del 2026-09-29 salio con 8 archivos de cookies de sesion (logins de
-# wellfound, welcometothejungle, torre.ai, himalayas, arc.dev, jobspresso,
-# workingnomads) y el user_profile.yaml adentro. Verificado abriendo la imagen, que
-# es la unica verificacion que vale: el archivo "se veia bien".
+# Backend Python: modulos de la raiz y paquetes que importa api.py
+!*.py
+!graph/
+!integrations/
+!requirements.txt
 
-# --- SECURITY: never bake secrets or credentials into the image ---
-.env
-.env.local
-.env.*.local
-credentials/*.json
-credentials/*.p12
-# Exports manuales de cookies: se montan por volumen en docker-compose.
-cookies/*.json
-# Cookie jar automatico (SessionJar): estado de runtime, montado rw.
-cookies/session/
-# Perfil derivado del CV: dato personal. docker-compose lo monta read-only.
-user_profile.yaml
-# Perfil del CV retenido para el cron (rol/skills/region): dato personal, estado de
-# runtime. revision externa 2026-09-30, punto 11. Sin comentario al final de la linea de abajo.
-cv_profile.json
+# Frontend: lo compila la etapa Node
+!frontend/
 
-# --- LARGE BINARIES: downloaded/built during `docker build`, not copied ---
-# Binario de Firefox de camoufox (~530 MB): lo baja `python -m camoufox fetch`.
-.camoufox/
-# Cientos de MB: la etapa Node corre `npm ci` desde cero.
-frontend/node_modules/
-# Lo reconstruye la etapa Node; una copia local solo quedaria vieja.
-frontend/dist/
-
-# --- ESTADO DE RUNTIME que no debe viajar en una imagen ---
-# La config de busqueda persistida de ESTA maquina.
-api_state.json
-# Salud y vectores aprendidos por board en ESTA maquina. La app arranca sin el.
-board_strategy.json
-# Snapshots de drift capturados en ESTA maquina.
-drift_quarantine/
-
-# --- RUNTIME STATE: mounted as volumes, not baked in ---
-*.db
-*.db-shm
-*.db-wal
-*.bak
-
-# Snapshots de tools/repuntuar_registry.py (Plan30 Fase 3): copias COMPLETAS del registry.
-# `*.db` de arriba NO los cubre: en .dockerignore un patron sin `**/` matchea solo en la
-# raiz del contexto, asi que `backups/gema_registry_2026....db` entraria a la imagen con
-# todo el historial de avisos y postulaciones. Se excluye el directorio entero.
-backups/
-
-# --- GIT ---
-.git/
-.gitignore
-
-# --- PYTHON ARTIFACTS ---
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-.eggs/
-.venv/
-venv/
-env/
-.pytest_cache/
-
-# --- TESTING: not needed in production image ---
-tests/
-pytest.ini
-
-# --- DOCUMENTATION ---
-*.md
+# Configuracion de ejemplo y documentacion de uso
+!.env.example
+!user_profile.yaml.example
 !README.md
+!LICENSE
 
-# --- IDE ---
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# --- OS ---
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# --- EXPORTS / GENERATED FILES ---
-*.xlsx
-*.csv
-*.log
-logs/
-
-# --- PRIVATE FILES ---
-
-
-
-
-
-
-
-
-
-# --- ARCHIVES ---
-*.zip
-*.tar.gz
-*.rar
-
-# --- CLAUDE CODE ---
-.claude/
+# Re-exclusiones dentro de lo permitido: dependencias, builds, caches y estado de runtime
+frontend/node_modules/
+frontend/dist/
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.bak
+**/*.log
+**/.env
+**/.env.*
+!.env.example
+**/cv_profile.json
+**/api_state.json
+**/board_strategy.json
+**/user_profile.yaml

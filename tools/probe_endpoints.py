@@ -1,7 +1,7 @@
 """
 probe_endpoints.py — ¿qué board se puede leer sin abrir un navegador?
 
-Fase 0 del . No se escribe una línea de scraper hasta saber qué existe.
+No se escribe una línea de scraper hasta saber qué existe.
 
 Por qué existe: `node_traces` del 2026-09-03 midió el nodo `scrape` en 35.726 ms contra
 menos de 250 ms de todos los demás nodos sumados. Ese scraper abre una pestaña de Chromium
@@ -45,9 +45,9 @@ CORTE_MUESTRA = 160    # chars del primer item que se muestran en el reporte
 # (activo y sin producir nada), o retirado (active=False, con el diagnóstico del
 # 2026-07-11 en selectors_registry.py).
 #
-# Se prueban TAMBIÉN los boards activos. El plan solo pedía los ocho en cero, pero
+# Se prueban TAMBIÉN los boards activos. Alcanzaba con los ocho en cero, pero
 # remoteok.com son 518 filas de las 1399 y hoy se raspa con Playwright: si expone
-# un endpoint, la Fase 1 lo saca del navegador y se lleva el board más grande.
+# un endpoint, se lo saca del navegador y se lleva el board más grande.
 # ─────────────────────────────────────────────────────────────────────────────
 
 CANDIDATOS: dict[str, dict] = {

@@ -113,8 +113,7 @@ class BoardStrategy(BaseModel):
     el parser pruebe las formas conocidas: lista suelta, `jobs`, `results`, `postings`."""
 
     field_map: dict = Field(default_factory=dict)
-    """Campo de JobResult -> path en la respuesta. El limite es deliberado (riesgo R2
-    del plan): mapeo plano y `path` con puntos, nada mas. Cualquier transformacion real
+    """Campo de JobResult -> path en la respuesta. El limite es deliberado: mapeo plano y `path` con puntos, nada mas. Cualquier transformacion real
     va en codigo — un formato declarativo sin techo termina siendo un lenguaje."""
 
     crawl_delay_s: float = 0.0
@@ -137,9 +136,9 @@ class BoardStrategy(BaseModel):
     """La ubicacion llega como LISTA de paises admitidos (Himalayas,
     `locationRestrictions`): se une con "; " y la lista vacia se lee "Worldwide",
     porque una lista de restricciones vacia es la ausencia de restriccion. Ver
-    `endpoint_scraper._ubicacion_de_lista`. , Fase 1."""
+    `endpoint_scraper._ubicacion_de_lista`."""
 
-    # ── , Fase 2: feeds con limite declarado y boards regionales ──
+    # ── Feeds con limite declarado y boards regionales ──
     solo_si_campo: str = ""
     """Path de un campo booleano: solo entran las filas donde es verdadero. Arbeitnow
     trae `remote`: 19 de 326 avisos (medido 2026-09-30). Lo presencial en Berlin no es
@@ -164,7 +163,7 @@ class BoardStrategy(BaseModel):
     y lo lee el chequeo de `intervalo_minimo_s`. Vive en `board_strategy.json` (local),
     no en el registro commiteado: es estado de una maquina, no conocimiento del board."""
 
-    # ── Auditoria de revision externa del 30-09, puntos 15 y 16 ──────────────────────────
+    # ── Cobertura parcial y frescura de la consulta ───────────────────────────
     total_path: str = ""
     """Path, en la respuesta, del total de avisos que la fuente declara para la consulta
     (`totalCount` en Himalayas). Con el, 20 recibidos de 171 se reportan como cobertura

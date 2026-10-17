@@ -1,7 +1,7 @@
 """
 endpoint_scraper.py — leer un board sin abrir un navegador.
 
-Fase 1 del . Implementa `AccessVector.ENDPOINT`.
+Implementa `AccessVector.ENDPOINT`.
 
 Por qué existe: `node_traces` del 2026-09-03 midió el nodo `scrape` en 35.726 ms contra
 menos de 250 ms de todos los demás nodos sumados. Ese tiempo es Chromium abriendo pestañas
@@ -80,7 +80,7 @@ def fetch(url: str, *, crawl_delay_s: float = 0.0,
     `crawl_delay_s` viene del robots.txt del board — api.lever.co declara 1 segundo.
     Es un límite, no una sugerencia.
 
-    `seguir_redirecciones=False` (Fase 8 del ): BambooHR contesta un token
+    `seguir_redirecciones=False`: BambooHR contesta un token
     inexistente con 302 a www.bamboohr.com y Personio con 307 a personio.com, medido el
     2026-10-04. Siguiendo la redirección, el error llegaba como "parseo json" sobre la
     home comercial de la plataforma, y el que lee la traza no tiene forma de saber que
@@ -137,7 +137,7 @@ def fetch(url: str, *, crawl_delay_s: float = 0.0,
 #
 # El `field_map` vive en la estrategia del board, no acá. Cuando un endpoint
 # renombra un campo, se arregla editando un JSON y no recompilando nada. El límite
-# está declarado en el riesgo R2 del plan: mapeo plano y `path` con puntos, nada
+# está declarado: mapeo plano y `path` con puntos, nada
 # más. Cualquier transformación real va en código — un formato declarativo que
 # crece sin techo se convierte en un lenguaje que nadie quiere mantener.
 # ─────────────────────────────────────────────────────────────────────────────
@@ -241,7 +241,7 @@ def items_de_xml(cuerpo: bytes, item_tag: str) -> list[dict]:
     Cada `<item_tag>` de un XML como dict, con los hijos anidados resueltos por
     `_nodo_xml`.
 
-    Existe por Personio (Fase 8 del ): `/xml` devuelve
+    Existe por Personio: `/xml` devuelve
     `<workzag-jobs><position>...` y la descripcion vive en
     `<jobDescriptions><jobDescription><name/><value>CDATA</value>`. `items_de_rss` solo
     reconoce `<item>` y `<entry>`, y se queda con el texto de cada hijo: la
@@ -326,7 +326,7 @@ def texto_con_lineas(bruto: Optional[str]) -> str:
     """
     Como `texto_de_html`, pero cada bloque (p, li, h1-h6, br...) queda en su propia linea.
 
-    , Fase 7. `texto_de_html` colapsa todo a una linea, y para el salario
+    `texto_de_html` colapsa todo a una linea, y para el salario
     esta bien. Para los requisitos no: el aviso dice que algo es deseable poniendolo
     debajo de un titulo ("Nice to have") y una linea por item, y sin los saltos el titulo
     y sus items se funden con la oracion de al lado (ver `requisitos._peso`). Mismo
@@ -455,7 +455,7 @@ def _salario(fila: dict, fm: dict, salario_en_descripcion: str = "") -> Optional
     Componer en vez de agregar una columna nueva mantiene una sola ruta de parseo.
     El día que la Fase 4 acepte libras y euros, este camino se beneficia igual.
 
-    **Moneda y periodo declarados (Fase 1 del ).** Si el `field_map`
+    **Moneda y periodo declarados.** Si el `field_map`
     dice donde vive la moneda (`salary_currency`), el monto se compone con ESE
     codigo —`EUR 90,000 - EUR 120,000`, que v5 ya lee— y no con `$`. Medido en la
     muestra del 30-09: Himalayas trae EUR, Jobicy trae BRL. Con el `$` de siempre,
@@ -524,7 +524,7 @@ def _partir_prefijo_empresa(titulo: str) -> tuple[str, str]:
     que no es una corazonada sino la forma declarada del feed.
 
     Esta es una transformacion con NOMBRE, activada por un booleano de la estrategia, y
-    no una regla dentro del `field_map`. El limite del riesgo R2 es ese: el mapa mapea,
+    no una regla dentro del `field_map`. El limite es ese: el mapa mapea,
     el codigo transforma. Si manana hace falta una segunda transformacion, es otra
     funcion con su nombre, no una gramatica.
 
@@ -573,7 +573,7 @@ def _nombre_de_pais(v: Any) -> Any:
     "slug": "chile"}`) al nombre que el matcher sabe leer.
 
     La respuesta real del 2026-09-30 trae strings; el diccionario de datos y el OpenAPI
-    oficiales de Himalayas documentan objetos (auditoria de revision externa, punto 15). Si la API
+    oficiales de Himalayas documentan objetos. Si la API
     pasa a la forma documentada, `_texto(dict)` guardaria la representacion del dict
     ("{'alpha2': 'PE', ...}") y el veredicto de ubicacion seria basura. Se aceptan las
     dos formas para que ese cambio no rompa nada en silencio.
@@ -590,8 +590,8 @@ def _url_del_aviso(valor: str, url_base: str = "") -> str:
 
     **Solo se resuelve contra la base un camino relativo** (`/jobs/7`, `./x`, `../x`).
     Hasta el 30-09 se resolvia cualquier cosa que no empezara con http: un `guid` opaco
-    —"stripe-abc123", que es lo que el OpenAPI de Himalayas documenta para ese campo
-    (auditoria de revision externa, punto 15)— se convertia en
+    —"stripe-abc123", que es lo que el OpenAPI de Himalayas documenta para ese campo—
+    se convertia en
     `https://himalayas.app/jobs/api/stripe-abc123`, un enlace que nadie publico y que
     `compute_hash` tomaba como identidad del aviso. Un ID no es un camino: sin URL real
     se prueba `url_alternativa`, y si tampoco hay, el aviso se descarta y cuenta como
@@ -617,7 +617,7 @@ def _url_compuesta(fila: dict, plantilla: str) -> str:
     `"https://gorillalogic.bamboohr.com/careers/{id}"` + `{"id": "34"}` ->
     `"https://gorillalogic.bamboohr.com/careers/34"`, o "" si no se puede componer.
 
-    Existe por BambooHR y Personio (Fase 8 del ): sus listados no traen la
+    Existe por BambooHR y Personio: sus listados no traen la
     URL del aviso, solo el `id`. Verificado el 2026-10-04 con un pedido real a cada una:
     `gorillalogic.bamboohr.com/careers/34` devuelve 200 con `og:url` igual a la URL
     compuesta, y `jtl-software-gmbh.jobs.personio.de/job/2666138` devuelve 200 con el
@@ -804,7 +804,7 @@ class ResultadoEndpoint:
     descartados_por_filtro: int = 0
     error: str = ""
     ms: float = 0.0
-    #  + auditoria de revision externa, punto 16: que se pidio, cuanto declaro la
+    # Que se pidio, cuanto declaro la
     # fuente que habia, y que se dejo de pedir. "20 de 171" no es "la fuente tiene 20".
     consultas: list = field(default_factory=list)
     """Una entrada por URL pedida: `{"url", "items", "total"}`; `total` es lo que la
@@ -856,20 +856,20 @@ def scrape_endpoint(
     no se guarde con una regla y se descarte con otra.
 
     `{pais}` se reemplaza por el país del candidato (`config.PAIS_CANDIDATO`, o `pais`
-    si se pasa). Es la decisión D2 del : Himalayas responde qué avisos
+    si se pasa). Himalayas responde qué avisos
     se pueden trabajar desde el país del candidato, y esa respuesta es mejor que cualquier regex nuestro
-    sobre una lista de 70 países. **Falla cerrado** (auditoría de revision externa, punto 15): sin
+    sobre una lista de 70 países. **Falla cerrado**: sin
     país, o con uno que la política de ubicación del matcher no da por accesible, no se
     pide nada. Pedir `country=` vacío traería el catálogo mundial, y la fuente y el
     matcher estarían respondiendo dos preguntas distintas.
 
     `ttl_consulta_s` con `consultas_ts` ({url: epoch}) no repite una consulta idéntica
-    hecha hace menos de ese tiempo (revision externa, punto 16): Himalayas actualiza sus datos cada
+    hecha hace menos de ese tiempo: Himalayas actualiza sus datos cada
     24 h, y lo que devolvería ya está en el registry. `total_path` lee cuántos avisos
     declara la fuente para esa consulta (`totalCount`): 20 de 171 es cobertura parcial,
     no una fuente con 20 avisos.
 
-    Fase 8 del : `response_format="xml"` con `xml_item` lee un XML que no
+    `response_format="xml"` con `xml_item` lee un XML que no
     es RSS (Personio, `<position>`); `url_aviso_template` compone la URL del aviso
     cuando la fuente solo trae el `id`; `seguir_redirecciones=False` deja ver el 302/307
     con que BambooHR y Personio contestan una empresa inexistente.
@@ -960,8 +960,8 @@ def scrape_endpoint(
             res.jobs.append(job)
 
         # Ninguna fila de una respuesta no vacía se pudo leer: no es una búsqueda sin
-        # resultados, es una forma de respuesta que el mapa ya no entiende (revision externa, punto
-        # 15: `source_schema_changed`). Se reporta como error para que el board quede
+        # resultados, es una forma de respuesta que el mapa ya no entiende
+        # (`source_schema_changed`). Se reporta como error para que el board quede
         # degradado y se vea, en vez de pasar como "0 avisos".
         evaluadas = len(filas) - sum(1 for f in filas if not _pasa_filtro(f, solo_si_campo))
         if evaluadas and res.descartados_invalidos - invalidos_antes == evaluadas:
@@ -989,7 +989,7 @@ def _fusionar_ubicacion(job: JobResult, otra: Optional[str]) -> None:
     """
     Suma a `job` la ubicacion de otra fila con la misma URL, con "; " como separador.
 
-    Existe por Workable (Fase 8 del ): el widget repite el aviso una vez
+    Existe por Workable: el widget repite el aviso una vez
     por ubicacion. Medido el 2026-10-04 contra azumo: 57 filas para 10 avisos, cada uno
     seis veces —Argentina, Chile, Brazil, Colombia, Mexico, Uruguay...—. La deduplicacion
     por URL se quedaba con la primera fila, y un aviso abierto en Uruguay entraba al
@@ -1029,8 +1029,8 @@ def _pais_no_utilizable(pais: str) -> str:
     la fuente filtre por una pregunta y el matcher puntúe con otra.
     """
     if not pais:
-        return ("vacío. Sin país la fuente devolvería el catálogo mundial y el filtro de "
-                "D2 se apagaría en silencio")
+        return ("vacío. Sin país la fuente devolvería el catálogo mundial y el filtro por "
+                "país se apagaría en silencio")
     try:
         from matcher import _es_accesible, _sin_tildes
     except Exception:

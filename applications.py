@@ -1,7 +1,7 @@
 """
 applications.py — el ciclo de vida de una postulación.
 
-Fase 7 del . Es la única fase que agrega un dominio nuevo.
+Es la única fase que agrega un dominio nuevo.
 
 GEMA terminaba en «encontrado y empujado a Notion» y no sabía nada de lo que pasaba
 después. Sin eso no se puede responder *de los Tier 1 que apliqué, cuántos convirtieron*
@@ -27,7 +27,7 @@ from typing import Optional
 # `ghosted_by_recruiter`. Son los estados que el usuario va a tipear, no los que un ATS
 # reporta.
 #
-# El riesgo R5 del plan advierte que esto se puede diseñar sobre un flujo que nadie
+# Riesgo: diseñar esto sobre un flujo que nadie
 # usa. La mitigación es que la lista sea corta y que agregar un estado cueste una
 # línea — no que sea exhaustiva desde el día uno.
 # ─────────────────────────────────────────────────────────────────────────────

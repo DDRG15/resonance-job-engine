@@ -1,6 +1,6 @@
 import type { FaseProgreso, Progreso } from '../types'
 
-// Pieza 4 — barra de progreso de la corrida.
+// barra de progreso de la corrida.
 //
 // Escenario: una corrida dura 10-20 minutos y, sin una señal de avance, una viva se ve
 // igual que una colgada: el usuario cierra la ventana, relanza y choca con el 409.

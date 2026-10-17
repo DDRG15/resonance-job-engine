@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 
 import pytest
+from _dockerignore import entra_a_la_imagen
 
 RAIZ = Path(__file__).resolve().parent.parent
 PKG = RAIZ / "packaging"
@@ -155,29 +156,28 @@ def test_filtrar_toc_juzga_el_origen_solo_si_cuelga_del_repo():
 
 
 def test_prohibidos_cubre_los_secretos_de_dockerignore():
-    """Cada línea de secreto/estado de `.dockerignore` tiene un patrón equivalente."""
-    di = (RAIZ / ".dockerignore").read_text(encoding="utf-8")
-    muestras = {
-        ".env": ".env",
-        "credentials/*.json": "credentials/x.json",
-        "credentials/*.p12": "credentials/x.p12",
-        "cookies/*.json": "cookies/x.json",
-        "cookies/session/": "cookies/session/x.json",
-        "user_profile.yaml": "user_profile.yaml",
-        "cv_profile.json": "cv_profile.json",
-        "api_state.json": "api_state.json",
-        "board_strategy.json": "board_strategy.json",
-        "drift_quarantine/": "drift_quarantine/a.json",
-        "*.db": "a.db",
-        "*.db-shm": "a.db-shm",
-        "*.db-wal": "a.db-wal",
-        "*.bak": "a.bak",
-        "backups/": "backups/a.db",
-    }
-    lineas = {ln.strip() for ln in di.splitlines() if ln.strip() and not ln.startswith("#")}
-    for patron, muestra in muestras.items():
-        assert patron in lineas, f".dockerignore ya no tiene {patron}: actualizá este test"
-        assert datos.es_prohibido(muestra), f"packaging no veta {patron} ({muestra})"
+    """Todo lo que `.dockerignore` deja fuera de la imagen por secreto/estado, packaging
+    también lo veta. La imagen se evalúa con la semántica de Docker (gana el último)."""
+    muestras = [
+        ".env",
+        "credentials/x.json",
+        "credentials/x.p12",
+        "cookies/x.json",
+        "cookies/session/x.json",
+        "user_profile.yaml",
+        "cv_profile.json",
+        "api_state.json",
+        "board_strategy.json",
+        "drift_quarantine/a.json",
+        "a.db",
+        "a.db-shm",
+        "a.db-wal",
+        "a.bak",
+        "backups/a.db",
+    ]
+    for muestra in muestras:
+        assert not entra_a_la_imagen(muestra), f".dockerignore deja pasar {muestra}"
+        assert datos.es_prohibido(muestra), f"packaging no veta {muestra}"
 
 
 # =============================================================================

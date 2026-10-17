@@ -1,6 +1,6 @@
 """
 tests/test_correlators_entre_fuentes.py — el mismo aviso en dos fuentes, y la regla de
-ubicacion para el candidato (, Fase 2).
+ubicacion para el candidato.
 
 Medido el 2026-09-30 sobre la base real: 97 grupos (titulo, empresa) en mas de una
 fuente sin correlacionar, y 5 pares auto-aceptados que fundian una ubicacion abierta con

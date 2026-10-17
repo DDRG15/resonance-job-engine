@@ -295,7 +295,7 @@ CREATE TABLE IF NOT EXISTS search_vault (
 );
 """
 
-# Phase 30a — Pila de revisión manual. Jobs con title+company REALES pero URL
+# Pila de revisión manual. Jobs con title+company REALES pero URL
 # no verificable (relativa/alucinada por el LLM fallback). Se rescatan acá en vez
 # de tirarlos (principio: no descartar data salvageable). Key = hash(title|company
 # |domain) porque NO tienen URL confiable — separado del dedup principal.
@@ -514,7 +514,7 @@ class GemaDatabase:
             for idx_sql in _DDL_INDEXES:
                 conn.execute(idx_sql)
             # Migrations: add columns to existing DBs that predate these fields.
-            # FIX 2 live-test 07-18: salary_raw — el salario solo vivía en los
+            # salary_raw — el salario solo vivía en los
             # resultados de cada corrida; sin columna no hay diff histórico.
             for mig_col, mig_sql in (
                 # v3: output_chars llego despues de llm_calls. Con completion_tokens da
@@ -542,8 +542,8 @@ class GemaDatabase:
                 ("language_verdict", "ALTER TABLE seen_jobs_registry ADD COLUMN language_verdict TEXT"),
                 ("language_note",    "ALTER TABLE seen_jobs_registry ADD COLUMN language_note TEXT"),
 
-                # Riesgo R6 del plan, con dos fases de deuda encima. Las Fases 3 y 4
-                # cambiaron cómo se puntúa, así que un score guardado el 01-09 y uno
+                # Dos cambios previos modificaron
+                # cómo se puntúa, así que un score guardado el 01-09 y uno
                 # guardado hoy NO son comparables. Sin esta columna no hay forma de
                 # saberlo mirando la fila, y comparar dos números incomparables es
                 # peor que no tener ninguno.
@@ -558,7 +558,7 @@ class GemaDatabase:
                 ("deadline",   "ALTER TABLE seen_jobs_registry ADD COLUMN deadline TEXT"),
                 ("expired_at", "ALTER TABLE seen_jobs_registry ADD COLUMN expired_at TEXT"),
 
-                # ── , Fase 7: la descripcion del aviso ──
+                # ── La descripcion del aviso ──
                 # Sin guardarla, re-puntuar el registry (tools/repuntuar_registry.py) no
                 # veria los requisitos y bajaria a v7 sin el eje: el score de la corrida y
                 # el del registry dirian cosas distintas del mismo aviso. Texto limpio con
@@ -566,7 +566,7 @@ class GemaDatabase:
                 # viejas quedan en NULL: se puntuan sin el eje, como un aviso sin salario.
                 ("descripcion", "ALTER TABLE seen_jobs_registry ADD COLUMN descripcion TEXT"),
 
-                # ── revision externa 2026-09-30, punto 9: runs huerfanos ──
+                # ── Runs huerfanos ──
                 # Cuando el servidor muere a mitad de una corrida, su fila queda en
                 # `running` para siempre. Al arrancar se reconcilian a `interrupted`:
                 # la causa va en `error` (columna que ya existe para eso) y la hora en
@@ -848,7 +848,7 @@ class GemaDatabase:
                     tiered: Optional[object] = None) -> None:
         """Backfills tier and match_score after the matcher has run.
 
-        FIX 2b live-test 07-18: también backfillea salary_raw si viene — un job
+        también backfillea salary_raw si viene — un job
         RE-procesado (hash existente, INSERT OR IGNORE no-op) que ahora sí trae
         salario (FIX 1: extraído del texto) actualiza la fila vieja. COALESCE:
         nunca pisa un salario ya guardado con NULL.
@@ -945,7 +945,7 @@ class GemaDatabase:
             conn.execute("DELETE FROM search_vault WHERE vault_id = ?", (vault_id,))
 
     # =========================================================================
-    # Phase 30a — Pila de revisión manual (salvage-to-manual-review)
+    # Pila de revisión manual
     # =========================================================================
 
     @staticmethod
@@ -1054,7 +1054,7 @@ class GemaDatabase:
         Devuelve None ante cualquier cosa que no entienda. Una fecha mal parseada que
         se toma por buena vence avisos vivos, y eso es peor que no barrer nada.
 
-        **Epoch** (, Fase 1): Himalayas manda `expiryDate` como segundos
+        **Epoch**: Himalayas manda `expiryDate` como segundos
         Unix (`1792667993` = 2026-10-22), en 20 de 20 avisos medidos. Antes esto
         devolvia None para el string, el float y el entero: el deadline se perdia sin
         que nadie lo notara. Se aceptan solo 10 digitos (segundos, 2001-2286) y 13
@@ -1158,7 +1158,7 @@ class GemaDatabase:
         forma que `update_tier`, para que no haya dos maneras de decir lo mismo.
         Devuelve cuántas se escribieron.
 
-        `version` (Fase 10 del ): la identidad del score con que se
+        `version`: la identidad del score con que se
         puntuaron estas filas. `None` es `SCORE_VERSION`, que es lo que pasa siempre
         mientras el aprendizaje esté inactivo. `bucket_jobs` la pasa solo cuando el
         aprendizaje movió la escala (`v7+ap.<huella>`).
@@ -1231,7 +1231,7 @@ class GemaDatabase:
         import correlators as corr
 
         with _get_connection(self.db_path) as conn:
-            # Ubicacion, salario, fecha de cierre y vencimiento (, Fase 2):
+            # Ubicacion, salario, fecha de cierre y vencimiento:
             # los usa el correlator entre fuentes para elegir que copia queda visible, y
             # `correr()` para no fundir ubicaciones incompatibles para el candidato.
             filas = [dict(r) for r in conn.execute(
@@ -1289,9 +1289,7 @@ class GemaDatabase:
     def _reabrir_fusiones_incompatibles(self) -> int:
         """
         Devuelve a AVAILABLE los pares que el SISTEMA acepto solo y que funden dos
-        ubicaciones incompatibles para el candidato. , Fase 2.
-
-        Medido el 2026-09-30: 5 pares asi en la base real, todos de
+        ubicaciones incompatibles para el candidato. Medido el 2026-09-30: 5 pares asi en la base real, todos de
         `titulo_empresa_dia`, aceptados antes de que existiera la regla. Uno escondia
         la variante "Latin America" de un aviso detras de su gemela "Europe".
         `correlacionar_duplicados` no vuelve a mirar un par ya registrado, asi que sin
@@ -1738,7 +1736,7 @@ class GemaDatabase:
         return salida
 
     # =========================================================================
-    # , Fase 10 — aprender de las postulaciones
+    # Aprender de las postulaciones
     # =========================================================================
 
     def postulaciones_con_estados(self) -> list[dict]:
@@ -1813,7 +1811,7 @@ class GemaDatabase:
                 "WHERE score_version IS NULL OR score_version <> ?", (version,)).fetchall()]
 
     def get_registry_stats(self) -> dict:
-        # Fase 10 (): la escala que escribe bucket_jobs. Es SCORE_VERSION
+        # La escala que escribe bucket_jobs. Es SCORE_VERSION
         # mientras el aprendizaje este inactivo; activo, SCORE_VERSION+ap.<huella>.
         vigente = self.version_vigente()
         with _get_connection(self.db_path) as conn:
@@ -1853,7 +1851,7 @@ class GemaDatabase:
         Devuelve distribución por tier, por fuente, y volumen por día (14d)
         para que la UI dibuje el board de estadísticas del registry.
         """
-        vigente = self.version_vigente()   # Fase 10: misma escala que get_registry_stats
+        vigente = self.version_vigente()   # Misma escala que get_registry_stats
         with _get_connection(self.db_path) as conn:
             # Misma regla que get_registry_stats: una sola escala.
             by_tier = conn.execute(
@@ -2041,7 +2039,7 @@ class GemaDatabase:
         Pasa a `interrupted` toda fila de `runs` que sigue en `running`. Se llama UNA vez,
         al arrancar la API.
 
-        Escenario (revision externa 2026-09-30, punto 9): el servidor muere a mitad de un scrape
+        Escenario: el servidor muere a mitad de un scrape
         —reinicio, OOM, corte de luz—. Los hilos del run son daemon, así que nadie cierra
         la fila: queda `running` para siempre, `/api/results` arranca vacío y nada le
         dice al usuario si la última corrida terminó, se cortó o nunca existió.
@@ -2315,7 +2313,7 @@ class GemaDatabase:
     def tiempo_por_unidad_ms(self, nodo: str, *, excluir_run_id: Optional[str] = None,
                              ultimas: int = 5) -> Optional[dict]:
         """
-        Mediana de `exec_ms` de un nodo en sus últimas `ultimas` corridas (Pieza 4: ETA).
+        Mediana de `exec_ms` de un nodo en sus últimas `ultimas` corridas (ETA).
 
         Solo lectura. Las corridas se ordenan por la última traza que dejaron (MAX(id)),
         no por `runs.started_at`: hay trazas de corridas cuya fila de `runs` no existe

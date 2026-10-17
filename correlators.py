@@ -1,8 +1,7 @@
 """
 correlators.py — la identidad de un aviso deja de ser un campo y pasa a ser un pipeline.
 
-Fase 11 del . Idea tomada del Version Tracking de Ghidra
-(``): patrones, no código.
+Idea tomada del Version Tracking de Ghidra: patrones, no código.
 
 `compute_hash()` es SHA-256 de la URL canónica, así que un aviso es «el mismo» si y
 solo si su URL es la misma. Medido el 2026-09-11 sobre el registry: **1.536 filas,
@@ -206,7 +205,7 @@ def _por_relist_en_otro_dia(filas: list[dict]) -> list[Candidato]:
     return salida
 
 
-# ── , Fase 2: el mismo aviso en fuentes distintas ──────────────
+# ── El mismo aviso en fuentes distintas ──────────────
 
 #: Sufijos legales que cambian entre fuentes para la misma empresa ("Canonical" en
 #: Greenhouse, "Canonical Ltd" en otro board). Se comparan sobre texto ya sin puntuacion.
@@ -244,9 +243,8 @@ def _orden_canonico(f: dict, ats: set[str]) -> tuple:
 
     1. **Vivo antes que vencido.** Un aviso que el barrido dio por cerrado en una
        fuente puede seguir abierto en otra.
-    2. **Con descripcion antes que sin.** Es la idea de Bert: se conserva la copia mas
-       completa. La columna entra con la Fase 7; hasta entonces este criterio no
-       discrimina.
+    2. **Con descripcion antes que sin.** Se conserva la copia mas
+       completa. Sin la columna `descripcion` este criterio no discrimina.
     3. **El ATS de la empresa antes que un agregador.** Es el aviso original: postular
        ahi va directo, sin intermediario.
     4. **Mas campos con dato** (salario, ubicacion, fecha de cierre).

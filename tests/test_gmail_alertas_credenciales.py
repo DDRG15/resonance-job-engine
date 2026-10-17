@@ -1,17 +1,16 @@
 """
 tests/test_gmail_alertas_credenciales.py — el token de Gmail no puede salir de la máquina.
 
-Riesgo R7 del . El 29-09 un `.dockerignore` con comentarios al final de línea
-no excluyó NADA y metió cookies de sesión en la imagen; «el archivo se veía bien» no es una
-verificación. Acá se pregunta a git de verdad (`git check-ignore`) y se evalúa el patrón de
-.dockerignore contra cada ruta que escribe la Fase 11, incluida la temporal de
+Un `.dockerignore` con comentarios al final de línea no excluye nada: «el archivo se ve
+bien» no es una verificación. Acá se pregunta a git de verdad (`git check-ignore`) y se
+evalúan los patrones de .dockerignore con la semántica de Docker (gana el último que
+coincide) contra cada ruta que escribe la lectura de alertas, incluida la temporal de
 `_guardar_token`.
 
-Y al revés: la herramienta y las fixtures SÍ tienen que versionarse. `tools/*` y
-`tests/fixtures/*` ya se tragaron en silencio una herramienta y sus fixtures cuatro veces.
+Y al revés: la herramienta y las fixtures SÍ tienen que versionarse; un patrón de ignore
+demasiado ancho las deja fuera en silencio.
 """
 
-import fnmatch
 import shutil
 import subprocess
 from pathlib import Path
@@ -19,6 +18,7 @@ from pathlib import Path
 import pytest
 
 import config
+from _dockerignore import entra_a_la_imagen
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -59,14 +59,7 @@ def test_git_versiona_la_herramienta_y_las_fixtures(ruta):
 
 @pytest.mark.parametrize("ruta", RUTAS_SECRETAS)
 def test_dockerignore_excluye_las_credenciales_de_gmail(ruta):
-    patrones = [ln.strip() for ln in (REPO / ".dockerignore").read_text(encoding="utf-8")
-                .splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
-    excluida = False
-    for p in patrones:          # la ultima regla que matchea manda, como en Docker
-        negada = p.startswith("!")
-        if fnmatch.fnmatchcase(ruta, p.lstrip("!")):
-            excluida = not negada
-    assert excluida, f"{ruta} entraria a la imagen Docker"
+    assert not entra_a_la_imagen(ruta), f"{ruta} entraria a la imagen Docker"
 
 
 def test_el_token_por_defecto_vive_en_credentials():

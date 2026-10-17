@@ -1,5 +1,5 @@
 """
-tests/test_fuentes_fase2.py — Remotive, Jobicy y Arbeitnow (, Fase 2).
+tests/test_fuentes_fase2.py — Remotive, Jobicy y Arbeitnow.
 
 Cero red. Los cuerpos son respuestas REALES capturadas el 2026-09-30 por el camino real
 de `scrape_endpoint` (`tests/fixtures/fuentes/`), con las descripciones recortadas a 600

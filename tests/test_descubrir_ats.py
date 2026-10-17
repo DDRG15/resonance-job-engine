@@ -1,5 +1,5 @@
 """
-tests/test_descubrir_ats.py — el descubridor de tokens ATS (Fase 8 del ).
+tests/test_descubrir_ats.py — el descubridor de tokens ATS.
 
 Cero red: `Red` recibe un `get_crudo` que sirve un diccionario. Las paginas, robots.txt y
 respuestas de API de `tests/fixtures/descubridor/` son recortes de la corrida en vivo del
@@ -177,7 +177,7 @@ class TestDescubrir:
                                                                 "workmotion", 3)
         assert (h.nombre_board, h.nombre_desde) == ("WorkMotion", "board")
         assert h.linea_registro == (
-            'FuenteATS("workable", "workmotion", "WorkMotion", False, "D1 pendiente; '
+            'FuenteATS("workable", "workmotion", "WorkMotion", False, "pendiente de activar; '
             "propuesto por descubrir_ats 2026-10-04: 3 avisos, nombre 'WorkMotion' "
             '(board)"),')
         # La API se pide sin seguir redirecciones y con el endpoint del registro.
@@ -188,12 +188,12 @@ class TestDescubrir:
 
     def test_la_linea_propuesta_es_python_valido_y_pasa_el_registro(self):
         """La linea se pega en ats_registry.FUENTES: tiene que evaluar a una FuenteATS
-        apagada, con nota de D1 si la plataforma esta pendiente."""
+        apagada, con nota de pendiente si la plataforma esta pendiente."""
         from ats_registry import FuenteATS
         red, _, _ = _red(WORKMOTION)
         [h] = d.descubrir_dominio(red, "workmotion.com", hoy="2026-10-04")
         f = eval(h.linea_registro.rstrip(","), {"FuenteATS": FuenteATS})
-        assert f.activa is False and "D1" in f.nota
+        assert f.activa is False and "pendiente" in f.nota
         assert d.FORMATO_TOKEN.fullmatch(f.token)
 
     def test_exige_avisos_no_un_200(self, emitidas):
@@ -327,7 +327,7 @@ class TestDescubrir:
         [h] = d.descubrir_dominio(red, "acmecorp.com", hoy="2026-10-04")
         assert (h.estado, h.nombre_desde) == ("propuesta", "token")
         assert '"Acmecorp"' in h.linea_registro and "(token)" in h.linea_registro
-        assert "D1" not in h.linea_registro          # lever no esta pendiente de D1
+        assert "pendiente" not in h.linea_registro   # lever no esta pendiente de activar
 
     def test_host_que_no_responde_no_es_bloqueo(self):
         red, _, _ = _red({})                         # ningun host responde

@@ -1,5 +1,5 @@
 """
-tests/test_notion_token.py — el indicador de Notion dice la verdad (Fase 4, ).
+tests/test_notion_token.py — el indicador de Notion dice la verdad.
 
 Escenario: el token de Notion del usuario estaba vencido y `/api/status` mostraba la
 integración activa porque la key existía en el .env. El primer síntoma real era un 401 en

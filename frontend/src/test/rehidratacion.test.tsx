@@ -1,7 +1,7 @@
 /**
  * Refrescar la pestaña no pierde la búsqueda ni la corrida en curso (2026-09-29).
  *
- * Hallado por la auditoría de revision externa: config y runId arrancaban siempre en null. El
+ * Antes, config y runId arrancaban siempre en null. El
  * backend ya tenía GET /api/config y /api/results devuelve el run_id, y el SSE
  * reenvía el historial a quien se conecta tarde: al front solo le faltaba pedirlos.
  */

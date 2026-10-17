@@ -1,5 +1,5 @@
 """
-tests/test_himalayas_endpoint.py — Himalayas por API (, Fase 1).
+tests/test_himalayas_endpoint.py — Himalayas por API.
 
 Cero red. El cuerpo es una respuesta REAL de `/jobs/api/search` capturada el 2026-09-30
 (`tests/fixtures/fuentes/himalayas_search_pais.json`), con las descripciones recortadas
@@ -201,8 +201,8 @@ class TestConsulta:
         assert ses.pedidos[0].endswith("country=Costa%20Rica")
 
     def test_pais_vacio_falla_cerrado(self):
-        """revision externa, punto 15: `country=` vacio traeria el catalogo mundial y el filtro de
-        D2 se apagaria en silencio. Sin pais no se pide nada, y el error lo dice."""
+        """`country=` vacio traeria el catalogo mundial y el filtro por
+        pais se apagaria en silencio. Sin pais no se pide nada, y el error lo dice."""
         lineas = []
         ses, res = self._correr(pais="", log=lineas.append)
         assert ses.pedidos == []
@@ -260,7 +260,7 @@ class TestTTLPorConsulta:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# La forma DOCUMENTADA de la API (revision externa, punto 15)
+# La forma DOCUMENTADA de la API
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestFormaDocumentada:

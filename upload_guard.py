@@ -1,7 +1,7 @@
 """
 upload_guard.py — tope de bytes para un endpoint de subida, aplicado ANTES de leer el cuerpo.
 
-revision externa 2026-09-30, punto 12: `/api/cv` leia el archivo entero y el tope posterior de texto
+`/api/cv` leia el archivo entero y el tope posterior de texto
 (8 000 caracteres) no limita bytes. Con FastAPI el problema es mas hondo que un read()
 sin argumento: el multipart se parsea y se vuelca a un archivo temporal ANTES de que el
 endpoint corra, asi que ninguna validacion dentro del endpoint llega a tiempo. Un POST

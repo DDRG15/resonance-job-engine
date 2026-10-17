@@ -114,7 +114,7 @@ _LOG_MARKERS = [
 
 # Heurística de peligro para líneas SIN marcador conocido — que nada se escape.
 # CRÍTICO: fallas duras / trazas. WARN: señales blandas.
-# NOTA (live test 07-18): NO usar `\b5\d\d\b` a secas acá — los milisegundos de
+# NOTA: NO usar `\b5\d\d\b` a secas acá — los milisegundos de
 # los timestamps de logging (",534") matchean y todo INFO se vuelve CRIT. El 5xx
 # real ya lo cubre _LOG_MARKERS (exige contexto error/internal).
 _DANGER_CRIT = re.compile(
@@ -329,7 +329,7 @@ def main(argv=None) -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    ap = argparse.ArgumentParser(description="Watchdog completo del live test")
+    ap = argparse.ArgumentParser(description="Watchdog completo de la corrida")
     ap.add_argument("logfile", help="archivo de log a leer (o '-' para stdin)")
     ap.add_argument("--watch", action="store_true", help="seguir el archivo en vivo")
     ap.add_argument("--interval", type=float, default=15.0, help="segundos entre digests")

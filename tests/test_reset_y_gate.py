@@ -1,16 +1,16 @@
 """
-tests/test_reset_y_gate.py — revision externa 2026-09-30, punto 1 (P0): Reset puede bloquear
+tests/test_reset_y_gate.py — Reset puede bloquear
 nuevas corridas.
 
-El contrato que fija este archivo (Solucion A de revision externa):
+El contrato que fija este archivo:
 
   * Reset mientras el gate de scrape esta ocupado responde 409 y NO muta estado.
   * `_worker` libera el gate SIEMPRE, incluso si falla antes de armar su logger.
   * Despues de cualquier Reset (rechazado o no) el gate queda libre y una corrida
     nueva puede arrancar.
 
-Las barreras (threading.Event) fuerzan el orden de eventos que revision externa describio y
-que no se podia reproducir "a mano": (a) Reset justo antes de `log_queue.put`,
+Las barreras (threading.Event) fuerzan el orden de eventos que
+no se podia reproducir "a mano": (a) Reset justo antes de `log_queue.put`,
 (b) durante una fuente lenta, (c) antes de persistir la corrida.
 
 Cada assert del gate se evalua ANTES que el assert del 409, a proposito: contra el
@@ -100,7 +100,7 @@ def _esperar_fin(hilo: threading.Thread) -> None:
 
 
 def _arrancar_otra_y_esperar(rm: RunManager) -> None:
-    """Criterio de aceptacion de revision externa: tras el Reset una corrida nueva arranca."""
+    """Criterio de aceptacion: tras el Reset una corrida nueva arranca."""
     nuevo_id = rm.start(_cfg(), None, 0)
     assert nuevo_id
     _esperar_fin(rm.thread)
@@ -108,7 +108,7 @@ def _arrancar_otra_y_esperar(rm: RunManager) -> None:
 
 
 # =============================================================================
-# Barreras de revision externa: (a) antes de log_queue.put, (b) fuente lenta, (c) antes de persistir
+# Barreras: (a) antes de log_queue.put, (b) fuente lenta, (c) antes de persistir
 # =============================================================================
 
 class TestResetNoBloqueaElGate:
@@ -143,9 +143,9 @@ class TestResetNoBloqueaElGate:
         # 1) EL SINTOMA: el gate tiene que quedar libre pase lo que pase con el Reset.
         assert _gate_libre(), (
             "el gate de scrape quedo tomado para siempre: el worker murio antes de su "
-            "try/finally y nadie lo libero (revision externa P0 punto 1)"
+            "try/finally y nadie lo libero"
         )
-        # 2) El contrato de la Solucion A: rechazado, no mutado.
+        # 2) El contrato: rechazado, no mutado.
         assert rechazado, "reset() con el worker vivo debe rechazarse con 409"
         # 3) Una corrida nueva puede arrancar.
         monkeypatch.setattr(rm, "_worker", original)   # sin barrera para la corrida nueva
@@ -249,7 +249,7 @@ class TestResetNoBloqueaElGate:
 
 
 # =============================================================================
-# Contrato 409 — Solucion A
+# Contrato 409
 # =============================================================================
 
 class TestResetContrato409:

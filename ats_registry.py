@@ -1,8 +1,6 @@
 """
 ats_registry.py — los ATS como clase de fuente, no como un board más.
 
-Fase 2 del .
-
 Un board es una URL con un `{title}` interpolado. Un ATS no: `boards-api.greenhouse.io`
 sirve el tablero completo de **una empresa** por token, y el mismo patrón se repite por
 cada empresa que usa esa plataforma. Meterlos en `selectors_registry.py` terminaría con
@@ -16,9 +14,9 @@ lista de empresas donde agregar una es una línea.
 nombres de campo incluidos. Un token sin verificar es una llamada fallida por corrida:
 eso ya pasó con Cerebras, que el verificador daba por bueno y devolvía 402.
 
-Fase 8 del  (2026-10-04): Recruitee, Workable, BambooHR y Personio,
+Recruitee, Workable, BambooHR y Personio están
 verificadas igual —pedido real, robots.txt leído, respuesta del token inexistente
-medida— y con todas sus empresas apagadas hasta que se decida D1. Las empresas nuevas
+medida— y con todas sus empresas apagadas hasta que se decida activarlas. Las empresas nuevas
 se proponen con `tools/descubrir_ats.py`, que nunca escribe este archivo.
 """
 
@@ -138,10 +136,10 @@ PLATAFORMAS: dict[str, Plataforma] = {
         },
     ),
 
-    # ── Fase 8 del  ─────────────────────────────────────────────
+    # ── Recruitee, Workable, BambooHR y Personio ─────────────────────────────────────────────
     # Las cuatro verificadas el 2026-10-04 con pedidos reales, un pedido por segundo como
-    # mucho (Personio, uno cada 6 s). Ninguna tiene empresas activas: D1 (Tier 1 a 85)
-    # sigue pendiente. Ver `PENDIENTES_D1` y .
+    # mucho (Personio, uno cada 6 s). Ninguna tiene empresas activas: subir el
+    # umbral de Tier 1 a 85 sigue pendiente. Ver `PENDIENTES_ACTIVACION`.
 
     # Recruitee. robots.txt de {t}.recruitee.com redirige al dominio de careers de la
     # empresa (careers.bunq.com: `Allow: /`). Medido: bunq 17 avisos, channable 9,
@@ -243,10 +241,10 @@ PLATAFORMAS: dict[str, Plataforma] = {
 
 
 # Plataformas soportadas y verificadas pero SIN empresas activas, hasta que el usuario decida
-# D1 (subir TIER1_MIN_SCORE a 85 antes de sumar volumen). El test de registro exige que
+# que se suba TIER1_MIN_SCORE a 85 antes de sumar volumen. El test de registro exige que
 # ninguna fuente de estas plataformas este activa: activar una es sacar la plataforma de
 # este conjunto Y cambiar el False de la fuente, dos cambios a proposito.
-PENDIENTES_D1: frozenset[str] = frozenset({"recruitee", "workable", "bamboohr", "personio"})
+PENDIENTES_ACTIVACION: frozenset[str] = frozenset({"recruitee", "workable", "bamboohr", "personio"})
 
 
 @dataclass(frozen=True)
@@ -317,20 +315,20 @@ FUENTES: list[FuenteATS] = [
     FuenteATS("ashby", "cohere",     "Cohere",     False),
     FuenteATS("ashby", "runway",     "Runway",     False),
 
-    # ── Fase 8: verificadas el 2026-10-04, TODAS apagadas hasta D1 ────────────
-    # El numero es lo que trajo el pedido real de ese dia. Para activar una, ver
-    # «Como se activan» en .
-    FuenteATS("recruitee", "bunq",      "bunq",      False, "D1 pendiente; 17 avisos, Amsterdam hibrido"),
-    FuenteATS("recruitee", "channable", "Channable", False, "D1 pendiente; 9 avisos, 5 con salario"),
-    FuenteATS("recruitee", "hostaway",  "Hostaway",  False, "D1 pendiente; 9 avisos, 9 remotos"),
-    FuenteATS("workable",  "azumo",     "Azumo",     False, "D1 pendiente; 57 avisos remotos LATAM"),
-    FuenteATS("workable",  "huggingface", "Hugging Face", False, "D1 pendiente; 8 avisos"),
+    # ── Verificadas el 2026-10-04, TODAS apagadas hasta activarlas ────────────
+    # El numero es lo que trajo el pedido real de ese dia. Para activar una,
+    # sacar su plataforma de `PENDIENTES_ACTIVACION` y cambiar el False de la fuente.
+    FuenteATS("recruitee", "bunq",      "bunq",      False, "pendiente de activar; 17 avisos, Amsterdam hibrido"),
+    FuenteATS("recruitee", "channable", "Channable", False, "pendiente de activar; 9 avisos, 5 con salario"),
+    FuenteATS("recruitee", "hostaway",  "Hostaway",  False, "pendiente de activar; 9 avisos, 9 remotos"),
+    FuenteATS("workable",  "azumo",     "Azumo",     False, "pendiente de activar; 57 avisos remotos LATAM"),
+    FuenteATS("workable",  "huggingface", "Hugging Face", False, "pendiente de activar; 8 avisos"),
     FuenteATS("bamboohr",  "gorillalogic", "Gorilla Logic", False,
-              "D1 pendiente; 20 avisos, Remote: Colombia - Costa Rica"),
-    FuenteATS("bamboohr",  "koombea",   "Koombea",   False, "D1 pendiente; 2 avisos, Colombia"),
+              "pendiente de activar; 20 avisos, Remote: Colombia - Costa Rica"),
+    FuenteATS("bamboohr",  "koombea",   "Koombea",   False, "pendiente de activar; 2 avisos, Colombia"),
     FuenteATS("personio",  "jtl-software-gmbh", "JTL-Software", False,
-              "D1 pendiente; 30 avisos, mercado aleman"),
-    FuenteATS("personio",  "governikus", "Governikus", False, "D1 pendiente; 8 avisos, Bremen"),
+              "pendiente de activar; 30 avisos, mercado aleman"),
+    FuenteATS("personio",  "governikus", "Governikus", False, "pendiente de activar; 8 avisos, Bremen"),
 ]
 
 

@@ -1,5 +1,4 @@
-// Aceptación del aviso de envío del CV a proveedores LLM externos (revision externa 2026-09-30,
-// punto 12). Vive en localStorage y NO en el servidor ni junto a `retain_cv`: aceptar que
+// Aceptación del aviso de envío del CV a proveedores LLM externos. Vive en localStorage y NO en el servidor ni junto a `retain_cv`: aceptar que
 // el texto del CV salga a un proveedor y decidir que el perfil derivado quede en disco son
 // decisiones distintas, con riesgos distintos, y una no implica la otra.
 

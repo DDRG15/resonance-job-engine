@@ -11,8 +11,6 @@ Arquitectura: adapter fino — cada endpoint envuelve funciones que ya existen
 (scraper, matcher, nlp_engine, database, scheduler_service). La API importa
 al engine; el engine jamás importa a la API. Cero cambios de lógica.
 
-El contrato completo (14 endpoints, checklist de paridad con main.py) vive
-en PHASE_FIX_ → sección B6.0.
 """
 
 import json
@@ -24,7 +22,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-# FIX 3 live-test 07-18: sin esto, el root logger no tiene handler a INFO y
+# sin esto, el root logger no tiene handler a INFO y
 # Python solo emite WARNING+ — los [CARDS]/[JAR]/[NULL-SRP] del pipeline (que
 # _log ya manda a logger.info) y el SessionJar NUNCA llegaban al log del server,
 # dejando ciego al watchdog. basicConfig es no-op si ya hay handlers (tests).
@@ -84,7 +82,7 @@ def _persist_state() -> None:
             "cron_days_str": sched.cron_days,
             "cron_hour": sched.cron_hour,
             "cron_minute": sched.cron_minute,
-            # Punto 11 de revision externa: antes era False fijo. Un cron activado con retencion
+            # Antes era False fijo. Un cron activado con retencion
             # se serializaba como "sin retencion" y el siguiente arranque borraba el
             # archivo que el usuario pidio conservar.
             "retain_cv": sched.retain_cv,
@@ -109,7 +107,7 @@ def _persist_state() -> None:
 
 
 def _restore_profile(payload: dict) -> None:
-    """Reconcilia perfil retenido y preferencia al boot (revision externa 2026-09-30, punto 11).
+    """Reconcilia perfil retenido y preferencia al boot.
 
     Reglas, en orden de autoridad:
       1. api_state.json con clave `retain_cv` (formato nuevo): manda. True conserva el
@@ -131,7 +129,7 @@ def _restore_profile(payload: dict) -> None:
 
 
 def clear_profile() -> None:
-    """ÚNICA operación de descarte del perfil del CV (revision externa punto 11, solución A).
+    """ÚNICA operación de descarte del perfil del CV.
 
     Antes había tres sitios con tres definiciones distintas de "descartar": DELETE /api/cv
     limpiaba solo app.state.profile, Reset no tocaba el scheduler ni el archivo, y la
@@ -194,7 +192,7 @@ async def lifespan(app: FastAPI):
     app.state.notion = NotionClient()
     app.state.sheets = SheetsClient()
     app.state.runs = RunManager(app.state.db, app.state.notion, app.state.sheets)
-    # revision externa 2026-09-30, punto 9: una sola instancia de proceso, asi que toda fila de
+    # Una sola instancia de proceso, asi que toda fila de
     # `runs` en `running` al arrancar es de un proceso que ya murio. Sin esto quedaba
     # `running` para siempre y /api/results arrancaba vacio sin decir por que.
     # Aislado: si la higiene falla (DB bloqueada) la API igual tiene que levantar.
@@ -243,7 +241,7 @@ async def lifespan(app: FastAPI):
     app.state.profile: Optional[dict] = None
     app.state.godmode = {"custom_xpath": None, "custom_css": None}
     app.state.ttl_hours = config.DEFAULT_TTL_HOURS
-    # F3 (live test 2026-07-09): el usuario puede programar el cron ANTES de
+    # El usuario puede programar el cron ANTES de
     # tener una búsqueda confirmada — queda "armado" acá y se activa solo
     # cuando llega la config (PUT /api/config o carga desde el vault).
     app.state.pending_schedule = None
@@ -263,7 +261,7 @@ def _mensaje_cv_grande(tope: int) -> str:
     )
 
 
-# Punto 12 de revision externa: tope de bytes de /api/cv ANTES de que FastAPI vuelque el multipart a
+# Tope de bytes de /api/cv ANTES de que FastAPI vuelque el multipart a
 # un temporal. Se registra antes que CORS para que CORS quede por fuera y el 413 lleve sus
 # cabeceras (el navegador no puede leer el mensaje de una respuesta sin ellas).
 app.add_middleware(
@@ -281,7 +279,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Plan30 Fase 3: la API no tiene autenticacion, asi que lo unico que separa a un
+# La API no tiene autenticacion, asi que lo unico que separa a un
 # navegador de la maquina de /api/reset son dos headers que la pagina atacante no
 # controla. Orden de afuera hacia adentro (add_middleware inserta al frente, asi que
 # se agrega al reves): Host -> Origin -> CORS -> tope de bytes del CV -> app.
@@ -315,7 +313,7 @@ class SchedulerUpdate(BaseModel):
     interval_hours: int = 4
     cron_days: list[str] = ["tue"]         # ["mon".."sun"]
     cron_hour: int = 9
-    cron_minute: int = 0                   # F9: precisión de minutos (alarma)
+    cron_minute: int = 0                   # Precisión de minutos (alarma)
     retain_cv: bool = False
 
 
@@ -430,7 +428,7 @@ def start_scrape(body: ScrapeRequest = None):
 
 
 def _progreso_dto() -> Optional[dict]:
-    """El bloque `progreso` (Pieza 4), o None si no corre nada.
+    """El bloque `progreso`, o None si no corre nada.
 
     Nunca levanta: una barra de progreso que falla no puede convertir /api/status en un
     500 ni cortar el stream de logs que el usuario esta mirando.
@@ -455,7 +453,7 @@ async def stream_logs():
             new, done = runs.drain_logs()
             for msg in new:
                 yield f"data: {json.dumps({'log': msg})}\n\n"
-            # Pieza 4: evento aparte (`progreso`), solo cuando cambia. `onmessage` del
+            # evento aparte (`progreso`), solo cuando cambia. `onmessage` del
             # cliente solo recibe los eventos sin nombre, asi que un front anterior lo
             # ignora sin romperse.
             snap = _progreso_dto()
@@ -485,7 +483,7 @@ async def stream_logs():
 def _last_run_dto() -> Optional[dict]:
     """Ultimo run registrado en la DB, con un mensaje honesto de que se sabe y que no.
 
-    revision externa 2026-09-30, punto 9: tras un reinicio `/api/results` salia vacio y la UI no
+    Tras un reinicio `/api/results` salia vacio y la UI no
     podia distinguir "nunca corri" de "corri ayer y se perdio la sesion". La fila de
     `runs` si sobrevive. Los TIERS COMPLETOS no se reconstruyen (quedan fuera de este
     cambio: exigirian ligar cada aviso del registry a su run_id); por eso
@@ -602,7 +600,7 @@ def export_excel():
             "Source":       tj.job.source_domain,
             "Date Fetched": tj.job.scraped_at.strftime("%Y-%m-%d %H:%M UTC"),
         })
-    # Plan30 Fase 3 (revision externa 14): titulo, empresa, salario y URL los escribio un board.
+    # Titulo, empresa, salario y URL los escribio un board.
     # excel_seguro los deja como texto —nunca formula— y solo enlaza http/https.
     buf = construir_xlsx(rows)
     run_id_short = (runs.run_id or "gema")[:8]
@@ -676,7 +674,7 @@ def registry_jobs(limit: int = 200, hours: Optional[int] = None):
 
 
 # =============================================================================
-# Phase 30a — Pila de revisión manual (salvage-to-manual-review)
+# Pila de revisión manual
 # =============================================================================
 
 class ReviewResolve(BaseModel):
@@ -889,7 +887,7 @@ def application_stats(dimension: str = "tier_al_aplicar"):
 
 @app.get("/api/aprendizaje")
 def learning_state():
-    """, Fase 10: qué aprendió GEMA de las postulaciones y si ya mueve
+    """Qué aprendió GEMA de las postulaciones y si ya mueve
     puntajes. Inactivo dice cuántas faltan («aprendizaje inactivo: N de 15») y lista
     igual las reglas con los puntos que aportarían el día que se active."""
     import aprendizaje
@@ -899,7 +897,7 @@ def learning_state():
 
 @app.post("/api/cv")
 def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
-    # Punto 12 de revision externa: el texto del CV (nombre, contacto, historial) sale a un proveedor
+    # El texto del CV (nombre, contacto, historial) sale a un proveedor
     # LLM externo. Sin la versión vigente del aviso aceptada, ni se lee el archivo: 428 y
     # el proveedor no recibe una sola llamada. La UI guarda la aceptación aparte de la
     # retención (localStorage vs. retain_cv del scheduler): son decisiones distintas.
@@ -921,7 +919,7 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
         raw_text = extract_cv_text(file.filename, file_bytes)
     except Exception as exc:
         raise HTTPException(422, f"no se pudo extraer texto del CV: {exc}")
-    # Fail-loud (live test 2026-07-09, hallazgo #1): extract_cv_text no lanza
+    # Fail-loud: extract_cv_text no lanza
     # cuando el parser falla — devuelve vacío y el engine caería al perfil
     # genérico SIN avisar. La UI mostraría "perfil activo" con datos falsos.
     if not raw_text.strip():
@@ -931,7 +929,7 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
             "faltante o por encima del límite de páginas/tiempo?) — revisá el log del "
             "server; no se activó ningún perfil",
         )
-    # Hallazgo #5: raise_on_failure=True — si toda la cadena LLM falla, la API
+    # raise_on_failure=True — si toda la cadena LLM falla, la API
     # grita 503; jamás activa un perfil genérico haciéndose pasar por real.
     try:
         profile = generate_ephemeral_profile(raw_text, raise_on_failure=True)
@@ -939,7 +937,7 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
         raise HTTPException(503, f"el análisis del CV falló en toda la cadena LLM: {exc}")
     with app.state.state_lock:
         app.state.profile = profile
-        # Punto 11: el perfil nuevo llega también al scheduler (antes solo al siguiente
+        # el perfil nuevo llega también al scheduler (antes solo al siguiente
         # PUT /api/config). A disco solo va si el usuario activó la retención.
         app.state.sched.set_profile(profile)
     # Privacidad: el CV crudo no se persiste — solo el perfil (en memoria; en disco solo
@@ -949,7 +947,7 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
 
 @app.delete("/api/cv")
 def clear_cv():
-    # Punto 11: descartar limpia API + scheduler + archivo retenido, no solo la API.
+    # descartar limpia API + scheduler + archivo retenido, no solo la API.
     clear_profile()
     return {"profile": None}
 
@@ -978,7 +976,7 @@ def reset_session():
     no vuelve solo después del próximo boot.
     """
     with app.state.state_lock:  # NEW #4: limpieza atómica de todo el estado
-        # revision externa 2026-09-30, punto 1: runs.reset() va PRIMERO y es lo unico que puede
+        # runs.reset() va PRIMERO y es lo unico que puede
         # rechazar. Si hay una corrida activa levanta RunInProgressError ANTES de que
         # se toque config, perfil, godmode o cron: un 409 no muta nada.
         try:
@@ -987,7 +985,7 @@ def reset_session():
             raise HTTPException(409, str(exc))
         app.state.current_config = None
         app.state.audit_report = None
-        # Punto 11: Reset descarta también el perfil del scheduler y el archivo retenido,
+        # Reset descarta también el perfil del scheduler y el archivo retenido,
         # y devuelve la retención a su default (privacidad: no retener).
         clear_profile()
         app.state.sched.retain_cv = False
@@ -1089,7 +1087,7 @@ def update_scheduler(body: SchedulerUpdate):
                 sched.set_retain(True)  # apagar el cron reteniendo = pausar, no descartar
             elif sched.retain_cv:
                 # Había un perfil retenido y el usuario pide no retener: es la única
-                # petición de descarte que llega por este endpoint (revision externa punto 11).
+                # petición de descarte que llega por este endpoint.
                 clear_profile()
                 sched.retain_cv = False
             _persist_state()  # F8
@@ -1133,7 +1131,7 @@ def update_scheduler(body: SchedulerUpdate):
 
 @app.get("/api/status")
 def status():
-    # FIX 5 live-test 07-18: la tarjeta decía "17 boards · 15 stale" contando
+    # la tarjeta decía "17 boards · 15 stale" contando
     # los REGISTRADOS — engañoso (queja del usuario). Se scrapean solo los activos;
     # el stale se calcula SOLO sobre ellos (un retirado stale no alarma a nadie).
     active = set(selectors_registry.active_domains())
@@ -1171,11 +1169,11 @@ def status():
             "next_run": sched.get_next_run_time() if sched.enabled else None,
         },
         "is_running": runs.is_running,
-        # Pieza 4: avance y tiempo estimado de la corrida en curso (manual o cron);
+        # avance y tiempo estimado de la corrida en curso (manual o cron);
         # null si no corre nada. Ver progreso.py para la forma y la formula.
         "progreso": _progreso_dto(),
         # True si hay una corrida (manual O del cron) con el gate tomado. La UI lo usa
-        # para deshabilitar "Limpiar sesion" con la razon a la vista (revision externa punto 1).
+        # para deshabilitar "Limpiar sesion" con la razon a la vista.
         "scrape_gate_busy": scrape_gate_is_busy(),
         "has_results": runs.results is not None,
         "needs_setup": needs_setup(),
@@ -1249,7 +1247,7 @@ def post_setup(body: SetupRequest):
 
 
 # =============================================================================
-# Front estático (B6.5): si existe el build de React, servirlo
+# Front estático: si existe el build de React, servirlo
 # =============================================================================
 
 _DIST = Path(__file__).parent / "frontend" / "dist"

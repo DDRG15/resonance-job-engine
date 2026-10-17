@@ -14,7 +14,7 @@ interface Props {
 // Tu Perfil — CV efímero: se sube, se convierte en perfil (rol/skills) y el
 // crudo se descarta. Nada se persiste salvo que el cron lo pida (retain_cv).
 //
-// Punto 12 de revision externa (2026-09-30): el texto del CV sale a un proveedor LLM externo. Antes de
+// El texto del CV sale a un proveedor LLM externo. Antes de
 // abrir el selector de archivos la UI dice qué sale y adónde, y pide aceptación explícita;
 // sin ella no se abre el selector ni se envía nada (y el servidor responde 428 igual).
 // La aceptación se guarda aparte de la retención: son decisiones distintas.

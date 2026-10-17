@@ -1,5 +1,5 @@
 """
-tests/test_ats_fase8.py — Recruitee, Workable, BambooHR y Personio (Fase 8 del ).
+tests/test_ats_fase8.py — Recruitee, Workable, BambooHR y Personio.
 
 Cero red. Las fixtures de `tests/fixtures/ats/` son recortes de las respuestas reales
 pedidas el 2026-10-04 (claves que GEMA no lee fuera, textos a 600 caracteres, menos
@@ -86,13 +86,13 @@ class TestRegistroFase8:
             assert p in ats_registry.PLATAFORMAS, p
 
     def test_d1_pendiente_ninguna_fuente_nueva_esta_activa(self):
-        """Sumar volumen con un Tier 1 que es el 46% de lo puntuado es ruido (riesgo R2).
-        Hasta que el usuario decida D1, las plataformas nuevas no aportan avisos."""
-        assert ats_registry.PENDIENTES_D1 == frozenset(NUEVAS)
+        """Sumar volumen con un Tier 1 que es el 46% de lo puntuado es ruido.
+        Hasta que el usuario decida activarlas, las plataformas nuevas no aportan avisos."""
+        assert ats_registry.PENDIENTES_ACTIVACION == frozenset(NUEVAS)
         for f in ats_registry.FUENTES:
-            if f.plataforma in ats_registry.PENDIENTES_D1:
+            if f.plataforma in ats_registry.PENDIENTES_ACTIVACION:
                 assert f.activa is False, f"{f.plataforma}:{f.token}"
-                assert "D1" in f.nota, f"{f.plataforma}:{f.token} sin nota de D1"
+                assert "pendiente" in f.nota, f"{f.plataforma}:{f.token} sin nota de pendiente"
 
     def test_toda_plataforma_tiene_al_menos_una_fuente_registrada(self):
         registradas = {f.plataforma for f in ats_registry.FUENTES}
@@ -202,7 +202,7 @@ class TestRecruitee:
         real = es.fetch
         monkeypatch.setattr(es, "fetch", lambda url, **kw: real(url, sesion=ses, **{
             k: v for k, v in kw.items() if k != "sesion"}))
-        r = ats_scraper.traer_fuente(FuenteATS("recruitee", "zz9", "ZZ9", False, "D1"))
+        r = ats_scraper.traer_fuente(FuenteATS("recruitee", "zz9", "ZZ9", False, "pendiente"))
         assert r.jobs == [] and "HTTP 404" in r.error
         assert ses.pedidos[0][1] is False                  # allow_redirects=False
         assert ("ats_fuente_error_total", 1,
@@ -259,7 +259,7 @@ class TestWorkable:
     def test_cuenta_vieja_200_sin_avisos_no_es_error(self, servir):
         # Respuesta entera de apply.workable.com/api/v1/widget/accounts/hotjar, 2026-10-04.
         servir(b'{"name":"Hotjar","description":null,"jobs":[]}')
-        r = ats_scraper.traer_fuente(FuenteATS("workable", "hotjar", "Hotjar", False, "D1"))
+        r = ats_scraper.traer_fuente(FuenteATS("workable", "hotjar", "Hotjar", False, "pendiente"))
         assert (r.items_crudos, r.jobs, r.error) == (0, [], "")
 
 
@@ -303,7 +303,7 @@ class TestBambooHR:
     def test_cuenta_vieja_200_sin_avisos_no_es_error(self, servir):
         # Respuesta entera de zapier.bamboohr.com/careers/list, 2026-10-04.
         servir(b'{"meta":{"totalCount":0},"result":[]}')
-        r = ats_scraper.traer_fuente(FuenteATS("bamboohr", "zapier", "Zapier", False, "D1"))
+        r = ats_scraper.traer_fuente(FuenteATS("bamboohr", "zapier", "Zapier", False, "pendiente"))
         assert (r.items_crudos, r.jobs, r.error) == (0, [], "")
 
     def test_empresa_inexistente_es_302_con_destino_en_el_error(self, emitidas):
@@ -480,6 +480,6 @@ class TestMetricas:
         def _explota(f, **kw):
             raise RuntimeError("boom")
         monkeypatch.setattr(ats_scraper, "traer_fuente", _explota)
-        asyncio.run(ats_scraper.traer_todo([FuenteATS("personio", "x", "X", False, "D1")]))
+        asyncio.run(ats_scraper.traer_todo([FuenteATS("personio", "x", "X", False, "pendiente")]))
         assert ("ats_fuente_error_total", 1,
                 {"plataforma": "personio", "token": "x", "motivo": "excepcion"}) in emitidas

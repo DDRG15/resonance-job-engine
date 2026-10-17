@@ -102,7 +102,7 @@ def ground(state: ExtractState, config: RunnableConfig) -> dict:
 @traced_node("salvage", graph="extract", degrade=lambda exc, state: {"salvaged": 0})
 def salvage(state: ExtractState, config: RunnableConfig) -> dict:
     """
-    Phase 30a — un job con título real y URL mala va a revisión manual, no a la basura.
+    un job con título real y URL mala va a revisión manual, no a la basura.
 
     La distinción es del título: si el título TAMPOCO está en la fuente, el modelo lo
     inventó entero y se descarta. Si está, lo real es el job y lo que falló es la URL —

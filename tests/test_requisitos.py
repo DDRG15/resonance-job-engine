@@ -1,13 +1,12 @@
 """
-, Fase 7 — extraccion deterministica de requisitos (requisitos.py).
+Extraccion deterministica de requisitos (requisitos.py).
 
 Lo que fija este archivo:
-- el peso requerido/deseable no cruza el fin de la oracion (el bug anotado en el
-  estado del 01-10: "Kubernetes is required. Nice to have: ..." salia deseable);
+- el peso requerido/deseable no cruza el fin de la oracion ("Kubernetes is required. Nice to have: ..." salia deseable);
 - las secciones con titulo ("Nice to have", "Benefits") deciden el peso de las lineas
   que no traen señal propia;
 - la evidencia es siempre una cita literal de la descripcion;
-- la cobertura es None cuando no hay señal suficiente, y el LLM (D4) no puede cambiar lo
+- la cobertura es None cuando no hay señal suficiente, y el LLM no puede cambiar lo
   que dijo el deterministico.
 """
 

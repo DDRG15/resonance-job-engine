@@ -514,7 +514,7 @@ class TestFlagApagadoPorDefecto:
 
     Dentro del proceso de la suite no se puede: `importlib.reload(config)` deshace los
     parches de los demas tests, y `GEMA_DB_PATH` del `.env` del usuario apunta a la base real
-    (hallazgo del 03-10). Y sin anular `load_dotenv`, el `.env` (override=True) decidiria
+    . Y sin anular `load_dotenv`, el `.env` (override=True) decidiria
     el valor en vez de la variable de entorno del caso.
     """
 

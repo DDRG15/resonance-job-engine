@@ -1,5 +1,5 @@
 """
-tests/test_gmail_integracion.py — Fase 11 del : las alertas de Gmail entran
+tests/test_gmail_integracion.py — Las alertas de Gmail entran
 por el mismo embudo que cualquier fuente.
 
 Lo que se fija acá es el CABLEADO, no el parser (ese vive en test_gmail_alertas.py):
@@ -153,7 +153,7 @@ class TestFlag:
 
 
 # =============================================================================
-# Revisión del 07-10 sobre 7678d0f: cada hallazgo, su test
+# Regresiones de la revisión: cada hallazgo, su test
 # =============================================================================
 
 class TestRevision0710:

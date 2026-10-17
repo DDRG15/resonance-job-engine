@@ -1,9 +1,9 @@
 /**
  * "Limpiar sesión" no miente, y el último run sobrevive al reinicio (2026-09-30).
  *
- * revision externa punto 1: el botón se llamaba "Kill Switch" y nunca canceló nada; con una corrida
+ * El botón se llamaba "Kill Switch" y nunca canceló nada; con una corrida
  * activa el backend responde 409, así que el botón se deshabilita y dice por qué.
- * revision externa punto 9: tras reiniciar el servidor /api/results trae `last_run` (de la DB) y la
+ * Tras reiniciar el servidor /api/results trae `last_run` (de la DB) y la
  * pantalla lo muestra en vez de quedar vacía en silencio.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'

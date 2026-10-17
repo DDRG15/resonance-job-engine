@@ -1,5 +1,5 @@
 # =============================================================================
-# Dockerfile — Project GEMA (B6.5: React + FastAPI)
+# Dockerfile — Project GEMA (React + FastAPI)
 #
 # Two stages:
 #   1. frontend-build (Node)  → compiles the React/Vite UI to static assets

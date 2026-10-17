@@ -1,5 +1,5 @@
 """
-Export a Excel sin formulas inyectadas (Plan30 Fase 3, revision externa 14).
+Export a Excel sin formulas inyectadas.
 
 El titulo, la empresa, el salario y la URL de cada fila los escribio un board. openpyxl
 escribe como FORMULA toda cadena que empieza con `=`, y pandas.to_excel no lo evita: un
@@ -221,7 +221,7 @@ def _tj(titulo, empresa, url="https://acme.com/jobs/1", salario="$100k", score=9
 
 class TestEndpoint:
     def test_el_aviso_adversarial_sale_como_texto_por_el_endpoint(self, client):
-        """El caso de la auditoria: titulo `=HYPERLINK(...)`, empresa `+cmd`. Y un aviso
+        """El caso adversarial: titulo `=HYPERLINK(...)`, empresa `+cmd`. Y un aviso
         normal al lado, que sigue igual."""
         client.app.state.runs.results = (
             [_tj(FORMULA, "+cmd", url="javascript:alert(1)", salario="=1+1"),

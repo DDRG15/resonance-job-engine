@@ -1,5 +1,5 @@
 """
-fuentes_estado.py — ¿esta fuente dice la verdad? (Fase 4 del )
+fuentes_estado.py — ¿esta fuente dice la verdad?
 
 Una fuente que antes traía avisos y hoy trae cero no está vacía y no dio error: está
 SOSPECHOSA. Hasta el 29-09 GEMA no tenía esa palabra. trueup.io devolvió cero avisos en
@@ -16,8 +16,8 @@ La regla se decide por CONTEO contra el historial de la fuente, nunca por el có
 
 El código HTTP no sirve porque miente en las dos direcciones. Ashby devuelve 200 con un
 arreglo vacío tanto si el board no existe como si te está limitando; Workable y Recruitee
-devuelven 404 si la empresa no existe y BambooHR un 302 (,
-2026-09-30). Un cero contra un historial con avisos dice lo mismo en todos los casos:
+devuelven 404 si la empresa no existe y BambooHR un 302 (medido
+el 2026-09-30). Un cero contra un historial con avisos dice lo mismo en todos los casos:
 algo que antes se leía ya no se lee.
 
 Este módulo no tiene estado propio: lee `node_traces` y emite métricas. Ninguna función de

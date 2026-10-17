@@ -16,8 +16,7 @@ interface Props {
 }
 
 // Cron B4 completo — NO-NEGOCIABLE: días + hora + retención de CV,
-// auto-configurable desde la UI EN CUALQUIER MOMENTO (F3, live test
-// 2026-07-09): sin búsqueda confirmada el horario queda "armado" en el
+// auto-configurable desde la UI EN CUALQUIER MOMENTO: sin búsqueda confirmada el horario queda "armado" en el
 // backend y se activa solo al confirmar. Apply-on-change en cada interacción.
 export default function SchedulerPanel({ scheduler, onChanged }: Props) {
   const [enabled, setEnabled] = useState(scheduler.enabled || scheduler.armed)
@@ -26,7 +25,7 @@ export default function SchedulerPanel({ scheduler, onChanged }: Props) {
   const [days, setDays] = useState<string[]>(scheduler.cron_days)
   const [hour, setHour] = useState(scheduler.cron_hour)
   const [minute, setMinute] = useState(scheduler.cron_minute)
-  // Punto 11 de revision externa: la preferencia viene del servidor. Nacía en false en cada carga y el
+  // La preferencia viene del servidor. Nacía en false en cada carga y el
   // primer PUT siguiente (p. ej. apagar el cron) la enviaba así, pidiendo borrar el perfil.
   const [retainCv, setRetainCv] = useState(scheduler.retain_cv)
   const [error, setError] = useState<string | null>(null)

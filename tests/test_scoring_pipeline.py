@@ -65,7 +65,7 @@ class TestExecutionPathPriority:
         assert tiered.salario_no_confirmado is True
 
     def test_salario_en_texto_va_por_el_camino_matematico(self):
-        # v6 (D3): el bypass a Tier 4 ya no existe; el eje de salario no participa.
+        # v6: el bypass a Tier 4 ya no existe; el eje de salario no participa.
         j = _job(salary="Competitive + equity", location="Anywhere", n=2)
         tiered = score_job(j, _CFG)
         assert tiered.tier in ("Tier 1", "Tier 2", "Tier 3")

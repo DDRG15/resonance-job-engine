@@ -1,5 +1,5 @@
 """
-tests/test_api.py — Contratos de la capa API FastAPI (B6.1).
+tests/test_api.py — Contratos de la capa API FastAPI.
 
 Principios:
 - DB SIEMPRE en path temporal (jamás gema_registry.db real).
@@ -346,7 +346,7 @@ class TestScrape:
         total = sum(len(tiers[k]) for k in ("tier1", "tier2", "tier3", "tier4"))
         assert total == 3
         assert results["summary"]["new_processed"] == 3
-        # v6 (, Fase 6, D3): el salario en texto ("Competitive salary") ya
+        # v6: el salario en texto ("Competitive salary") ya
         # no cae a Tier 4; se puntua y la API lo marca con `salario_no_confirmado`.
         turing = [tj for k in ("tier1", "tier2", "tier3") for tj in tiers[k]
                   if tj["job"]["company"] == "Turing"]
@@ -419,7 +419,7 @@ class TestScrape:
 # /api/cv (perfil efímero — LLM mockeado, nada a disco)
 # =============================================================================
 
-# Punto 12 de revision externa: /api/cv exige la version vigente del aviso de envio aceptada.
+# /api/cv exige la version vigente del aviso de envio aceptada.
 _CONSENT = {"llm_consent": config_module.CV_CONSENT_VERSION}
 
 
@@ -453,7 +453,7 @@ class TestCV:
         assert client.get("/api/cv").json()["profile"] is None
 
     def test_llm_chain_failure_fails_loud_503(self, client, monkeypatch):
-        # Live test 2026-07-09 hallazgo #5: toda la cadena LLM muerta (cuota
+        # Toda la cadena LLM muerta (cuota
         # agotada) → 503 explícito, jamás un perfil genérico con 200.
         def _all_dead(text, raise_on_failure=False):
             raise RuntimeError("toda la cadena LLM falló")
@@ -466,7 +466,7 @@ class TestCV:
         assert client.get("/api/cv").json()["profile"] is None
 
     def test_empty_extraction_fails_loud_not_fallback(self, client, monkeypatch):
-        # Live test 2026-07-09 hallazgo #1: extract_cv_text falla sin lanzar
+        # extract_cv_text falla sin lanzar
         # (parser faltante / PDF escaneado) → devuelve "". La API debe gritar
         # 422, jamás activar el perfil genérico en silencio.
         monkeypatch.setattr(api_module, "extract_cv_text", lambda name, data: "")
@@ -489,7 +489,7 @@ class TestScheduler:
         assert body["armed"] is False
 
     def test_enable_without_config_arms_pending(self, client):
-        # F3 (live test 2026-07-09): programar sin config NO es error — queda
+        # F3: programar sin config NO es error — queda
         # armado y se activa al confirmar la búsqueda.
         r = client.put("/api/scheduler", json={
             "enabled": True, "mode": "cron",
@@ -532,7 +532,7 @@ class TestScheduler:
         assert body["mode"] == "cron"
         assert body["cron_days"] == ["tue", "fri", "sat"]
         assert body["cron_hour"] == 8
-        assert body["cron_minute"] == 15  # F9: precisión de minutos (alarma)
+        assert body["cron_minute"] == 15  # Precisión de minutos (alarma)
         assert body["next_run"]
 
     def test_invalid_cron_minute_422(self, client):

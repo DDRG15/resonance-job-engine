@@ -1,5 +1,5 @@
 """
-tests/test_manual_review.py — Phase 30a (salvage-to-manual-review).
+tests/test_manual_review.py — Phase 30a.
 
 Jobs con title+company REALES pero URL no verificable → pila de revisión manual
 en vez de la basura. Descarta solo los verdaderamente inventados (título que

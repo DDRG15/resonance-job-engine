@@ -58,10 +58,10 @@ class SchedulerService:
         self.interval_hours: int = 4
         self.cron_days: str = config.SCHEDULER_CRON_DAYS
         self.cron_hour: int = config.SCHEDULER_CRON_HOUR
-        self.cron_minute: int = 0   # F9 (live test 07-10): precisión de minutos
+        self.cron_minute: int = 0   # Precisión de minutos
         self.config = None          # SearchConfig | None
         self.profile = None         # dict | None — ephemeral CV profile
-        # Preferencia REAL de retencion del perfil en disco (revision externa 2026-09-30, punto 11).
+        # Preferencia REAL de retencion del perfil en disco.
         # Antes vivia solo en el body del PUT y api.py serializaba False a ciegas: tras
         # reiniciar, _apply_pending_schedule reconfiguraba con False y borraba el archivo.
         self.retain_cv: bool = False
@@ -190,7 +190,7 @@ class SchedulerService:
     def clear_profile(self) -> None:
         """Olvida el perfil del scheduler Y el archivo retenido. La preferencia retain_cv
         se conserva: descartar el CV actual no es decidir que el proximo no se retenga.
-        La invoca api.clear_profile(), la unica operacion de descarte (revision externa punto 11)."""
+        La invoca api.clear_profile(), la unica operacion de descarte."""
         self.profile = None
         self._discard_profile()
 

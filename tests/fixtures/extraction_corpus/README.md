@@ -64,7 +64,7 @@ anotar" en "caso con respuesta correcta".
 Priorizar por lo que rompe, no por cobertura:
 
 - **Un board por cada patrón de URL distinto.** Los relativos (`/job/x`) son los que
-  fuerzan la reparación de Phase 30b.
+  fuerzan la reparación de URLs relativas.
 - **Un caso donde el modelo históricamente alucinó.** Si algún board produjo
   `example.com` en la salida, ese texto es oro: verifica que el grounding lo siga
   rechazando.

@@ -82,7 +82,7 @@ harness imprime las regresiones pero sale con 0; con `--gate` sale con 1.
 | `review` | filas de `manual_review` con `resolved=1` | Sí, para la URL |
 
 **Estado hoy.** La carpeta de fixtures tiene el README y **ningún caso curado**: la curación
-(fase 7a del plan de migración) es trabajo del usuario y sigue pendiente. El corpus de drift
+es trabajo del usuario y sigue pendiente. El corpus de drift
 tiene 6 snapshots con `schema_version: 2`, todos de `greenhouse.com` con el mismo largo de
 input (11.727 caracteres), capturados el 2026-09-29. `greenhouse.com` es un board CSS retirado
 (`active=False`); la ingesta de Greenhouse hoy va por su API de ATS. Consecuencia: el gate

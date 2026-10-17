@@ -27,12 +27,12 @@ pydantic==2.13.5       # v3 (2026-09-01): subido desde 2.7.1 — NO fue una elec
                        # volver a 2.7.1 sin tocar código.
 
 # ── NLP / LLM APIs ───────────────────────────────────────────────────────────
-groq==0.37.1           # F11 (live test 07-10): 0.11.0 pasaba 'proxies' a httpx y httpx 0.28 (B6.1) lo eliminó — Groq quedaba fuera de la cadena con TypeError
+groq==0.37.1           # 0.11.0 pasaba 'proxies' a httpx y httpx 0.28 lo eliminó — Groq quedaba fuera de la cadena con TypeError
 google-generativeai==0.8.3
 
 # ── Orchestration (v3 — el pipeline como state graph) ────────────────────────
 langgraph==1.2.11      # SOLO langgraph: nada de langchain, ni wrappers de chat model.
-                       # El plan pinneaba 0.6.7; pip-audit lo rechazó (PYSEC-2026-83, fix
+                       # La 0.6.7 no sirve: pip-audit la rechazó (PYSEC-2026-83, fix
                        # en 1.0.10) junto a 3 vulns de langgraph-checkpoint y 2 de
                        # langgraph-sdk. La rama 1.0.x las cierra todas.
                        # Los 7 providers ya están normalizados a callable(messages)->str

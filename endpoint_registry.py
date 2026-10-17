@@ -1,7 +1,7 @@
 """
 endpoint_registry.py — qué boards se leen sin navegador, y cómo.
 
-Fase 1 del . Este archivo se commitea; `board_strategy.json` no.
+Este archivo se commitea; `board_strategy.json` no.
 
 Esa separación es el punto: el JSON local guarda estado de runtime —salud, último
 probe, qué vio el último intento— y se pierde al clonar. La capacidad de un board
@@ -63,7 +63,7 @@ ENDPOINTS: dict[str, dict] = {
         },
     },
 
-    # , Fase 1. Medido el 2026-09-30 ():
+    # Medido el 2026-09-30:
     # `country=<pais>` sin `q` = 2.902 avisos; con `q=python developer` = 171. Traer el
     # feed entero son 145 paginas de 20, asi que va una consulta por titulo, pagina 1.
     # Por CSS este board chocaba contra un 403 en cada rama: 6 filas en el registry
@@ -77,7 +77,7 @@ ENDPOINTS: dict[str, dict] = {
     # - descripcion: mediana 3.585 caracteres limpios. Entra con la Fase 7.
     # crawl_delay_s = 1: los terminos no dan cifra, solo "429 al pasarse"; un segundo
     # entre consultas es 51 s por corrida con la busqueda del CLI.
-    # Auditoria de revision externa del 30-09 (puntos 15 y 16): el OpenAPI oficial documenta `guid`
+    # El OpenAPI oficial documenta `guid`
     # como identificador y `applicationLink` como URL, aunque la respuesta real trae una
     # URL en los dos. Se usa `guid` si es una URL de verdad y si no `applicationLink`;
     # un ID opaco nunca se convierte en enlace. `totalCount` marca la cobertura parcial
@@ -106,7 +106,7 @@ ENDPOINTS: dict[str, dict] = {
         },
     },
 
-    # , Fase 2. La API publica trae el catalogo publico entero: 16 avisos,
+    # La API publica trae el catalogo publico entero: 16 avisos,
     # con o sin `category` (medido 2026-09-30), con 24 h de retraso respecto de la web.
     # Terminos: "more than 2x per minute will be blocked", y como mucho 4 veces por dia:
     # feed fijo, un pedido, y `intervalo_minimo_s` de 6 h entre corridas.
@@ -126,7 +126,7 @@ ENDPOINTS: dict[str, dict] = {
         },
     },
 
-    # , Fase 2. Terminos: "must not exceed once per hour" y conservar la
+    # Terminos: "must not exceed once per hour" y conservar la
     # URL canonica de Jobicy. Un pedido por corrida, y el filtro por titulo del lado de
     # GEMA. Las claves de salario aparecen solo cuando hay salario y vienen con moneda y
     # periodo: `BRL 249000-409000 yearly`.
@@ -151,7 +151,7 @@ ENDPOINTS: dict[str, dict] = {
         },
     },
 
-    # , Fase 2. 326 avisos en la pagina 1, 19 con `remote=true`. Es un
+    # 326 avisos en la pagina 1, 19 con `remote=true`. Es un
     # board europeo (.com, .co.uk, .fr, .ch) y casi todo es presencial: entra solo lo
     # remoto, y con la region del board, porque "Remote" a secas (10 de 19) es remoto
     # dentro de Europa. `created_at` es epoch; no hay fecha de cierre.

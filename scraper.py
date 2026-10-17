@@ -616,7 +616,7 @@ def _should_snapshot_success() -> bool:
 
 
 # =============================================================================
-# Phase 30b — Cerebro puro: aprender a reparar URLs desde las resoluciones
+# Cerebro puro: aprender a reparar URLs desde las resoluciones
 # manuales de 30a. Funciones puras y testeadas (disciplina Phase 29): el brain
 # decide, el wiring solo aplica. Nunca inventa — cada reparación se re-verifica
 # contra la fuente (grounding de 27.5) antes de aceptarse.
@@ -755,8 +755,8 @@ def derive_company_from_url(url: str, source_domain: str = "") -> Optional[str]:
 
 
 # =============================================================================
-# FIX 1 live-test 07-18 — salario desde el TEXTO del card.
-# Hallazgo: 1 de 68 jobs con salario; 3 boards sin selector de salario y el
+# salario desde el TEXTO del card.
+# Medido: 1 de 68 jobs con salario; 3 boards sin selector de salario y el
 # resto con cards que no lo publican como elemento — pero HN (y otros) llevan
 # el monto EN EL TEXTO ("$120k", "$60k-$80k"). Sin salary_raw el matcher pierde
 # los puntos de salario → Tier 1 = 0. Este fallback regex puebla salary_raw a
@@ -790,7 +790,7 @@ def con_moneda_implicita(texto: Optional[str], moneda: str) -> Optional[str]:
     """
     "75K-195K Annually" + "USD" -> "USD 75K-195K Annually".
 
-    , Fase 6. Para boards que publican montos sin moneda (builtin.com,
+    Para boards que publican montos sin moneda (builtin.com,
     `DomainSelectors.moneda_implicita`). Solo se antepone si el texto trae un numero y
     NINGUNA moneda: "$75K" queda como esta, y "Competitive" no gana una moneda que no
     tiene. El codigo va delante porque es la forma que el parser ya lee ("USD 75k").
@@ -955,7 +955,7 @@ class GemaScraper:
         self.summary   = (ScrapeRunSummary(run_id=run_id) if run_id
                           else ScrapeRunSummary())
 
-        # Phase 30b: aprender reglas de reparación de URL desde las resoluciones
+        # aprender reglas de reparación de URL desde las resoluciones
         # manuales (30a). Se computa UNA vez por corrida desde la verdad (las
         # resoluciones humanas) — sin estado stale, self-correcting. Fail-safe.
         self._url_patterns: dict[str, str] = {}
@@ -1008,7 +1008,7 @@ class GemaScraper:
     def _log(self, msg: str) -> None:
         logger.info(msg)
         self.log_queue.put(msg)
-        progreso.latido()   # una linea de log es una senal de vida (Pieza 4)
+        progreso.latido()   # una linea de log es una senal de vida
 
     def _ramas_css(self, domains: list[str]) -> int:
         """Cuantas ramas (dominio x titulo) genera el fan-out para estos dominios.
@@ -1129,9 +1129,9 @@ class GemaScraper:
 
         Hasta el 2026-09-29 habia dos copias de esto y las dos puntuaban con
         `score_job(job, self.config)`: sin el perfil del CV que si usa bucket_jobs
-        —el tier podia diferir— y sin mirar la elegibilidad de la Fase 3. Un aviso
+        —el tier podia diferir— y sin mirar la elegibilidad. Un aviso
         que exige ciudadania estadounidense (veto FAIL) llegaba por Discord como Tier
-        1 y despues no aparecia en el shortlist. Hallado por la auditoria de revision externa.
+        1 y despues no aparecia en el shortlist. 
 
         Tambien calla lo que el ranking ya sabe descartar: vencidos (marca de la Fase
         6) y duplicados aceptados (Fase 11). Los dos conjuntos se leen una vez por
@@ -1194,7 +1194,7 @@ class GemaScraper:
             if self._strategy.get(d).access_vector == AccessVector.ENDPOINT
         ]
 
-        # Pieza 4: los tres totales se conocen ACA, antes de scrapear nada. Declararlos
+        # los tres totales se conocen ACA, antes de scrapear nada. Declararlos
         # recien al llegar a cada fase haria que el total creciera a mitad de corrida y
         # el porcentaje retrocediera. Las ramas CSS que el probe o el breaker salteen
         # mas adelante se cuentan como terminadas (no se restan del total).
@@ -1221,7 +1221,7 @@ class GemaScraper:
             progreso.cambiar_fase("ats")
             await self._scrape_ats_sources()
 
-        # ── , Fase 11: alertas de LinkedIn e Indeed desde Gmail ──
+        # ── Alertas de LinkedIn e Indeed desde Gmail ──
         # No entra por target_domains: no es un sitio que se lea, es el buzon del usuario.
         # Apagada por flag; con el flag prendido y sin token, la corrida sigue y el error
         # queda en el resumen.
@@ -1277,7 +1277,7 @@ class GemaScraper:
             self._log(f"[PROBE] Skipped (error: {probe_exc}). Proceeding with all domains.")
             domains = all_domains
 
-        # Pieza 4: las ramas de los boards que el probe descarto no van a correr nunca;
+        # las ramas de los boards que el probe descarto no van a correr nunca;
         # cuentan como terminadas para que la barra pueda llegar al 100%.
         progreso.unidad_hecha("css", self._ramas_css(
             [d for d in all_domains if d not in domains]))
@@ -1410,7 +1410,7 @@ class GemaScraper:
                         return salida
 
                 async def _bounded(domain: str, title: str):
-                    # Pieza 4: UNA unidad terminada por rama, salga como salga (ok,
+                    # UNA unidad terminada por rama, salga como salga (ok,
                     # error, saltada por el breaker). El finally es lo que garantiza
                     # que la barra llegue al 100% aunque revienten ramas.
                     try:
@@ -1637,7 +1637,7 @@ class GemaScraper:
             await writer_task
 
     # =========================================================================
-    # Alertas de Gmail — LinkedIn e Indeed (Fase 11 del )
+    # Alertas de Gmail — LinkedIn e Indeed
     # =========================================================================
 
     async def _scrape_gmail_alertas(self) -> None:
@@ -1725,7 +1725,7 @@ class GemaScraper:
                     progreso.unidad_hecha("endpoint")
                     continue
 
-                # , Fase 2: el limite que declaran los terminos de la API
+                # El limite que declaran los terminos de la API
                 # (Jobicy 1/hora, Remotive 4/dia) se respeta ENTRE corridas. Saltear no
                 # es un error ni deriva: no se toca la salud del board.
                 falta = endpoint_scraper.espera_pendiente(
@@ -2140,7 +2140,7 @@ class GemaScraper:
             return []
 
         # Cap input to fit free-tier token limits (Groq ~12k TPM). A full SRP
-        # (~40k chars) hit 413 in the live test. Truncate on a whitespace
+        # (~40k chars) hit 413. Truncate on a whitespace
         # boundary so we don't cut a URL in half.
         cap = config.LLM_FALLBACK_MAX_INPUT_CHARS
         if len(clean_text) > cap:
@@ -2242,7 +2242,7 @@ class GemaScraper:
         return recovered
 
     def _ground_and_repair(self, recovered, present, domain):
-        """Phase 30b — parte los jobs recuperados en (kept, dropped, repaired_n).
+        """parte los jobs recuperados en (kept, dropped, repaired_n).
 
         - url ya en la fuente → kept (grounding OK).
         - url no en la fuente → intentar reparar con la regla aprendida (30b);
@@ -2269,7 +2269,7 @@ class GemaScraper:
         return kept, dropped, repaired_n
 
     def _salvage_dropped_jobs(self, dropped, source_text, domain, srp_url) -> None:
-        """Phase 30a — rescata a revisión manual los jobs con URL mala pero
+        """rescata a revisión manual los jobs con URL mala pero
         title+company reales; descarta solo los verdaderamente inventados.
 
         Discriminador: el título aparece (normalizado) en el texto fuente que le
@@ -2337,7 +2337,7 @@ class GemaScraper:
         self.summary.total_urls_found += len(card_elements)
         _sumar_items_rama(len(card_elements))   # Fase 4: avisos crudos, antes del delta load
 
-        # FIX A live-test 07-18: veredicto de salud a nivel SRP, no por-card. Un
+        # veredicto de salud a nivel SRP, no por-card. Un
         # card individual que no parsea (sin href, o extracción None) es falla de
         # calidad de dato, NO del board (Phase 31b: un board sano no muere por
         # cards malas sueltas). arc.dev devuelve 10 cards, ~4 no parsean (slots
@@ -2478,7 +2478,7 @@ class GemaScraper:
                 company = "(empresa no listada)"
 
             if not salary:
-                # FIX 1 live-test 07-18: el salario suele vivir en el TEXTO del
+                # el salario suele vivir en el TEXTO del
                 # card (HN: "$120k"), no en un elemento con clase .salary.
                 # Primero el título (gratis); si no, el texto del card (DOM
                 # local, ~ms). Sin esto Tier 1/4 quedan en 0.
@@ -2561,7 +2561,7 @@ def try_acquire_scrape_gate() -> bool:
 def scrape_gate_is_busy() -> bool:
     """Consulta SIN tomar el gate: True si hay una corrida (manual o cron) activa.
 
-    revision externa 2026-09-30, punto 1: `RunManager.reset()` y `/api/status` necesitan saber si
+    `RunManager.reset()` y `/api/status` necesitan saber si
     el gate esta ocupado sin competir por el. Tomarlo "para mirar" (try_acquire +
     release) abriria una ventana en la que un `start()` legitimo veria el gate tomado
     y respondera 409 por culpa de una simple consulta."""

@@ -24,8 +24,8 @@ cambiar código que funciona por uniformidad estructural, y el riesgo no lo paga
 Lo que SÍ era ruido, y desaparece acá, es la orquestación duplicada alrededor.
 
 LÍMITE DECLARADO: el fan-out por (dominio × título) sigue viviendo dentro de
-GemaScraper.run(), con asyncio.gather, no como ramas del grafo. El plan aprobado pedía
-descomponerlo con Send; queda pendiente y anotado. Lo que esta fase entrega es el nivel
+GemaScraper.run(), con asyncio.gather, no como ramas del grafo. Descomponerlo con Send queda
+pendiente. Lo que entrega el grafo es el nivel
 de corrida — que es donde estaba la duplicación real y donde faltaba el escritor de
 telemetría.
 """
@@ -162,7 +162,7 @@ def bucket(state: RunState, config: RunnableConfig) -> dict:
 
     ctx = _rt(config)
     jobs = state.get("jobs") or []
-    # Pieza 4: el scrape termino; lo que sigue (correlacion, puntaje, persistencia y push)
+    # el scrape termino; lo que sigue (correlacion, puntaje, persistencia y push)
     # es la fase final de la barra.
     progreso.cambiar_fase("puntuando")
 
@@ -264,7 +264,7 @@ def notify(state: RunState, config: RunnableConfig) -> dict:
         f"- Tier 3: {len(t3)}\n"
         f"- Tier 4: {len(t4)}"
     )
-    # v6 (, D3): el salario en texto se puntua; la cuenta dice cuantos.
+    # v6: el salario en texto se puntua; la cuenta dice cuantos.
     sin_confirmar = sum(1 for tj in (t1 + t2 + t3)
                         if getattr(tj, "salario_no_confirmado", False))
     if sin_confirmar:
@@ -288,7 +288,7 @@ _MAX_VENCIDAS_EN_REPORTE = 5
 
 def _seccion_vencidas(ctx) -> str:
     """
-    Las próximas acciones vencidas, para pegar al reporte de Discord (Fase 9, D5).
+    Las próximas acciones vencidas, para pegar al reporte de Discord.
 
     Va en el MISMO mensaje que los tiers y no en uno aparte: dos mensajes serían dos
     ráfagas contra el rate limit del webhook (5 por 5 s) y un segundo canal que hay que
@@ -414,7 +414,7 @@ def run_pipeline(
         "tier1": [], "tier2": [], "tier3": [], "tier4": [],
         "status": "running", "error": None,
     }
-    # Pieza 4: una corrida, un seguimiento. Lo abre el unico punto de entrada comun a API,
+    # una corrida, un seguimiento. Lo abre el unico punto de entrada comun a API,
     # cron y CLI y lo cierra el finally: aunque el grafo reviente, la barra no queda
     # clavada en una corrida que ya no existe.
     progreso.iniciar(inicial["run_id"], getattr(ctx, "db", None))

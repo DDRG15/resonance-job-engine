@@ -1,8 +1,8 @@
 """
-ats_scraper.py — traer los tableros de empresa de Greenhouse, Lever, Ashby y (Fase 8 del
-) Recruitee, Workable, BambooHR y Personio.
+ats_scraper.py — traer los tableros de empresa de Greenhouse, Lever, Ashby, Recruitee,
+Workable, BambooHR y Personio.
 
-Fase 2 del . Se apoya entero en `endpoint_scraper`: acá no hay HTTP ni
+Se apoya entero en `endpoint_scraper`: acá no hay HTTP ni
 parseo, solo el armado de URLs por plataforma, la inyección del nombre de empresa que
 esos payloads no traen, y la concurrencia.
 
@@ -104,7 +104,7 @@ def motivo_de_error(error: str) -> str:
     """
     El error de una fuente ATS en una de pocas categorias, para la etiqueta `motivo`.
 
-    Fase 8 del . Cada plataforma dice «esta empresa no existe» de otra
+    Cada plataforma dice «esta empresa no existe» de otra
     forma —Workable y Recruitee con 404, BambooHR con 302, Personio con 307—, medido el
     2026-10-04. Una alerta por `ats_fuente_error_total{motivo="inexistente"}` agrupa las
     cuatro; una por texto libre tendria que conocer los cuatro mensajes.
@@ -141,8 +141,8 @@ async def traer_todo(
     registra y no afecta a la fuente ni a las demás. El orden y el valor de retorno no
     cambian: sigue siendo un resultado por fuente, en el orden de `fuentes`.
 
-    Una fuente que explota no puede tumbar a las otras treinta y nueve. Ese fue el riesgo
-    R1 del plan anterior y el motivo por el que el fan-out del scraper envuelve cada rama.
+    Una fuente que explota no puede tumbar a las otras treinta y nueve. Ese es el
+    motivo por el que el fan-out del scraper envuelve cada rama.
     """
     fuentes = fuentes if fuentes is not None else ats_registry.activas()
     if not fuentes:
@@ -180,7 +180,7 @@ async def traer_todo(
         return res
 
     # `_una` ya no deja escapar excepciones: una fuente que explota no puede tumbar a
-    # las otras treinta y nueve (riesgo R1 del plan anterior) y queda como resultado con
+    # las otras treinta y nueve y queda como resultado con
     # `error`, igual que antes.
     salida: list[ResultadoATS] = list(await asyncio.gather(*[_una(f) for f in fuentes]))
 

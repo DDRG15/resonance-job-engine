@@ -1,9 +1,9 @@
 /**
- * Puntos 11 y 12 de revision externa (2026-09-30) en la UI: el CV no sale sin aviso previo aceptado,
+ * El ciclo de vida y la privacidad del CV en la UI: el CV no sale sin aviso previo aceptado,
  * y los controles de perfil dicen la verdad sobre la retencion.
  *
  * Cada test que reproduce la falla original esta escrito contra el contrato final y se
- * corrio ANTES del fix contra b871963 (ver ).
+ * corrio ANTES del fix contra b871963.
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
@@ -52,7 +52,7 @@ afterEach(() => {
   clickSpy.mockRestore()
 })
 
-describe('CVUpload — aviso previo (punto 12)', () => {
+describe('CVUpload — aviso previo', () => {
   it('sin aceptación, Subir muestra el aviso: no abre el selector ni envía nada', () => {
     montar()
     fireEvent.click(screen.getByRole('button', { name: /Subir CV/ }))
@@ -141,7 +141,7 @@ describe('CVUpload — aviso previo (punto 12)', () => {
   })
 })
 
-describe('CVUpload — controles de perfil que dicen la verdad (punto 11)', () => {
+describe('CVUpload — controles de perfil que dicen la verdad', () => {
   it('Descartar perfil llama DELETE /api/cv', async () => {
     montar({ profile: PERFIL })
     fireEvent.click(screen.getByRole('button', { name: /Descartar perfil/ }))
@@ -177,7 +177,7 @@ const SCHED: SchedulerState = {
   retain_cv: true,
 }
 
-describe('SchedulerPanel — la retención refleja al servidor (punto 11)', () => {
+describe('SchedulerPanel — la retención refleja al servidor', () => {
   function toggleRetener(): HTMLElement {
     const fila = screen.getByText('Retener CV entre corridas').parentElement as HTMLElement
     return fila.querySelector('[role="switch"]') as HTMLElement

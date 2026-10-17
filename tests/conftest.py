@@ -47,7 +47,7 @@ def _aislar_drift_quarantine(tmp_path, monkeypatch):
 def _permitir_testserver(monkeypatch):
     """
     El TestClient manda `Host: testserver`; la API solo acepta los hosts de
-    config.ALLOWED_HOSTS (Plan30 Fase 3), que en produccion son localhost y 127.0.0.1.
+    config.ALLOWED_HOSTS, que en produccion son localhost y 127.0.0.1.
 
     Se agrega en el test y no en la configuracion: poner `testserver` en el default
     habilitaria en produccion un Host que solo existe en la suite. Se parchea
@@ -68,8 +68,8 @@ def _aislar_cv_profile(tmp_path, monkeypatch):
     Ningun test lee, crea ni borra el cv_profile.json real.
 
     CV_PROFILE_PATH es relativo ("cv_profile.json"): sin esto resuelve contra el cwd, que
-    para quien corre la suite desde la raiz del repo es el archivo del usuario. Hasta el
-    punto 11 de revision externa (2026-09-30) el riesgo era latente: enable_cron(retain=False)
+    para quien corre la suite desde la raiz del repo es el archivo del usuario. Hasta que
+    se agrego la retencion del perfil el riesgo era latente: enable_cron(retain=False)
     llama a _discard_profile y cualquier test de la API que activara el cron borraba el
     perfil retenido de verdad. Con clear_profile() (DELETE /api/cv, Reset) hay tres
     caminos mas que borran, asi que el aislamiento deja de ser opcional.

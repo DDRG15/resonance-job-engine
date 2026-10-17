@@ -1,5 +1,5 @@
 """
-tests/test_aprendizaje.py — , Fase 10: aprender de las postulaciones.
+tests/test_aprendizaje.py — Aprender de las postulaciones.
 
 Lo que se fija acá, en orden de cuánto duele romperlo:
 

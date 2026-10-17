@@ -138,8 +138,8 @@ class SearchConfig(BaseModel):
 # Scraper Output — Raw surface metadata
 # =============================================================================
 
-#: Tope de `JobResult.descripcion`, medido en la Fase 0 del 
-#: (): cubre mas del p90 de Greenhouse, la
+#: Tope de `JobResult.descripcion`, medido el 2026-09-30:
+#: cubre mas del p90 de Greenhouse, la
 #: fuente mas larga (10.178), y el 100% de Himalayas y Remotive. El salario se extrae de
 #: la descripcion entera ANTES de recortar, asi que el tope no le quita salarios a nadie.
 DESCRIPCION_MAX_CHARS = 12_000
@@ -149,7 +149,7 @@ class JobResult(BaseModel):
     """
     Surface metadata extracted by the scraper.
 
-    , Fase 7: la regla vieja "sin descripcion" se levanta para las fuentes
+    La regla vieja "sin descripcion" se levanta para las fuentes
     que la traen en el mismo payload (endpoints y ATS): el match por requisitos la lee.
     Se guarda texto limpio con saltos de linea, nunca HTML, con tope de
     `DESCRIPCION_MAX_CHARS`. Las ramas CSS siguen sin descripcion.
@@ -304,7 +304,7 @@ def _salario_anual_detalle(texto: Optional[str]) -> tuple[Optional[int], bool]:
     # piso de 90k (el de la busqueda de la API): Tier 2 con 59 puntos leido bien, Tier 3
     # con 25 leido mal ("Salary $185 below minimum"). Con 1-2 digitos sigue siendo
     # decimal ("$85.5k").
-    # , Fase 6: el PERIODO. Remotive publica "$90 - $150 /hour" y esto
+    # El PERIODO. Remotive publica "$90 - $150 /hour" y esto
     # devolvia 90 — noventa dolares al ano —, asi que el aviso caia a Tier 3 por
     # "salario por debajo del minimo". Con periodo no anual se multiplica, y se abre
     # la forma de un digito de miles ("$3,500/month") que sin periodo sigue cerrada
@@ -408,7 +408,7 @@ def _periodo_del_salario(texto_lower: str) -> tuple[int, int]:
 
 def salario_anualizado(texto: Optional[str]) -> bool:
     """True si `salario_anual_usd` multiplico el monto por un periodo no anual. Para la
-    metrica `jobs_salario_anualizado` del ."""
+    metrica `jobs_salario_anualizado`."""
     return _salario_anual_detalle(texto)[1]
 
 
@@ -473,7 +473,7 @@ class TieredJob(BaseModel):
     )
     language_note: str = Field(default="", description="Por que ese veredicto.")
 
-    # ── , Fase 7: match por requisitos ─────────────────────────
+    # ── Match por requisitos ─────────────────────────
     requisitos: list[dict] = Field(
         default_factory=list,
         description=(
@@ -503,7 +503,7 @@ class TieredJob(BaseModel):
     def salario_no_confirmado(self) -> bool:
         """
         El aviso publico salario en texto ("Competitive", "DOE") que no se pudo leer
-        como sueldo anual. , Fase 6, decision D3: ya no saca el aviso del
+        como sueldo anual. Ya no saca el aviso del
         scoring —antes iba a Tier 4 aunque titulo, ubicacion y perfil calzaran—; se
         puntua sin el eje de salario y se marca. Calculado, no guardado: sale de
         `salary_raw`, asi que una fila vieja lo trae igual y no puede contradecirse.

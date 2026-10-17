@@ -1,5 +1,5 @@
 """
-progreso.py — avance y tiempo estimado de la corrida en curso (Pieza 4 del plan 10-13).
+progreso.py — avance y tiempo estimado de la corrida en curso.
 
 Escenario: una corrida dura 10-20 minutos y hasta ahora la UI solo mostraba líneas de log.
 Sin una señal de avance una corrida viva es indistinguible de una colgada; el usuario cierra

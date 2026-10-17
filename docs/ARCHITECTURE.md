@@ -19,7 +19,7 @@ Playwright, a 0 tokens. El LLM aparece en tres lugares y ninguno es el camino no
 
 Más una auditoría cruzada del config, que es advisory y nunca bloquea. El puntaje de un
 aviso tampoco usa LLM: `matcher.py` y `requisitos.py` son deterministas, y la capa LLM de
-requisitos existe como decisión D4 y está apagada.
+requisitos existe y está apagada por defecto.
 
 Si mañana se caen los siete proveedores LLM, Resonance sigue ingiriendo y puntuando. Pierde
 el parseo de prompts nuevos y la recuperación de boards CSS rotos, no la operación.
@@ -55,8 +55,8 @@ fuente dentro de su intervalo se saltea y emite `endpoint_saltado_por_limite`.
 repite por cada empresa. Por eso no entra por `target_domains` sino por su propio registro,
 con un pseudo-dominio por plataforma. De las 49 empresas verificadas, 13 están activas
 (7 Greenhouse, 5 Ashby, 1 Lever). Recruitee, Workable, BambooHR y Personio están
-verificadas y **apagadas**: nueve empresas registradas con `activa=False` a la espera de la
-decisión D1. Escenario: encender las 40 empresas de la primera tanda (verificadas el 2026-09-15) trae
+verificadas y **apagadas**: nueve empresas registradas con `activa=False` a la espera de que
+se decida activarlas. Escenario: encender las 40 empresas de la primera tanda (verificadas el 2026-09-15) trae
 ~8.700 avisos por corrida contra las 1.536 filas que el registry acumuló en cuatro meses. Consecuencia: la primera corrida inunda la
 base y no se distingue una fuente que aporta de una que mete ruido. Decisión: se enciende
 una empresa a la vez, cambiando un `False`.
@@ -344,7 +344,7 @@ para:
 Es seguro por una razón concreta, no por suerte: **asyncio es single-threaded y el
 chequear-y-mutar no tiene `await` en el medio.**
 
-Sobre los cooldowns hay una lección cara: en la Fase 6 se declararon como
+Sobre los cooldowns hay una lección cara: al migrar al grafo se declararon como
 `field(default_factory=dict)`, creando un mapa **paralelo** al que usa `nlp_engine`.
 `init_run` limpiaba uno que nadie leía, así que un proveedor parkeado por 401 quedaba
 muerto 24 horas aunque se renovara la key. Un estado con dos copias no tiene dueño: tiene
@@ -401,7 +401,7 @@ peor que volver a correrlo. Resolución si alguna vez hace falta: hacer todo el 
 serializable y mover los recursos a un handle reconstruible. Es otro proyecto, no un flag.
 
 **El fan-out por (dominio × título) sigue dentro de `GemaScraper.run()`**, con
-`asyncio.gather`, no como ramas `Send`. El plan de la migración pedía descomponerlo. No se
+`asyncio.gather`, no como ramas `Send`. Descomponerlo queda pendiente. No se
 hizo porque ese código funciona y se lo vio entregar 74 jobs con 0 errores contra boards
 reales. Los reducers (`merge_counters`, `union_domains`) ya están escritos y probados para
 cuando ocurra.

@@ -4,13 +4,12 @@ import type { ResultsResponse } from '../types'
 export default function StatTiles({ results }: { results: ResultsResponse }) {
   if (!results.tiers || !results.summary) return null
   const { tiers, summary } = results
-  // Tier 1 es buen calce, no una promesa de elegibilidad (auditoria de revision externa del 30-09,
-  // punto 5): de 1.177 Tier 1, solo 367 tenian la ubicacion confirmada. El tile dice
+  // Tier 1 es buen calce, no una promesa de elegibilidad: de 1.177 Tier 1, solo 367 tenian la ubicacion confirmada. El tile dice
   // cuantos lo estan en vez de "aplicar ya".
   const confirmados = tiers.tier1.filter(
     (t) => t.location_verdict === 'PASS' && !!t.job.location_raw,
   ).length
-  // Fase 6 (D3): un salario en texto ya no saca el aviso del scoring. Tier 4 solo
+  // Un salario en texto ya no saca el aviso del scoring. Tier 4 solo
   // queda en filas viejas; el tile cuenta lo que hoy significa: salario sin confirmar.
   const sinConfirmar =
     [...tiers.tier1, ...tiers.tier2, ...tiers.tier3].filter((t) => t.salario_no_confirmado)

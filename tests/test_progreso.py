@@ -1,5 +1,5 @@
 """
-tests/test_progreso.py — Pieza 4: avance y tiempo estimado de la corrida.
+tests/test_progreso.py — avance y tiempo estimado de la corrida.
 
 Escenario que cubren: una corrida de 15 minutos sin senal de avance es indistinguible de una
 colgada. Estos tests fijan (1) la formula de la ETA contra un historial falso, (2) que las

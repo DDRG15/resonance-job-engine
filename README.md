@@ -323,7 +323,7 @@ progreso.py             run progress and ETA
 packaging/              PyInstaller spec, build + smoke script, Inno Setup installer
 frontend/               React + Vite + TypeScript, served from /
 tests/                  pytest suite
-docs/                   architecture, observability, LLM providers, eval, roadmap
+docs/                   architecture, observability, LLM providers, eval
 ```
 
 ---
@@ -368,8 +368,9 @@ Ashby do send one.
 depend on it: `node_traces` gets one row per (board × title) on the browser path, one per
 endpoint and one per ATS company.
 
-**Most internal docs are in Spanish.** The phase reports and design plans under `docs/`
-record why each decision was made. []() is the index.
+**The reference docs are in Spanish.** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/OBSERVABILITY.md](docs/OBSERVABILITY.md), [docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)
+and [docs/EVAL.md](docs/EVAL.md) record why each decision was made.
 
 ---
 

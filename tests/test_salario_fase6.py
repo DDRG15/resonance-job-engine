@@ -1,11 +1,10 @@
 """
-tests/test_salario_fase6.py — salario por periodo, «no confirmado» y builtin
-(, Fase 6).
+tests/test_salario_fase6.py — salario por periodo, «no confirmado» y builtin.
 
 Tres defectos medidos:
 - Remotive publica "$90 - $150 /hour" y el parser lo leia como 90 dolares AL ANO.
 - Un salario en prosa ("Competitive") sacaba el aviso del scoring y lo mandaba a
-  Tier 4 aunque titulo, ubicacion y perfil calzaran perfecto (decision D3).
+  Tier 4 aunque titulo, ubicacion y perfil calzaran perfecto.
 - builtin.com muestra "75K-195K Annually" junto al icono fa-sack-dollar, sin moneda:
   0 de 50 cards con salario.
 """
@@ -102,7 +101,7 @@ class TestComposicionConPeriodo:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# D3: salario ilegible = puntuar sin el eje y marcar «no confirmado»
+# Salario ilegible = puntuar sin el eje y marcar «no confirmado»
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TestNoConfirmado:

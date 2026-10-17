@@ -1,7 +1,7 @@
 """
 La alerta en vivo de Tier 1 usa la misma vara que el ranking final (2026-09-29).
 
-Hallado por la auditoria de revision externa y verificado en el codigo: las dos rutas de
+Verificado en el codigo: las dos rutas de
 alerta puntuaban sin el perfil del CV y sin mirar la elegibilidad. Un aviso con
 veto FAIL (p.ej. exige ciudadania estadounidense) llegaba por Discord como Tier 1 y
 despues no aparecia en el shortlist.

@@ -191,7 +191,7 @@ hasta reiniciar el proceso, así que un pico a las 9 de la mañana costaba ese p
 durante toda la corrida del cron.
 
 Los cooldowns son un mapa con **un solo dueño** (`nlp_engine._cooldowns`), compartido con
-el grafo por referencia. Tener dos copias fue un bug real de la Fase 6: se limpiaba una y
+el grafo por referencia. Tener dos copias fue un bug real de la migración al grafo: se limpiaba una y
 los proveedores seguían parkeados en la otra.
 
 ---

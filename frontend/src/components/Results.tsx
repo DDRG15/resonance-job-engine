@@ -108,7 +108,7 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
 /**
  * Resultados del run — tabla virtualizada a la izquierda, detalle a la derecha.
  *
- * Reemplaza la lista de cards por tier (B6.1). Tres razones medidas sobre las
+ * Reemplaza la lista de cards por tier. Tres razones medidas sobre las
  * 1399 filas del registry el 2026-09-03, no preferencia:
  *
  *  1. La columna de salario mostraba «—» en 1392 de 1399 filas. Una columna de

@@ -102,11 +102,11 @@ class TestRegistro:
         assert lever.concurrencia == 1
 
     def test_hay_al_menos_una_fuente_activa_por_plataforma(self):
-        """Salvo las de la Fase 8 del , apagadas a proposito hasta D1:
+        """Salvo las plataformas nuevas, apagadas a proposito hasta que se decida activarlas:
         una plataforma sin fuentes activas fuera de esa lista es codigo muerto."""
         activas = ats_registry.activas()
         assert {f.plataforma for f in activas} == \
-            set(ats_registry.PLATAFORMAS) - ats_registry.PENDIENTES_D1
+            set(ats_registry.PLATAFORMAS) - ats_registry.PENDIENTES_ACTIVACION
 
     def test_el_dominio_es_la_plataforma_no_la_empresa(self):
         """Agrupar por empresa daría cuarenta filas de una fila cada una. Lo que
@@ -185,7 +185,7 @@ class TestTraerFuente:
 
 class TestTraerTodo:
     def test_una_fuente_que_explota_no_tumba_a_las_demas(self, monkeypatch):
-        """Riesgo R1: una rama que lanza no puede matar el fan-out entero."""
+        """Una rama que lanza no puede matar el fan-out entero."""
         def _fuente(f, **kw):
             if f.token == "malo":
                 raise RuntimeError("boom")

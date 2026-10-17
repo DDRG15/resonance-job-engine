@@ -15,7 +15,7 @@ interface Props {
 export default function PipelineConsole({ runId, onDone }: Props) {
   const [lines, setLines] = useState<string[]>([])
   const [live, setLive] = useState(true)
-  // Pieza 4: último bloque `progreso` que mandó el backend (evento SSE `progreso`).
+  // último bloque `progreso` que mandó el backend (evento SSE `progreso`).
   const [progreso, setProgreso] = useState<Progreso | null>(null)
   const endRef = useRef<HTMLDivElement>(null)
 

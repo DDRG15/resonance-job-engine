@@ -1,5 +1,5 @@
 """
-tests/test_audit_fixes_2026_09_01.py — regresiones de la auditoría E2E del 2026-09-01.
+tests/test_audit_fixes_2026_09_01.py — regresiones de una revisión E2E del 2026-09-01.
 
 Cada test acá corresponde a un hallazgo reproducido contra el sistema corriendo. No son
 tests de features: son las trampas que ya se pisaron una vez.
