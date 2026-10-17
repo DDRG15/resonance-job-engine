@@ -95,15 +95,17 @@ class TestCableado:
         assert (filas["gmail:linkedin"]["items"], filas["gmail:linkedin"]["aceptados"]) == (2, 1)
         assert filas["gmail:indeed"]["items"] == 0
 
+    @pytest.mark.parametrize("subdirectorio", ["", "ruta_extensa_" * 8])
     async def test_sin_token_la_corrida_sigue_con_un_solo_error(
-            self, tmp_db, monkeypatch, tmp_path):
-        monkeypatch.setattr(config, "GMAIL_TOKEN_PATH", str(tmp_path / "no_existe.json"))
+            self, tmp_db, monkeypatch, tmp_path, subdirectorio):
+        monkeypatch.setattr(config, "GMAIL_TOKEN_PATH",
+                            str(tmp_path / subdirectorio / "no_existe.json"))
         s = _scraper(tmp_db, "run-g3")
         await s._scrape_gmail_alertas()
 
         assert s._all_jobs == []
         errores = [e for e in s.summary.errors if e.startswith("gmail:")]
-        assert len(errores) == 1 and "autorizar_gmail" in errores[0]
+        assert len(errores) == 1 and "python tools/autorizar_gmail.py" in errores[0]
         trazas = [f for f in tmp_db.get_node_traces("run-g3") if f["node"] == "fuente_endpoint"]
         assert {f["status"] for f in trazas} == {"error"}
 

@@ -423,7 +423,7 @@ def credenciales(token_path: Optional[str] = None):
     path = token_path or config.GMAIL_TOKEN_PATH
     if not os.path.isfile(path):
         raise GmailNoConfigurado(
-            f"no hay token en {path}: correr `python tools/autorizar_gmail.py`")
+            f"no hay token: correr `python tools/autorizar_gmail.py` (ruta: {path})")
     try:
         from google.auth.transport.requests import Request
         from google.oauth2.credentials import Credentials
