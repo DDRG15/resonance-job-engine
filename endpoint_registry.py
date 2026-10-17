@@ -13,13 +13,13 @@ Cada entrada lleva la fecha y la medición con la que se verificó. Un endpoint 
 medición es una suposición, y las suposiciones sobre boards se pudren: cuatro de los
 siete boards retirados el 2026-07-11 lo fueron por diagnósticos que envejecieron.
 
-Para agregar un board: correr `python tools/probe_endpoints.py --solo <board>`, pegar
-la medición en el comentario, y mapear los campos. Nada más.
+Para agregar un board: pedir el endpoint con un GET a mano (curl o requests), revisar
+su robots.txt, pegar la medición en el comentario, y mapear los campos. Nada más.
 """
 
 from __future__ import annotations
 
-# Medido con tools/probe_endpoints.py el 2026-09-09 y re-verificado contra
+# Medido con GET directo el 2026-09-09 y re-verificado contra
 # endpoint_scraper el 2026-09-14. `items` es la primera página, no el catálogo.
 ENDPOINTS: dict[str, dict] = {
 
@@ -42,9 +42,9 @@ ENDPOINTS: dict[str, dict] = {
     },
 
     # 87-90 items en ~484 ms · empresa en 100% · región en 100%.
-    # Retirado el 2026-07-11 con la nota «HTTP 403 anti-bot, reactivar con camoufox».
-    # El RSS sirve los mismos avisos sin anti-bot: camoufox era más caro y más frágil
-    # que un GET. El feed no tiene campo de empresa —la mete en el título, medido
+    # Retirado el 2026-07-11 con la nota «HTTP 403 anti-bot».
+    # El RSS sirve los mismos avisos sin anti-bot: un navegador con evasión era más caro
+    # y más frágil que un GET. El feed no tiene campo de empresa —la mete en el título, medido
     # 87 de 87— de ahí `titulo_trae_empresa`.
     # Trae además `expires_at` en el 100% de los items: es la fuente del `deadline`
     # de la Fase 6, que hoy no existe en ninguna parte del código.

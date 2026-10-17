@@ -7,8 +7,7 @@ Coverage:
     3. _score_must_include    — all present, partial, empty list
     4. _apply_exclusion_penalty — hit, clean, empty list
     5. score_job              — Tier 4 bypass, Tier 1, Tier 3, score=115 (regression fix)
-    6. score_job_inline       — returns tier string
-    7. bucket_jobs            — 4-tier distribution, db update_tier called
+    6. bucket_jobs            — 4-tier distribution, db update_tiers_batch called
 
 No external API calls or disk access.
 """
@@ -24,7 +23,6 @@ from matcher import (
     _score_title,
     bucket_jobs,
     score_job,
-    score_job_inline,
 )
 from models import JobResult, SearchConfig, TieredJob
 
@@ -291,25 +289,7 @@ def test_score_job_with_exclusion_found():
 
 
 # =============================================================================
-# 6. score_job_inline
-# =============================================================================
-
-def test_score_job_inline_returns_tier_string():
-    job = _job("Backend Engineer", salary_raw="$120k", url_id=50)
-    config = _config(titles=["Backend Engineer"])
-    tier = score_job_inline(job, config)
-    assert tier in {"Tier 1", "Tier 2", "Tier 3", "Tier 4"}
-
-
-def test_score_job_inline_salario_en_texto_ya_no_es_tier4():
-    """v6: el camino rapido y el completo dicen lo mismo."""
-    job = _job("Backend Engineer", salary_raw="DOE", url_id=51)
-    config = _config()
-    assert score_job_inline(job, config) == score_job(job, config).tier != "Tier 4"
-
-
-# =============================================================================
-# 7. bucket_jobs
+# 6. bucket_jobs
 # =============================================================================
 
 def test_bucket_jobs_distributes_into_four_tiers():
@@ -335,7 +315,7 @@ def test_bucket_jobs_distributes_into_four_tiers():
 def test_bucket_jobs_persiste_el_tier_de_cada_job():
     """Con un db, el tier de cada aviso tiene que quedar persistido.
 
-    Fase 8: la escritura pasa a ser en LOTE. `update_tier` por fila costaba 107 ms
+    Fase 8: la escritura pasa a ser en LOTE. escribir fila por fila costaba 107 ms
     medidos -- _get_connection abre, corre PRAGMA journal_mode=WAL, commitea y
     cierra, un fsync por fila -- y con 940 avisos por corrida eso eran ~100 s de
     puro escribir. Lo que el test verifica sigue siendo lo mismo: que ningun aviso

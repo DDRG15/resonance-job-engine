@@ -6,6 +6,7 @@ _initialize() is bypassed via __new__() and _sheet is injected directly.
 """
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from unittest.mock import MagicMock, call
 
 import pytest
@@ -68,82 +69,6 @@ def test_is_enabled_false_when_sheet_is_none():
 def test_is_enabled_false_when_sheet_id_empty():
     client = _make_client(sheet_id="")
     assert client.is_enabled is False
-
-
-# =============================================================================
-# append_job — disabled path
-# =============================================================================
-
-def test_append_job_returns_false_when_disabled():
-    client = _make_disabled_client()
-    result = client.append_job(_make_tiered_job())
-    assert result is False
-
-
-def test_append_job_does_not_call_sheet_when_disabled():
-    client = _make_disabled_client()
-    client.append_job(_make_tiered_job())
-    # _sheet is None — no MagicMock to assert on, just confirming no AttributeError
-
-
-# =============================================================================
-# append_job — enabled path
-# =============================================================================
-
-def test_append_job_calls_append_row(monkeypatch):
-    client = _make_client()
-    tj = _make_tiered_job(title="SRE", company="Contoso", tier="Tier 2", match_score=60)
-
-    client.append_job(tj, run_id="run-001")
-
-    client._sheet.append_row.assert_called_once()
-    row = client._sheet.append_row.call_args[0][0]
-
-    assert row[1] == "SRE"
-    assert row[2] == "Contoso"
-    assert row[5] == "Tier 2"
-    assert row[6] == 60
-    assert row[7] == "run-001"
-
-
-def test_append_job_sentinel_minus_one_writes_empty_string():
-    client = _make_client()
-    tj = _make_tiered_job(tier="Tier 4", match_score=-1)
-
-    client.append_job(tj)
-
-    row = client._sheet.append_row.call_args[0][0]
-    assert row[6] == "", (
-        "Tier 4 sentinel (-1) must be stored as '' in Sheets, not -1"
-    )
-
-
-def test_append_job_null_salary_writes_empty_string():
-    client = _make_client()
-    tj = _make_tiered_job(salary_raw=None)
-
-    client.append_job(tj)
-
-    row = client._sheet.append_row.call_args[0][0]
-    assert row[3] == ""
-
-
-def test_append_job_returns_true_on_success():
-    client = _make_client()
-    result = client.append_job(_make_tiered_job())
-    assert result is True
-
-
-def test_append_job_raises_on_sheet_error():
-    from tenacity import RetryError
-
-    client = _make_client()
-    client._sheet.append_row.side_effect = Exception("API error")
-
-    with pytest.raises(RetryError):
-        client.append_job(_make_tiered_job())
-
-    assert client._sheet.append_row.call_count == 3
 
 
 # =============================================================================
@@ -232,3 +157,26 @@ def test_append_batch_raises_on_sheet_error():
         client.append_batch([_make_tiered_job()])
 
     assert client._sheet.append_rows.call_count == 3
+
+
+def test_append_batch_row_columns_follow_the_sheet_schema():
+    client = _make_client()
+    tj = _make_tiered_job(title="SRE", company="Contoso", tier="Tier 2", match_score=60)
+
+    client.append_batch([tj], summary=SimpleNamespace(run_id="run-001"))
+
+    row = client._sheet.append_rows.call_args[0][0][0]
+    assert row[1] == "SRE"
+    assert row[2] == "Contoso"
+    assert row[5] == "Tier 2"
+    assert row[6] == 60
+    assert row[7] == "run-001"
+
+
+def test_append_batch_null_salary_writes_empty_string():
+    client = _make_client()
+
+    client.append_batch([_make_tiered_job(salary_raw=None)])
+
+    row = client._sheet.append_rows.call_args[0][0][0]
+    assert row[3] == ""

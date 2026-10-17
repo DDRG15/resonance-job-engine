@@ -273,7 +273,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # null_threshold=3: strict — WWR cards are very consistent; nulls = drift.
     "weworkremotely.com": DomainSelectors(
         domain               = "weworkremotely.com",
-        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (pendiente).
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar solo con una via que no dependa de evadir el anti-bot.
         active               = False,
         search_url_template  = "https://weworkremotely.com/remote-jobs/search?term={title}",
         wait_for_selector    = "li.feature",
@@ -412,7 +412,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # gracefully. No action needed — zero results is the expected outcome.
     "wellfound.com": DomainSelectors(
         domain               = "wellfound.com",
-        # RETIRADO 2026-07-11: HTTP 403 Cloudflare JS Challenge. Reactivar con camoufox (pendiente).
+        # RETIRADO 2026-07-11: HTTP 403 Cloudflare JS Challenge. Reactivar solo con una via que no dependa de evadir el anti-bot.
         active               = False,
         search_url_template  = "https://wellfound.com/jobs?q={title}&remote=true",
         wait_for_selector    = "div[class*='JobListing']",
@@ -807,7 +807,7 @@ SELECTORS: dict[str, DomainSelectors] = {
     # Selectors verified 2026-05-25 — run God Mode if null_rate trips.
     "startup.jobs": DomainSelectors(
         domain               = "startup.jobs",
-        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar con camoufox (pendiente).
+        # RETIRADO 2026-07-11: HTTP 403 (anti-bot). Reactivar solo con una via que no dependa de evadir el anti-bot.
         active               = False,
         search_url_template  = "https://startup.jobs/?q={title}&remote=true",
         wait_for_selector    = "div.css-1wts5rl",

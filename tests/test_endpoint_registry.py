@@ -109,8 +109,3 @@ class TestProbeNoDegradaEndpoint:
         from scraper import _resolve_vector
         assert _resolve_vector(AccessVector.ENDPOINT, AccessVector.DIRECT) == \
             AccessVector.ENDPOINT
-
-    def test_pero_si_puede_subirlo_a_camoufox(self):
-        from scraper import _resolve_vector
-        assert _resolve_vector(AccessVector.ENDPOINT, AccessVector.CAMOUFOX) == \
-            AccessVector.CAMOUFOX

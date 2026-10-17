@@ -85,5 +85,4 @@ python tools/eval_extraction.py --gate      # exit 1 si empeoro vs la corrida pr
 ```
 
 El gate **no corre en pytest**: pega a proveedores reales, es lento y no es determinista.
-Va como paso de `scripts/build_beta.bat` y como comando manual antes de mergear un cambio
-de prompt.
+Va como comando manual antes de mergear un cambio de prompt.

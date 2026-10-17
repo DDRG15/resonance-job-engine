@@ -139,9 +139,8 @@ al corpus. Los 38 archivos viejos quedaron aparte en `drift_quarantine/_sintetic
 ## Condiciones de borde documentadas
 
 **El gate no corre en pytest.** Pega a proveedores LLM reales: es lento, gasta cuota y no
-es determinista. Va como paso opcional (`[3/7]`) de `scripts/build_beta.bat` —que lo omite si
-`--dry-run` informa corpus vacío— y como comando manual antes de mergear un cambio de
-prompt.
+es determinista. Va como comando manual antes de mergear un cambio de prompt (`--dry-run` informa
+si el corpus está vacío).
 
 Lo que **sí** corre en pytest es el scoring (`graph/eval_scoring.py`) con callers
 mockeados: 28 tests que validan la **medición**, no el modelo. Esa separación es

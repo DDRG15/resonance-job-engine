@@ -38,7 +38,7 @@ langgraph==1.2.11      # SOLO langgraph: nada de langchain, ni wrappers de chat 
                        # Los 7 providers ya están normalizados a callable(messages)->str
                        # con registry y factories en nlp_engine — init_chat_model no
                        # aporta nada, y los wrappers no cubren cerebras/sambanova.
-                       # Decide el gate de pip-audit de build_beta.bat: el árbol de
+                       # Decide el gate de pip-audit (`python -m pip_audit -r requirements.txt`): el árbol de
                        # langchain arrastra SQLAlchemy/jsonpatch y pinea tenacity contra
                        # el 8.3.0 de abajo. Cada CVE ahí bloquea un build que no usa esas
                        # features. langchain-core entra transitivo pero NO se importa.
@@ -62,9 +62,9 @@ google-auth==2.52.0
 # ── Imports directos que antes llegaban solo como transitivos (2026-10-12) ───
 # El codigo los importa por su nombre; si el paquete que los arrastra los suelta, una
 # instalacion limpia se rompe sin aviso. Versiones = las instaladas y probadas (suite
-# completa 2263 passed). Quien los traia: lxml <- python-docx/camoufox,
+# completa 2263 passed). Quien los traia: lxml <- python-docx,
 # google-api-python-client <- google-generativeai, google-auth-oauthlib <- gspread,
-# PyYAML <- langchain-core/camoufox.
+# PyYAML <- langchain-core.
 lxml==6.1.2                      # gmail_alertas.parsear_alerta (HTML de las alertas)
 google-api-python-client==2.200.0  # gmail_alertas.LectorGmail (Gmail API, solo lectura)
 google-auth-oauthlib==1.4.1      # tools/autorizar_gmail.py (OAuth de escritorio)
@@ -89,11 +89,6 @@ openpyxl==3.1.5        # .xlsx writer engine used by pandas.to_excel()
 # ── Utilities ────────────────────────────────────────────────────────────────
 tenacity==8.3.0        # Exponential backoff for all external API calls
 APScheduler==3.10.4    # Background scheduler for auto-scrape UI — uses 3.x (4.x is alpha, breaking API)
-
-# ── Anti-bot: Firefox fingerprint bypass ─────────────────────────────────────
-camoufox==0.4.11       # Firefox-based Playwright fork — bypasses Cloudflare Bot Fight Mode
-                       # on remoteok.com (Chromium's BoringSSL JA3 is blocked; Firefox NSS is not)
-                       # After install: python -m camoufox fetch  (downloads ~530MB Firefox binary)
 
 # ── API Layer (B6 — backend para el front React) ─────────────────────────────
 fastapi==0.141.1       # 0.116.1 exigia starlette<0.48 y bloqueaba el fix; 0.141.1 pide >=0.46.0

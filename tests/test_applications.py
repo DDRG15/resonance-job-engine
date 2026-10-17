@@ -22,8 +22,10 @@ def db(tmp_path):
         JobResult(title="Data Engineer", company="Supabase",
                   url="https://x.com/2", source_domain="jobs.ashbyhq.com"),
     ])
-    d.update_tier("https://x.com/1", "Tier 1", 92)
-    d.update_tier("https://x.com/2", "Tier 2", 61)
+    d.update_tiers_batch([
+        ("https://x.com/1", "Tier 1", 92, None, None),
+        ("https://x.com/2", "Tier 2", 61, None, None),
+    ])
     return d
 
 

@@ -4,20 +4,17 @@
 # Two stages:
 #   1. frontend-build (Node)  → compiles the React/Vite UI to static assets
 #   2. runtime (Playwright Python) → FastAPI server that serves the API AND the
-#      built UI as static files, plus the scraping engine (Chromium + camoufox).
+#      built UI as static files, plus the scraping engine (Chromium).
 #
 # The server is uvicorn running api:app on port 8000 with --workers 1. The 1
 # worker is NOT a performance choice — SchedulerService is a per-process
 # singleton, and a second worker would run a second scheduler, double-firing
 # every cron scrape and launching duplicate Playwright browsers. One worker.
 #
-# TWO BROWSERS ARE INSTALLED:
-#   1. Chromium (playwright install chromium) — all boards except remoteok.com
-#   2. Firefox via camoufox (python -m camoufox fetch) — remoteok.com only.
-#      camoufox randomizes TLS/JA3 fingerprints to bypass Cloudflare Bot Fight
-#      Mode, which blocks Chromium's BoringSSL fingerprint reliably.
-#      Firefox adds ~530MB. If remoteok.com is not a target, comment out the
-#      camoufox fetch line — the scraper degrades gracefully without it.
+# DATA LIVES OUTSIDE THE IMAGE: RESONANCE_HOME=/data and the process runs with /data
+# as its working directory. The registry, board strategy, backups, drift quarantine,
+# credentials, cookies, api_state.json and .env resolve against it, so one volume
+# mounted on /data holds every file the app writes. The code stays in /app.
 # =============================================================================
 
 # ── Stage 1: build the React frontend ────────────────────────────────────────
@@ -43,13 +40,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Install browser binaries
-# Chromium: used by Playwright for all job boards except remoteok.com
+# Chromium: used by Playwright for the boards that need a browser
 RUN playwright install chromium
-
-# Firefox via camoufox: used only for remoteok.com Cloudflare bypass (~530MB)
-# Set CAMOUFOX_HOME so the binary lands in a predictable, writable location
-ENV CAMOUFOX_HOME=/app/.camoufox
-RUN python -m camoufox fetch
 
 # Copy source code (after browser installs — source changes don't invalidate browser cache)
 COPY . .
@@ -65,7 +57,7 @@ COPY --from=frontend-build /frontend/dist ./frontend/dist
 # orchestrates live runs, and session_jar.py manages the cookie jar. Sealing them
 # to bytecode risks a sourceless-import edge case on the primary serving path; the
 # marginal source-hiding gain is not worth breaking the server on a beta box.
-# .venv and .camoufox are excluded — third-party sources there stay intact.
+# .venv is excluded — third-party sources there stay intact.
 RUN python -m compileall -q . -b && \
     find . -name "*.py" \
         ! -name "__init__.py" \
@@ -73,7 +65,6 @@ RUN python -m compileall -q . -b && \
         ! -name "run_manager.py" \
         ! -name "session_jar.py" \
         ! -path "./.venv/*" \
-        ! -path "./.camoufox/*" \
         -delete
 
 # FastAPI/uvicorn port
@@ -81,8 +72,14 @@ EXPOSE 8000
 
 ENV PYTHONUNBUFFERED=1
 
+# Data directory (see header). The process starts in /data, so --app-dir tells uvicorn
+# where api.py lives.
+ENV RESONANCE_HOME=/data
+RUN mkdir -p /data
+WORKDIR /data
+
 # --workers 1 is mandatory: SchedulerService is a per-process singleton.
-CMD ["uvicorn", "api:app", \
+CMD ["uvicorn", "api:app", "--app-dir", "/app", \
      "--host", "0.0.0.0", \
      "--port", "8000", \
      "--workers", "1"]

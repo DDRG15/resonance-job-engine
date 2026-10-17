@@ -19,7 +19,7 @@ scraper.py lo deduplica, lo encola y lo puntúa igual que a cualquier otro.
 
 Lo que NO hace, por decisión: no pagina, no ejecuta JavaScript, no reintenta contra un 403.
 Un 403 significa que el endpoint no es público, y la respuesta correcta es marcar el board
-y pasar a camoufox, no insistir.
+y no insistir.
 """
 
 from __future__ import annotations

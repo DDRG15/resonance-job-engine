@@ -38,9 +38,7 @@ login cookie always wins over an auto-captured one for the same board.
 
 | Board | File | Why needed |
 |-------|------|------------|
-| wellfound.com | `wellfound.com.json` | Login wall — returns 0 jobs without auth |
 | arc.dev | `arc.dev.json` | Login wall — returns 0 jobs without auth |
-| welcometothejungle.com | `welcometothejungle.com.json` | Login + bot detection |
 
 ---
 
@@ -71,7 +69,7 @@ JSON array of cookie objects (Chrome DevTools format):
   {
     "name": "session_token",
     "value": "eyJ...",
-    "domain": ".wellfound.com",
+    "domain": ".arc.dev",
     "path": "/",
     "expirationDate": 1748000000.0,
     "httpOnly": true,
@@ -91,11 +89,11 @@ Playwright format (`expires`) automatically.
 After placing a cookie file, verify it loads correctly:
 
 ```bash
-cd gema-v2.1-extraction/gema
 python -c "
 from integrations.cookie_vault import CookieVault
-v = CookieVault()
-print('Domains with cookies:', v.list_domains())
-print('wellfound has cookies:', v.has_cookies('wellfound.com'))
+print('arc.dev cookies:', len(CookieVault().load_cookies('arc.dev')))
 "
 ```
+
+Run it from the repository root. A count of 0 means the file is missing, is not a JSON
+array, or is empty.

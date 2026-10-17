@@ -49,7 +49,7 @@ UNKNOWN              = "unknown"
 
 _STRATEGY_MAP = {
     OPEN:                 "playwright_stealth_current",
-    CLOUDFLARE_JS:        "camoufox_or_proxy_residential",
+    CLOUDFLARE_JS:        "proxy_residential_only",
     CLOUDFLARE_TURNSTILE: "proxy_residential_only",
     LOGIN_WALL:           "session_cookie_injection",
     RATE_LIMITED:         "increase_jitter_exponential",
@@ -313,8 +313,8 @@ async def probe_all_boards(
     If domains is None, probes all boards in selectors_registry.
     """
     if domains is None:
-        from selectors_registry import SELECTOR_REGISTRY
-        domains = list(SELECTOR_REGISTRY.keys())
+        from selectors_registry import SELECTORS
+        domains = list(SELECTORS.keys())
 
     sem = asyncio.Semaphore(concurrency)
 

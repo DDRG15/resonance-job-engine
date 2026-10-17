@@ -220,12 +220,13 @@ def test_vault_delete_entry(db):
 def test_get_registry_stats_counts_correctly(db):
     jobs = [_make_job(f"https://example.com/job/{i}") for i in range(3)]
     db.mark_seen_batch(jobs)
-    db.update_tier(jobs[0].url, "Tier 1", 90)
-    db.update_tier(jobs[1].url, "Tier 2", 60)
+    db.update_tiers_batch([
+        (jobs[0].url, "Tier 1", 90, None, None),
+        (jobs[1].url, "Tier 2", 60, None, None),
+    ])
 
-    # 2026-09-29: by_tier cuenta solo la version vigente del scoring. La firma vieja
-    # de update_tier no sella version (produccion ya no la usa: escribe por
-    # update_tiers_batch), asi que esas dos filas quedan fuera de escala.
+    # 2026-09-29: by_tier cuenta solo la version vigente del scoring. Una fila escrita
+    # sin el TieredJob no sella version, asi que esas dos filas quedan fuera de escala.
     stats = db.get_registry_stats()
     assert stats["total_seen"] == 3
     assert stats["by_tier"] == {}

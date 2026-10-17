@@ -178,15 +178,15 @@ class TestMarkSeenConsistency:
 
 
 # =============================================================================
-# update_tier
+# update_tiers_batch
 # =============================================================================
 
-class TestUpdateTier:
+class TestUpdateTiersBatch:
 
-    def test_update_tier_backfills_tier_and_score(self, tmp_db):
+    def test_update_tiers_batch_backfills_tier_and_score(self, tmp_db):
         job = _make_job(n=30)
         tmp_db.mark_seen(job)
-        tmp_db.update_tier(job.url, "Tier 1", 90)
+        tmp_db.update_tiers_batch([(job.url, "Tier 1", 90, None, None)])
         conn = sqlite3.connect(tmp_db.db_path)
         row = conn.execute(
             "SELECT tier, match_score FROM seen_jobs_registry WHERE url=?", (job.url,)

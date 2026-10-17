@@ -80,33 +80,6 @@ class SheetsClient:
         return bool(self._sheet and self.sheet_id)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
-    def append_job(self, tiered_job: TieredJob, run_id: str = "") -> bool:
-        """Appends one row to the historical data warehouse sheet."""
-        if not self.is_enabled:
-            logger.warning("Sheets integration disabled — skipping.")
-            return False
-
-        job = tiered_job.job
-        row = [
-            job.scraped_at.isoformat(),
-            job.title,
-            job.company,
-            job.salary_raw or "",
-            job.url,
-            tiered_job.tier,
-            tiered_job.match_score if tiered_job.match_score >= 0 else "",
-            run_id,
-        ]
-
-        try:
-            self._sheet.append_row(row, value_input_option="RAW")
-            logger.debug("Sheet row appended: %s @ %s", job.title, job.company)
-            return True
-        except Exception as exc:
-            logger.error("Sheet append failed: %s", exc)
-            raise
-
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     def append_batch(
         self,
         tiered_jobs: list[TieredJob],

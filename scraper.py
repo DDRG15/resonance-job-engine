@@ -196,11 +196,11 @@ def _extracted_to_jobresult(ej, domain: str, srp_url: str) -> Optional[JobResult
 
 def _probe_to_strategy(protection_type: str) -> tuple[Protection, AccessVector]:
     """Map a board_probe protection string to the registry's (Protection,
-    AccessVector). Cloudflare challenges route to camoufox (GEMA's free Firefox
-    bypass); everything else stays on the free direct vector. Values are strings
+    AccessVector). Un desafio de Cloudflare se registra como proteccion pero el
+    vector sigue siendo el directo: no hay un vector de evasion. Values are strings
     matching board_probe's protection constants."""
     if protection_type in ("cloudflare_js_challenge", "cloudflare_turnstile"):
-        return Protection.CLOUDFLARE, AccessVector.CAMOUFOX
+        return Protection.CLOUDFLARE, AccessVector.DIRECT
     if protection_type == "rate_limited":
         return Protection.RATE_LIMIT, AccessVector.DIRECT
     if protection_type == "open":
@@ -210,23 +210,16 @@ def _probe_to_strategy(protection_type: str) -> tuple[Protection, AccessVector]:
 
 def _resolve_vector(current: AccessVector, probed: AccessVector) -> AccessVector:
     """Upgrade-only vector resolution: the chromium probe may raise a board to a
-    stronger vector, but must never downgrade a board already on camoufox/external
-    to direct — the probe can't tell "chromium blocked but firefox works"."""
+    stronger vector, but must never downgrade a board already on endpoint/external
+    to direct — the probe can't tell what a board reachable another way looks like."""
     # ENDPOINT entra a la lista por la Fase 1: el probe usa un navegador y no puede
     # saber nada util sobre un board que se lee con un GET. Hoy no lo ve —los boards
     # de endpoint se apartan antes del probe— pero dejarlo fuera seria confiar en que
     # ese orden no cambie nunca.
-    if (current in (AccessVector.ENDPOINT, AccessVector.CAMOUFOX,
-                    AccessVector.EXTERNAL_PROXY)
+    if (current in (AccessVector.ENDPOINT, AccessVector.EXTERNAL_PROXY)
             and probed == AccessVector.DIRECT):
         return current
     return probed
-
-
-# Boards that need camoufox (Firefox) AND have a bespoke camoufox scraper today.
-# A GENERIC camoufox scraper (any board via selectors_registry) is Phase 28b —
-# until then, only these domains can actually be routed to camoufox.
-_CAMOUFOX_DOMAINS = frozenset({"remoteok.com"})
 
 
 def _es_feed_fijo(domain: str) -> bool:
@@ -261,17 +254,6 @@ def _sumar_items_rama(n: int) -> None:
     acum = _ITEMS_RAMA.get()
     if acum is not None:
         acum["items"] = (acum["items"] or 0) + n
-
-
-def _camoufox_targets(all_domains: list[str], strategy) -> list[str]:
-    """Domains to route to the camoufox scraper: vector == camoufox AND a bespoke
-    scraper exists. Uses all_domains (NOT the post-probe scrapeable set) on
-    purpose — camoufox exists precisely to reach boards the chromium probe skips."""
-    return [
-        d for d in all_domains
-        if d in _CAMOUFOX_DOMAINS
-        and strategy.get(d).access_vector == AccessVector.CAMOUFOX
-    ]
 
 
 # =============================================================================
@@ -1238,12 +1220,6 @@ class GemaScraper:
         domains = all_domains
         progreso.cambiar_fase("navegador")
 
-        # Phase 28: seed known-camoufox boards so the probe's upgrade-only rule
-        # protects them (a chromium probe seeing 'open' must not downgrade them).
-        for _cf in _CAMOUFOX_DOMAINS:
-            if _cf in all_domains:
-                self._strategy.update(_cf, access_vector=AccessVector.CAMOUFOX)
-
         try:
             from board_probe import probe_all_boards, OPEN, RATE_LIMITED, LOGIN_WALL
             self._log("[PROBE] Running pre-scrape board reconnaissance...")
@@ -1251,10 +1227,8 @@ class GemaScraper:
             scrapeable, skipped = [], []
             for pr in probe_results:
                 # Phase 28 (Step 1): persist the probe's read to the strategy
-                # registry. UPGRADE-ONLY — the chromium probe may raise a board to
-                # camoufox when it sees Cloudflare, but must NEVER downgrade a board
-                # already on a stronger vector to direct (the probe can't tell
-                # "chromium blocked but firefox works", e.g. remoteok).
+                # registry. UPGRADE-ONLY — the probe must NEVER downgrade a board
+                # already on a stronger vector (endpoint/external) to direct.
                 prot, probed_vector = _probe_to_strategy(pr.protection_type)
                 current = self._strategy.get(pr.domain).access_vector
                 vector = _resolve_vector(current, probed_vector)
@@ -1477,46 +1451,6 @@ class GemaScraper:
                             self.db, self.summary.run_id, trazas):
                         if e["estado"] == fuentes_estado.SOSPECHOSA:
                             self._log(f"[FUENTE SOSPECHOSA] {e['fuente']}: {e['motivo']}")
-
-                # camoufox — route boards whose strategy vector is camoufox to the
-                # Firefox scraper (Cloudflare Bot Fight Mode bypass). Phase 28:
-                # data-driven from the registry, not a hardcoded domain, and over
-                # all_domains so a board the chromium probe SKIPPED still gets its
-                # camoufox pass. Results flow through the same dedup + write pipeline.
-                cf_scrapers = {}
-                cf_targets = _camoufox_targets(all_domains, self._strategy)
-                if cf_targets:
-                    from camoufox_scraper import scrape_remoteok
-                    cf_scrapers = {"remoteok.com": scrape_remoteok}
-                for cf_domain in cf_targets:
-                    scraper_fn = cf_scrapers.get(cf_domain)
-                    if scraper_fn is None:
-                        continue
-                    try:
-                        self._log(f"[CAMOUFOX] Launching Firefox scraper for {cf_domain}...")
-                        camoufox_jobs = await scraper_fn(self.config.target_titles, self.config)
-                        ingested = await self._ingest_external_jobs(camoufox_jobs, cf_domain)
-                        self._log(
-                            f"[CAMOUFOX] {cf_domain}: {len(camoufox_jobs)} scraped, "
-                            f"{ingested} new ingested."
-                        )
-                    except Exception as cf_exc:
-                        self._log(f"[CAMOUFOX] {cf_domain} skipped (error: {cf_exc}).")
-                        self.summary.errors.append(f"camoufox {cf_domain}: {cf_exc}")
-
-                # Boards the probe classified camoufox but that lack a bespoke
-                # scraper today — recorded in the registry, awaiting Phase 28b.
-                needs_generic = [
-                    d for d in all_domains
-                    if self._strategy.get(d).access_vector == AccessVector.CAMOUFOX
-                    and d not in _CAMOUFOX_DOMAINS
-                ]
-                if needs_generic:
-                    self._log(
-                        f"[CAMOUFOX] {needs_generic} need camoufox but no scraper yet "
-                        f"(recipe recorded — Phase 28b)."
-                    )
-                    metrics.emit("camoufox_scraper_missing", len(needs_generic))
 
                 # Signal writer to flush and stop
                 await self._write_q.put(None)
@@ -1820,7 +1754,7 @@ class GemaScraper:
         source_domain: str,
     ) -> int:
         """
-        Run externally-produced JobResults (e.g. camoufox) through the same
+        Run externally-produced JobResults (e.g. endpoint, ATS) through the same
         dedup + DB-write + webhook pipeline used by _extract_all_cards.
 
         Called while the _db_writer_task is still running (before the sentinel).
@@ -2226,7 +2160,7 @@ class GemaScraper:
             return []
 
         # Persist through the SAME dedup + write-queue + scoring pipeline as
-        # normal cards and camoufox — otherwise recovered jobs never reach
+        # normal cards — otherwise recovered jobs never reach
         # _all_jobs or the DB (they'd only sit in a local list that's discarded).
         ingested = await self._ingest_external_jobs(recovered, domain)
         self._strategy.update(
@@ -2502,40 +2436,6 @@ class GemaScraper:
         except Exception as exc:
             logger.debug("[EXTRACT ERROR] %s: %s", url, exc)
             return None
-
-
-# =============================================================================
-# Streamlit Bridge
-# =============================================================================
-
-def run_full_pipeline(
-    search_config: SearchConfig,
-    db:            GemaDatabase,
-    log_queue:     queue.Queue,
-    ttl_hours:     int           = 0,
-    webhook:       Optional[WebhookClient] = None,
-    profile:       Optional[dict] = None,
-) -> tuple[list, list, list, list, ScrapeRunSummary]:
-    """
-    Full pipeline: scrape → score → update DB tiers.
-    Returns (tier1, tier2, tier3, tier4, summary).
-
-    Use this instead of run_scrape_session() when calling from scripts or CLI.
-    main.py uses run_scrape_session() + bucket_jobs() manually to drain the
-    log_queue in real-time; this function is the non-Streamlit equivalent.
-    """
-    from matcher import bucket_jobs
-
-    raw_jobs, summary = run_scrape_session(
-        search_config, db, log_queue, ttl_hours, webhook, profile
-    )
-
-    tier1, tier2, tier3, tier4 = bucket_jobs(raw_jobs, search_config, db, profile)
-    summary.tier1_count = len(tier1)
-    summary.tier2_count = len(tier2)
-    summary.tier3_count = len(tier3)
-
-    return tier1, tier2, tier3, tier4, summary
 
 
 # =============================================================================

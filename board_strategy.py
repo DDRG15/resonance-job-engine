@@ -28,7 +28,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import config
 
@@ -46,10 +46,8 @@ class Protection(str, Enum):
 class AccessVector(str, Enum):
     DIRECT = "direct"            # plain request, no anti-bot
     # OJO: DIRECT significa "navegador sin evasion", NO "sin navegador". Abre una
-    # pestana de Chromium igual que CAMOUFOX. El unico vector que no lanza un
-    # navegador es ENDPOINT.
+    # pestana de Chromium. El unico vector que no lanza un navegador es ENDPOINT.
     ENDPOINT = "endpoint"        # GET a un endpoint publico — CERO navegador (Fase 1)
-    CAMOUFOX = "camoufox"        # Firefox fork — free Cloudflare bypass
     EXTERNAL_PROXY = "external_proxy"  # optional future slot, vendor-agnostic —
     # reserved for a hard-board vector GEMA does NOT yet use. No provider is
     # committed (AnyIP was a concept reference only). Keeps the router extensible.
@@ -90,6 +88,18 @@ class BoardStrategy(BaseModel):
     domain: str
     protection: Protection = Protection.UNKNOWN
     access_vector: AccessVector = AccessVector.DIRECT
+
+    @field_validator("access_vector", mode="before")
+    @classmethod
+    def _vector_retirado(cls, v):
+        """`camoufox` era un vector (Firefox con evasion de huellas) y se retiro: ningun
+        camino lo produce ni lo consume. Un `board_strategy.json` escrito antes del
+        retiro todavia lo trae; sin esta traduccion la carga entera fallaria con
+        ValidationError y el registro quedaria inutilizable. Degrada a DIRECT, que es lo
+        que el board hacia en la practica (el scraper de Firefox ya no existe)."""
+        if isinstance(v, str) and v == "camoufox":
+            return AccessVector.DIRECT
+        return v
     cookies_ref: Optional[str] = None
     extraction_mode: ExtractionMode = ExtractionMode.CSS
     health: Health = Health.HEALTHY
@@ -189,8 +199,8 @@ class BoardStrategy(BaseModel):
 
 class BoardStrategyRegistry:
     """Loads/persists BoardStrategy records keyed by domain. get() is read-only
-    (auto-creates a safe default in memory without touching disk); update() and
-    seed_from_domains() are the only methods that write."""
+    (auto-creates a safe default in memory without touching disk); update()
+    is the only method that writes."""
 
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path or config.BOARD_STRATEGY_PATH)
@@ -271,18 +281,6 @@ class BoardStrategyRegistry:
         strat.last_updated = time.time()
         self._save()
         return strat
-
-    def seed_from_domains(self, domains: list[str]) -> None:
-        """Seed missing boards with safe defaults (direct/css) and persist.
-        Existing entries are left untouched. Call once with the domains from
-        selectors_registry so every known board has a strategy row."""
-        changed = False
-        for domain in domains:
-            if domain not in self._strategies:
-                self._strategies[domain] = BoardStrategy(domain=domain)
-                changed = True
-        if changed:
-            self._save()
 
     def all_domains(self) -> list[str]:
         return list(self._strategies.keys())

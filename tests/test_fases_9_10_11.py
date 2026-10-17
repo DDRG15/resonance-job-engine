@@ -109,41 +109,6 @@ class TestPresupuesto:
         assert pb.hay_presupuesto(DbRota(), "groq")[0] is True
 
 
-class TestCadenaAdaptativa:
-    def _con_llamadas(self, tmp_path, datos):
-        db = GemaDatabase(str(tmp_path / "t.db"))
-        db.record_llm_calls([{
-            "purpose": "parse", "provider": prov, "model": "m",
-            "provider_index": 0, "attempt": 1, "latency_ms": lat,
-            "prompt_tokens": 10, "completion_tokens": 10, "outcome": out,
-        } for prov, lat, out in datos], trace_id="t1")
-        return db
-
-    def test_sin_evidencia_manda_la_config(self, tmp_path):
-        db = GemaDatabase(str(tmp_path / "t.db"))
-        cadena = ["groq", "gemini", "mistral"]
-        assert pb.reordenar(cadena, "parse", db) == cadena
-
-    def test_con_pocas_llamadas_todavia_manda_la_config(self, tmp_path):
-        """Histéresis: sin un mínimo de llamadas la cadena oscilaría con dos
-        resultados lentos seguidos."""
-        db = self._con_llamadas(tmp_path, [("gemini", 10.0, "ok")] * 3 +
-                                          [("groq", 900.0, "error")] * 3)
-        cadena = ["groq", "gemini"]
-        assert pb.reordenar(cadena, "parse", db) == cadena
-
-    def test_con_evidencia_suficiente_reordena(self, tmp_path):
-        db = self._con_llamadas(tmp_path,
-                                [("gemini", 50.0, "ok")] * 12 +
-                                [("groq", 3000.0, "error")] * 12)
-        assert pb.reordenar(["groq", "gemini"], "parse", db)[0] == "gemini"
-
-    def test_no_inventa_proveedores_fuera_de_la_cadena(self, tmp_path):
-        db = self._con_llamadas(tmp_path, [("cohere", 10.0, "ok")] * 12 +
-                                          [("groq", 10.0, "ok")] * 12)
-        assert set(pb.reordenar(["groq", "gemini"], "parse", db)) == {"groq", "gemini"}
-
-
 # ═══ Fase 11 — Correlators ═══════════════════════════════════════════════════
 
 def _job(t, c, url, dia="2026-09-17", dom="b.com"):

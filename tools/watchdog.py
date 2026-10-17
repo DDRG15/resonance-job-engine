@@ -17,7 +17,7 @@ Consume de la misma corrida:
   - eventos de métrica estructurados (metrics.py): {"event_type":"metric","metric":
     ...,"value":...,"labels":{...}}
   - toda línea de log, con o sin marcador ([ERROR], [NULL-SRP], [JAR], [SALVAGE],
-    [30b], [LLM-FALLBACK], [CAMOUFOX], [CARDS]…), Y lo que no tenga marcador.
+    [30b], [LLM-FALLBACK], [CARDS]…), Y lo que no tenga marcador.
 
 Uso:
   python tools/watchdog.py run.log                      # digest de un log escrito
@@ -44,7 +44,6 @@ CRITICAL, WARN, INFO = "CRITICAL", "WARN", "INFO"
 _METRIC_SEVERITY = {
     "llm_fallback_hallucinated_url": WARN,   # el LLM inventó URLs (30a las filtra)
     "drift_snapshot_saved":          WARN,   # drift real detectado
-    "camoufox_scraper_missing":      WARN,   # board necesita camoufox y no hay
     "ingest_records_dropped_total":  WARN,
     "jobs_salvaged_to_review":       INFO,   # 30a rescató a revisión manual
     "url_auto_repaired":             INFO,   # 30b reparó una URL
@@ -102,14 +101,13 @@ _LOG_MARKERS = [
                                                                     CRITICAL, "http-5xx"),
     (re.compile(r"\[NULL-SRP\]"),                                       WARN, "null-srp"),
     (re.compile(r"breaker|circuit.*open|\bOPEN\b", re.I),              WARN, "breaker"),
-    (re.compile(r"\[CAMOUFOX\].*(skip|error)", re.I),                  WARN, "camoufox-skip"),
     (re.compile(r"\[VAULT\].*(fail|error)", re.I),                     WARN, "vault-fail"),
     (re.compile(r"\[SALVAGE\]"),                                        INFO, "salvage"),
     (re.compile(r"\[JAR\]"),                                            INFO, "jar"),
     (re.compile(r"\[30b\]"),                                            INFO, "url-repair"),
     (re.compile(r"\[CARDS\]"),                                          INFO, "cards"),
     (re.compile(r"\[LLM-FALLBACK\]"),                                   INFO, "llm-fallback"),
-    (re.compile(r"\[BLITZ\]|\[PROBE\]|\[VAULT\]|\[CAMOUFOX\]"),         INFO, "pipeline"),
+    (re.compile(r"\[BLITZ\]|\[PROBE\]|\[VAULT\]"),                  INFO, "pipeline"),
 ]
 
 # Heurística de peligro para líneas SIN marcador conocido — que nada se escape.
@@ -276,7 +274,7 @@ class Digest:
             got = ", ".join(f"{d}:{n}" for d, n in self.card_domains.most_common(None))
             out.append(f"  ✓ boards con cards: {got}")
         warn_kinds = {k: v for k, v in self.by_kind.items()
-                      if k in ("breaker", "camoufox-skip", "vault-fail", "null-srp")}
+                      if k in ("breaker", "vault-fail", "null-srp")}
         if warn_kinds:
             out.append("  ▸ warnings por tipo: " +
                        ", ".join(f"{k}={v}" for k, v in sorted(warn_kinds.items())))

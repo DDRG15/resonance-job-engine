@@ -33,15 +33,12 @@ DATOS_PROPIOS: list[tuple[str, str]] = [
 PAQUETES_CON_DATOS: list[str] = [
     "playwright",         # driver de node + cli.js: sin él, el scraping con navegador no arranca
     "playwright_stealth", # scripts JS de evasión
-    "camoufox",           # properties.json, fuentes, etc. (el binario de Firefox NO va)
-    "browserforge",       # redes de huellas (zip/json)
-    "language_tags",      # camoufox lo usa para locales
 ]
 
 #: Distribuciones cuyo metadato (`importlib.metadata`) se consulta en runtime.
 METADATOS: list[str] = [
     "apscheduler", "mcp", "pydantic", "uvicorn", "fastapi", "starlette", "langgraph",
-    "requests", "httpx", "playwright", "camoufox",
+    "requests", "httpx", "playwright",
 ]
 
 #: Módulos que PyInstaller no ve porque se cargan por string o por entry point.
@@ -104,13 +101,6 @@ PROHIBIDOS: list[str] = [
 ]
 
 
-#: Archivos de terceros que SÍ viajan aunque un patrón de PROHIBIDOS los alcance. Es una
-#: base de datos ESTÁTICA que trae el paquete (no del usuario) y sin la cual falla: camoufox
-#: consulta `webgl_data.db` para armar la huella WebGL. Se nombra el archivo exacto.
-PERMITIDOS: list[str] = [
-    "camoufox/webgl/webgl_data.db",
-]
-
 #: Carpetas de terceros donde se conserva SOLO lo nombrado. `googleapiclient` trae ~600
 #: documentos de descubrimiento (~100 MB) y el producto usa uno: Gmail en solo lectura.
 SOLO_ESTOS: dict[str, list[str]] = {
@@ -125,8 +115,6 @@ def _normalizar(ruta: str | Path) -> str:
 def es_prohibido(ruta: str | Path) -> bool:
     """True si `ruta` (origen o destino, relativa o absoluta) cae en algún patrón vetado."""
     r = _normalizar(ruta)
-    if any(r == p.lower() or r.endswith("/" + p.lower()) for p in PERMITIDOS):
-        return False
     return any(fnmatch.fnmatchcase(r, p.lower()) for p in PROHIBIDOS)
 
 

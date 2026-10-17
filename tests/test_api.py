@@ -87,7 +87,7 @@ def fake_scrape(monkeypatch):
         log_queue.put("[SCRAPER] fake-board.com — 3 cards (CSS, 0 tokens)")
         jobs = _fake_jobs()
         # El scraper real persiste al registry durante la corrida — el fake
-        # replica ese contrato para que update_tier tenga filas que backfillear.
+        # replica ese contrato para que el matcher tenga filas que backfillear.
         db.mark_seen_batch(jobs)
         summary = ScrapeRunSummary()
         summary.total_urls_found = 3

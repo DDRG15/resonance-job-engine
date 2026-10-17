@@ -18,18 +18,18 @@ services:
     env_file:
       - .env
 
+    # Todo lo que la app escribe vive en UN directorio del host: ./data -> /data.
+    # La imagen fija RESONANCE_HOME=/data y arranca con /data como directorio de
+    # trabajo, asi que la base, la estrategia de boards, los backups, las cookies, las
+    # credenciales, api_state.json y el .env se resuelven ahi. Es un directorio, no
+    # archivos sueltos: un bind mount de un archivo que no existe en el host lo crea
+    # como carpeta con el nombre del archivo y la app arranca rota. Docker crea ./data
+    # si falta; las claves de la API pueden venir de `.env` (arriba) o de ./data/.env.
+    # Cookies de sesion (DevTools, JSON): ./data/cookies/<dominio>.json
     volumes:
-      # Persist the SQLite registry across container restarts
-      - ./gema_registry.db:/app/gema_registry.db
-      # Mount credentials read-only — JSON key file never baked into the image
-      - ./credentials:/app/credentials:ro
-      # Manual cookie exports (EditThisCookie V3 JSON), read-only — never baked in
-      - ./cookies:/app/cookies:ro
-      # Cookie jar (SessionJar) writes here — MUST be read-write or the jar cannot
-      # persist cf_clearance between runs. Overlays the ro cookies/ mount above;
-      # the more specific path wins, so manual exports stay ro and session/ is rw.
-      - ./cookies/session:/app/cookies/session
-      # Mount user profile so matcher uses real CV data — gitignored, never baked in
-      - ./user_profile.yaml:/app/user_profile.yaml:ro
+      - ./data:/data
+
+    environment:
+      RESONANCE_HOME: /data
 
     restart: unless-stopped

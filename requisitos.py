@@ -16,10 +16,9 @@ Diseño, en tres reglas:
    "bonus", "preferred", "deseable" —en su misma oracion o bajo un titulo de seccion
    asi— pesa la mitad: no saber algo deseable no es lo mismo que no saber algo
    requerido. La señal no cruza el fin de la oracion (ver `_peso`).
-3. **El LLM, si se prende (apagado por defecto), no puede cambiar lo que dijo el
-   deterministico** ni inventar evidencia: solo puede sumar requisitos implicitos, que
-   no cuentan para la cobertura. Lo aplica
-   `fusionar_propuestas_llm`.
+3. **El LLM no participa.** La capa LLM del match esta apagada y no tiene codigo en este
+   modulo: si se prende, no puede cambiar lo que dijo el deterministico ni inventar
+   evidencia (solo sumar requisitos implicitos, que no cuentan para la cobertura).
 """
 
 from __future__ import annotations
@@ -401,32 +400,3 @@ def cobertura(requisitos: Iterable[Requisito], perfil: Optional[dict]) -> Option
     total = sum(PESO[r.peso] for r in reqs)
     cubierto = sum(PESO[r.peso] for r in reqs if r.estado == "match")
     return cubierto / total if total else None
-
-
-def fusionar_propuestas_llm(deterministas: list[Requisito],
-                            propuestas: Iterable[dict],
-                            descripcion: str) -> list[Requisito]:
-    """
-    La regla de diseño de la capa LLM, aplicada en codigo y no en el prompt.
-
-    - Un requisito que el deterministico ya encontro **no cambia**: ni estado ni peso ni
-      evidencia, diga lo que diga el modelo.
-    - Una propuesta nueva entra como `implicito`, que no cuenta para la cobertura.
-    - Su evidencia tiene que ser una cita LITERAL de la descripcion. Si el modelo
-      "cita" algo que no esta en el texto, se descarta: no puede inventar evidencia, y
-      nunca puede citar el CV.
-    """
-    conocidos = {r.requisito.lower() for r in deterministas}
-    texto = (descripcion or "").lower()
-    salida = list(deterministas)
-    for p in propuestas or []:
-        nombre = str(p.get("requisito") or "").strip()
-        cita = str(p.get("evidencia") or "").strip()
-        if not nombre or nombre.lower() in conocidos:
-            continue
-        if not cita or cita.lower() not in texto:
-            continue
-        conocidos.add(nombre.lower())
-        salida.append(Requisito(requisito=nombre, estado="implicito",
-                                peso="deseable", evidencia=cita[:200]))
-    return salida

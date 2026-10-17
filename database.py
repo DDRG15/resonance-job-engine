@@ -526,7 +526,7 @@ class GemaDatabase:
 
                 # ── Fase 5 (2026-09-16): el razonamiento deja de morir con la sesión ──
                 # Cada aviso puntuado lleva `match_reasons` y `miss_reasons` — la razón
-                # exacta de por qué sacó 90 o 38 — y `update_tier` guardaba tier, score
+                # exacta de por qué sacó 90 o 38 — y la escritura por fila guardaba tier, score
                 # y salario. Resultado: cualquier vista que leyera de la base podía decir
                 # QUÉ puntaje sacó un aviso y nunca POR QUÉ. El panel de detalle ya sabe
                 # mostrarlas; le llegan por /api/results mientras la sesión vive y
@@ -843,57 +843,6 @@ class GemaDatabase:
             )
         logger.info("Batch-registered %d jobs.", len(records))
 
-    def update_tier(self, url: str, tier: str, match_score: int,
-                    salary_raw: Optional[str] = None,
-                    tiered: Optional[object] = None) -> None:
-        """Backfills tier and match_score after the matcher has run.
-
-        también backfillea salary_raw si viene — un job
-        RE-procesado (hash existente, INSERT OR IGNORE no-op) que ahora sí trae
-        salario (FIX 1: extraído del texto) actualiza la fila vieja. COALESCE:
-        nunca pisa un salario ya guardado con NULL.
-
-        Fase 5 (2026-09-16): `tiered` es el `TieredJob` completo, opcional. Cuando
-        viene, se persisten también las razones del match y los veredictos de
-        elegibilidad. Es opcional a propósito — la firma vieja sigue funcionando y
-        los llamadores que no tengan el objeto no se rompen.
-
-        Se acepta un `object` y no un `TieredJob` tipado para no importar `models`
-        acá: `database` es la capa de abajo y no debería depender de la de arriba.
-        Los campos se leen con getattr, así que un objeto sin ellos degrada a NULL
-        en vez de explotar.
-        """
-        razones = _json_o_none(getattr(tiered, "match_reasons", None))
-        faltas  = _json_o_none(getattr(tiered, "miss_reasons", None))
-        loc_v   = getattr(tiered, "location_verdict", None)
-        loc_n   = getattr(tiered, "location_note", None)
-        lang_v  = getattr(tiered, "language_verdict", None)
-        lang_n  = getattr(tiered, "language_note", None)
-        version = getattr(config, "SCORE_VERSION", None) if tiered is not None else None
-        # Fase 7: un aviso visto antes de la columna, que vuelve a entrar ahora con
-        # descripcion, la completa. COALESCE: nunca se pisa con NULL.
-        descripcion = getattr(getattr(tiered, "job", None), "descripcion", None)
-
-        with _get_connection(self.db_path) as conn:
-            conn.execute(
-                "UPDATE seen_jobs_registry SET tier=?, match_score=?, "
-                "salary_raw=COALESCE(?, salary_raw), "
-                "descripcion=COALESCE(?, descripcion), "
-                # COALESCE en los campos nuevos por la misma razón que en salary_raw:
-                # un re-procesamiento sin `tiered` no puede borrar lo que una corrida
-                # anterior sí averiguó.
-                "match_reasons=COALESCE(?, match_reasons), "
-                "miss_reasons=COALESCE(?, miss_reasons), "
-                "location_verdict=COALESCE(?, location_verdict), "
-                "location_note=COALESCE(?, location_note), "
-                "language_verdict=COALESCE(?, language_verdict), "
-                "language_note=COALESCE(?, language_note), "
-                "score_version=COALESCE(?, score_version) "
-                "WHERE job_hash=?",
-                (tier, match_score, salary_raw, descripcion, razones, faltas,
-                 loc_v, loc_n, lang_v, lang_n, version, self.compute_hash(url)),
-            )
-
     # =========================================================================
     # Search Vault (Vol 1.3)
     # =========================================================================
@@ -1146,7 +1095,7 @@ class GemaDatabase:
         """
         Backfillea tier, score y razonamiento para muchos avisos en UNA transacción.
 
-        Medido el 2026-09-16: `update_tier` cuesta **107 ms por aviso**, consistente
+        Medido el 2026-09-16: escribir fila por fila costaba **107 ms por aviso**, consistente
         entre tandas. La causa está en `_get_connection`, que abre una conexión, corre
         `PRAGMA journal_mode=WAL`, commitea y cierra — un fsync por fila. Con las
         Fases 1 y 2 una corrida ya trae 940 avisos, así que eso son ~100 segundos de
@@ -1155,7 +1104,7 @@ class GemaDatabase:
         Una transacción para todos lo vuelve proporcional al disco y no al catálogo.
 
         `filas` son tuplas `(url, tier, match_score, salary_raw, tiered)` — la misma
-        forma que `update_tier`, para que no haya dos maneras de decir lo mismo.
+        forma que usaba la escritura por fila, para que no haya dos maneras de decir lo mismo.
         Devuelve cuántas se escribieron.
 
         `version`: la identidad del score con que se
@@ -1885,77 +1834,6 @@ class GemaDatabase:
         }
 
     # =========================================================================
-    # Async-Safe Interface for "The Blitz" (asyncio.gather concurrency)
-    # =========================================================================
-
-    def async_filter_new_urls(
-        self, urls: list[str], ttl_hours: int = 0
-    ) -> tuple[list[str], int, int]:
-        """
-        Synchronous method safe to call via loop.run_in_executor().
-
-        WHY THIS EXISTS:
-            The existing filter_new_urls() is already thread-safe for reads —
-            WAL mode allows unlimited concurrent readers with no lock risk.
-            This alias makes the intent explicit at the call site in scraper.py:
-            it is designed to be dispatched to the thread pool executor, keeping
-            disk I/O off the asyncio event loop without blocking it.
-
-            Pattern in scraper.py:
-                new_urls, skip_p, skip_t = await loop.run_in_executor(
-                    None,
-                    self.db.async_filter_new_urls,
-                    raw_urls,
-                    self.ttl_hours,
-                )
-
-        SQLite WAL + multiple readers:
-            WAL mode allows any number of readers to operate concurrently
-            with each other and with a single writer. The thread pool executor
-            may have multiple threads calling this simultaneously — all safe.
-        """
-        return self.filter_new_urls(urls, ttl_hours)
-
-    def async_mark_seen_batch(self, jobs: list["JobResult"]) -> None:
-        """
-        Synchronous bulk insert — safe to call via loop.run_in_executor().
-
-        CRITICAL: In "The Blitz" architecture, ONLY the _db_writer_task
-        coroutine calls this method, and it does so sequentially (one batch
-        at a time). Multiple concurrent callers are architecturally impossible
-        because there is exactly one writer task per scrape session.
-
-        This means the run_in_executor() wrapping this call never has
-        more than one thread executing it at any moment — zero lock contention
-        guaranteed by design, not by timeout tuning.
-
-        WAL BUSY TIMEOUT:
-            Set to 5000ms as a safety net for the one theoretical case where
-            the Streamlit UI (which also writes to SQLite for vault operations)
-            and the writer task overlap. In practice this is < 1ms.
-        """
-        if not jobs:
-            return
-        # Ensure WAL busy timeout on the write connection
-        records = [
-            (
-                self.compute_hash(j.url),
-                j.url, j.title, j.company,
-                j.source_domain, j.scraped_at.isoformat(),
-                j.location_raw, j.salary_raw,
-            )
-            for j in jobs
-        ]
-        with _get_connection(self.db_path) as conn:
-            conn.execute("PRAGMA busy_timeout = 5000;")
-            conn.executemany(
-                """INSERT OR IGNORE INTO seen_jobs_registry
-                   (job_hash, url, title, company, source_domain, scraped_at, location_raw, salary_raw)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                records,
-            )
-
-    # =========================================================================
     # v3 Fase 4 — Escritura de telemetría
     #
     # Todos estos métodos son FAIL-SAFE: loguean y siguen. Es la misma disciplina
@@ -2214,44 +2092,6 @@ class GemaDatabase:
             logger.warning("[EVAL] record_eval_results failed for %s: %s",
                            eval_run_id, exc)
 
-    def get_token_cost_by_purpose(self, run_id: Optional[str] = None) -> list[dict]:
-        """
-        Cuanto cuesta cada proceso, en tokens y en sobrecosto de razonamiento.
-
-        Es la pregunta que decide si vale la pena cambiar de modelo. `overhead_pct` estima
-        cuanto gasta el modelo PENSANDO antes de emitir: se compara completion_tokens
-        contra el tamano de la salida util (chars/4 ~ tokens). Un 95% significa que de
-        cada 100 tokens facturados, 95 fueron razonamiento y 5 fueron respuesta — y eso se
-        paga en CADA llamada, asi que en extract (hasta 3 por corrida) se multiplica.
-
-        Medido el 2026-09-03 con el prompt real: groq gpt-oss-120b 95%, openrouter
-        nemotron 91%, gemini flash-lite 43%, cohere 35%, mistral-small 25%.
-
-        LIMITE DE LA HEURISTICA: chars/4 aproxima bien los tokens de JSON, que es denso
-        en separadores. Para prosa —la auditoria devuelve 1-2 frases— SOBREestima los
-        tokens utiles, y el resultado puede dar NEGATIVO. Un valor negativo significa
-        "la estimacion se paso", no "sobrecosto negativo". Sirve para comparar modelos
-        en la MISMA tarea; comparar entre tareas de distinto formato no es valido.
-        """
-        sql = """
-            SELECT purpose, provider,
-                   COUNT(*)                      AS llamadas,
-                   SUM(prompt_tokens)            AS tok_in,
-                   SUM(completion_tokens)        AS tok_out,
-                   ROUND(AVG(latency_ms))        AS ms_prom,
-                   ROUND(100.0 * (1.0 - (SUM(output_chars) / 4.0) /
-                         NULLIF(SUM(completion_tokens), 0))) AS overhead_pct
-            FROM llm_calls
-            WHERE outcome = 'ok'
-        """
-        params: list = []
-        if run_id is not None:
-            sql += " AND run_id = ?"
-            params.append(run_id)
-        sql += " GROUP BY purpose, provider ORDER BY tok_out DESC"
-        with _get_connection(self.db_path) as conn:
-            return [dict(r) for r in conn.execute(sql, params).fetchall()]
-
     def get_eval_results(self, eval_run_id: str) -> list[dict]:
         with _get_connection(self.db_path) as conn:
             rows = conn.execute(
@@ -2426,29 +2266,3 @@ class GemaDatabase:
                 self.NODOS_FUENTE,
             ).fetchall()
         return [dict(r) for r in rows]
-
-    def get_scrape_session_stats(self, run_id: str) -> dict:
-        """
-        Returns per-run statistics for the Streamlit live dashboard.
-        Called from main.py after the scrape completes to populate metrics.
-        """
-        with _get_connection(self.db_path) as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) FROM seen_jobs_registry"
-            ).fetchone()[0]
-
-            by_tier = conn.execute(
-                "SELECT tier, COUNT(*) as cnt FROM seen_jobs_registry "
-                "WHERE tier IS NOT NULL GROUP BY tier"
-            ).fetchall()
-
-            recent_1h = conn.execute(
-                "SELECT COUNT(*) FROM seen_jobs_registry WHERE scraped_at >= ?",
-                ((datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),),
-            ).fetchone()[0]
-
-        return {
-            "total_seen":   total,
-            "recent_1h":    recent_1h,
-            "by_tier":      {row["tier"]: row["cnt"] for row in by_tier},
-        }

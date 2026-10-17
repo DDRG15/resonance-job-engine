@@ -208,30 +208,3 @@ class TestCobertura:
     def test_cobertura_completa(self):
         reqs = R.extraer("Python, FastAPI and PostgreSQL required.", PERFIL)
         assert R.cobertura(reqs, PERFIL) == pytest.approx(1.0)
-
-
-class TestCapaLLM:
-    DESC = "Python and AWS required. You will mentor junior engineers."
-
-    def test_el_llm_no_cambia_lo_deterministico(self):
-        det = R.extraer(self.DESC, PERFIL)
-        fusion = R.fusionar_propuestas_llm(det, [
-            {"requisito": "Python", "evidencia": "You will mentor junior engineers"},
-        ], self.DESC)
-        assert fusion == det
-
-    def test_evidencia_inventada_se_descarta(self):
-        det = R.extraer(self.DESC, PERFIL)
-        fusion = R.fusionar_propuestas_llm(det, [
-            {"requisito": "Liderazgo", "evidencia": "Must lead a team of 10"},
-        ], self.DESC)
-        assert fusion == det
-
-    def test_propuesta_con_cita_literal_entra_como_implicito_y_no_cuenta(self):
-        det = R.extraer(self.DESC + " Kafka is a plus.", PERFIL)
-        fusion = R.fusionar_propuestas_llm(det, [
-            {"requisito": "Mentoria", "evidencia": "You will mentor junior engineers"},
-        ], self.DESC)
-        nuevo = _por_nombre(fusion)["Mentoria"]
-        assert nuevo.estado == "implicito"
-        assert R.cobertura(fusion, PERFIL) == R.cobertura(det, PERFIL)

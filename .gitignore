@@ -25,13 +25,13 @@ node_modules/
 *.bak
 backups/
 drift_quarantine/
+/data/
 *.log
 logs/
 api_state.json
 board_strategy.json
 cv_profile.json
 user_profile.yaml
-.camoufox/
 
 # Secretos
 .env

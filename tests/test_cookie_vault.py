@@ -2,9 +2,7 @@
 tests/test_cookie_vault.py — Unit tests for integrations/cookie_vault.py
 
 Tests cover:
-    - has_cookies()  : True/False detection, missing file, empty array
     - load_cookies() : normalization of Chrome → Playwright format
-    - list_domains() : scan cookies/ directory
     - inject_into_context(): injection count, failure resilience
     - _normalize()   : sameSite mapping, expirationDate→expires, missing fields
 """
@@ -74,32 +72,19 @@ def _write_cookies(vault_dir: Path, domain: str, cookies: list) -> Path:
 
 
 # =============================================================================
-# has_cookies()
-# =============================================================================
-
-def test_has_cookies_returns_false_when_no_file(vault):
-    assert vault.has_cookies("example.com") is False
-
-
-def test_has_cookies_returns_false_for_empty_array(vault, vault_dir):
-    _write_cookies(vault_dir, "example.com", [])
-    assert vault.has_cookies("example.com") is False
-
-
-def test_has_cookies_returns_true_when_file_exists(vault, vault_dir):
-    _write_cookies(vault_dir, "example.com", [MINIMAL_COOKIE])
-    assert vault.has_cookies("example.com") is True
-
-
-def test_has_cookies_strips_leading_dot_from_domain(vault, vault_dir):
-    _write_cookies(vault_dir, "example.com", [MINIMAL_COOKIE])
-    # Domain with leading dot should still find the file
-    assert vault.has_cookies(".example.com") is True
-
-
-# =============================================================================
 # load_cookies()
 # =============================================================================
+
+def test_load_cookies_strips_leading_dot_from_domain(vault, vault_dir):
+    _write_cookies(vault_dir, "example.com", [MINIMAL_COOKIE])
+    # Domain with leading dot should still find the file
+    assert len(vault.load_cookies(".example.com")) == 1
+
+
+def test_load_cookies_returns_empty_list_for_empty_array(vault, vault_dir):
+    _write_cookies(vault_dir, "example.com", [])
+    assert vault.load_cookies("example.com") == []
+
 
 def test_load_cookies_returns_empty_list_when_no_file(vault):
     result = vault.load_cookies("nonexistent.com")
@@ -170,31 +155,6 @@ def test_load_cookies_does_not_raise_when_root_is_not_list(vault, vault_dir):
     path.write_text('{"name": "not_a_list"}', encoding="utf-8")
     result = vault.load_cookies("example.com")
     assert result == []
-
-
-# =============================================================================
-# list_domains()
-# =============================================================================
-
-def test_list_domains_returns_empty_when_dir_missing(tmp_path):
-    vault = CookieVault(cookies_dir=str(tmp_path / "nonexistent"))
-    assert vault.list_domains() == []
-
-
-def test_list_domains_returns_all_json_files(vault, vault_dir):
-    _write_cookies(vault_dir, "wellfound.com", [MINIMAL_COOKIE])
-    _write_cookies(vault_dir, "arc.dev", [MINIMAL_COOKIE])
-    domains = vault.list_domains()
-    assert "wellfound.com" in domains
-    assert "arc.dev" in domains
-    assert len(domains) == 2
-
-
-def test_list_domains_ignores_non_json_files(vault, vault_dir):
-    _write_cookies(vault_dir, "wellfound.com", [MINIMAL_COOKIE])
-    (vault_dir / "README.md").write_text("docs", encoding="utf-8")
-    domains = vault.list_domains()
-    assert domains == ["wellfound.com"]
 
 
 # =============================================================================

@@ -70,10 +70,16 @@ the bundle is missing, and also when the bundle is older than `frontend/src`.
 docker compose up --build
 ```
 
-API keys come from your local `.env` at runtime. `credentials/` and manual cookie exports
-are mounted read-only. `.dockerignore` keeps secrets, cookies, the CV-derived profile,
+API keys come from your local `.env` at runtime. Everything the app writes (the registry,
+board strategy, backups, `credentials/`, `cookies/`, `api_state.json`) lives in `./data`,
+mounted on `/data`: the image sets `RESONANCE_HOME=/data` and starts there. Docker creates
+`./data` on the first run; drop manual cookie exports in `./data/cookies/`. `.dockerignore` keeps secrets, cookies, the CV-derived profile,
 the databases and their backups out of the image, and a test checks the credential rules
 against both `git check-ignore` and the `.dockerignore` patterns.
+
+When upgrading from the individual file mounts, copy your existing registry, profiles,
+state files, `credentials/` and `cookies/` into `./data` before starting the new container.
+Keep the originals until you have verified the results; the new volume starts empty.
 
 ### Desktop app
 

@@ -732,23 +732,6 @@ def aplicar_aprendizaje(tiered: TieredJob,
     })
 
 
-def score_job_inline(job: JobResult, search_config: SearchConfig) -> str:
-    """
-    Lightweight tier classification for use inside the scraper's hot path.
-
-    Called during card extraction BEFORE the full bucket_jobs pass to enable
-    real-time Tier 1 webhook notifications. Must be fast — no logging overhead
-    beyond DEBUG level, no DB writes, returns only the tier string.
-
-    DESIGN: Calls score_job() directly — same logic, no duplication.
-    The overhead is microseconds per card. At 100 cards per domain × 4 domains
-    = 400 calls. Total overhead: < 5ms. Acceptable.
-
-    Returns: 'Tier 1', 'Tier 2', 'Tier 3', or 'Tier 4'
-    """
-    return score_job(job, search_config).tier
-
-
 def bucket_jobs(
     jobs: list[JobResult],
     search_config: SearchConfig,
@@ -765,10 +748,6 @@ def bucket_jobs(
     The fourth list is kept for the return contract.
 
     If db is provided, backfills tier + match_score in the seen_registry.
-
-    Note: score_job_inline() is the lightweight fast-path used during live
-    scraping for real-time webhook triggers. bucket_jobs() is the post-scrape
-    full pass that populates all display data.
 
     `aprendizaje` es el modelo de las postulaciones. Si no
     viene, se lee de `db` (`aprendizaje.cargar`); sin `db`, no hay historial y no se
@@ -866,7 +845,7 @@ def bucket_jobs(
         tiered = ajustado
 
         # Fase 3: un veto FAIL saca del shortlist, NO del registro. El aviso se
-        # persiste con su tier y su puntaje reales —abajo, en update_tier— pero no
+        # persiste con su tier y su puntaje reales —abajo, en update_tiers_batch— pero no
         # entra a las listas que van al front, a Notion y al Excel.
         #
         # Es la diferencia entre "no puedo postular a esto" y "esto no me sirve".
@@ -896,7 +875,7 @@ def bucket_jobs(
             tier4.append(tiered)
 
         # Fase 8: se acumulan y se escriben en UNA transaccion al final.
-        # `update_tier` cuesta 107 ms por aviso medidos — abre conexion, corre
+        # Escribir fila por fila cuesta 107 ms por aviso medidos — abre conexion, corre
         # PRAGMA journal_mode=WAL, commitea y cierra, un fsync por fila. Con 940
         # avisos por corrida eso son ~100 s de puro escribir contra los 7,7 s que
         # tarda traerlos.

@@ -59,12 +59,12 @@ def test_update_writes_access_fields(tmp_path):
     reg.update(
         "remoteok.com",
         protection=Protection.CLOUDFLARE,
-        access_vector=AccessVector.CAMOUFOX,
+        access_vector=AccessVector.EXTERNAL_PROXY,
         cookies_ref="cookies/remoteok.com.json",
     )
     s = reg.get("remoteok.com")
     assert s.protection == Protection.CLOUDFLARE
-    assert s.access_vector == AccessVector.CAMOUFOX
+    assert s.access_vector == AccessVector.EXTERNAL_PROXY
     assert s.cookies_ref == "cookies/remoteok.com.json"
 
 
@@ -108,32 +108,31 @@ def test_old_probe_is_stale(tmp_path):
     assert s.is_stale(ttl_seconds=3600) is True
 
 
-# ── Seeding from selectors_registry domains ──────────────────────────────────
+# ── Vector retirado ──────────────────────────────────────────────────────────
 
-def test_seed_creates_defaults_for_all_domains(tmp_path):
-    """Lo que `seed_from_domains` garantiza es que los dominios pedidos existan con
-    defaults seguros — no que sean los UNICOS del registry.
+def test_vector_camoufox_persistido_se_degrada_a_direct(tmp_path):
+    """Un board_strategy.json escrito antes de retirar el vector `camoufox` tiene que
+    cargar: sin traduccion, un solo valor viejo tumba el registro entero."""
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({
+        "viejo.com": {"domain": "viejo.com", "protection": "cloudflare",
+                      "access_vector": "camoufox"},
+        "otro.com": {"domain": "otro.com", "access_vector": "external_proxy"},
+    }), encoding="utf-8")
+    reg = BoardStrategyRegistry(path)
+    assert reg.get("viejo.com").access_vector == AccessVector.DIRECT
+    assert reg.get("viejo.com").protection == Protection.CLOUDFLARE
+    assert reg.get("otro.com").access_vector == AccessVector.EXTERNAL_PROXY
 
-    Desde la Fase 1 (2026-09-14) todo registry arranca con los boards de
-    `endpoint_registry` ya aplicados en memoria: esa config se commitea, mientras que
-    `board_strategy.json` es estado local gitignoreado. Exigir igualdad exacta acá
-    convertiria cada board de endpoint nuevo en un test roto, que es ruido y no señal.
-    """
+
+def test_registry_arranca_con_los_endpoints_aplicados(tmp_path):
+    """Todo registry arranca con los boards de `endpoint_registry` ya aplicados en
+    memoria: esa config se commitea, mientras que `board_strategy.json` es estado
+    local gitignoreado."""
     reg = BoardStrategyRegistry(tmp_path / "s.json")
-    reg.seed_from_domains(["a.com", "b.com", "c.com"])
-    assert {"a.com", "b.com", "c.com"}.issubset(set(reg.all_domains()))
-    assert reg.get("a.com").access_vector == AccessVector.DIRECT
-
     import endpoint_registry
     assert set(endpoint_registry.dominios()).issubset(set(reg.all_domains()))
-
-
-def test_seed_does_not_overwrite_existing(tmp_path):
-    reg = BoardStrategyRegistry(tmp_path / "s.json")
-    reg.update("a.com", access_vector=AccessVector.CAMOUFOX)
-    reg.seed_from_domains(["a.com", "b.com"])  # a.com already customized
-    assert reg.get("a.com").access_vector == AccessVector.CAMOUFOX  # preserved
-    assert reg.get("b.com").access_vector == AccessVector.DIRECT    # new default
+    assert reg.get("sin-registro.com").access_vector == AccessVector.DIRECT
 
 
 def test_persisted_json_is_readable(tmp_path):

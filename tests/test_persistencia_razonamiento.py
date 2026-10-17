@@ -1,7 +1,7 @@
 """
 tests/test_persistencia_razonamiento.py — el razonamiento sobrevive al reinicio (Fase 5).
 
-Hasta esta fase, `update_tier` guardaba tier, score y salario. `match_reasons` y
+Hasta esta fase, la escritura por fila guardaba tier, score y salario. `match_reasons` y
 `miss_reasons` —la razón exacta de por qué un aviso sacó 90— morían con la sesión, así
 que cualquier vista que leyera de la base podía decir QUÉ puntaje sacó un aviso y nunca
 POR QUÉ.
@@ -102,7 +102,7 @@ class TestPersistencia:
 
 
 class TestNoPisaLoQueYaSabia:
-    def test_update_tier_sin_tiered_no_borra_lo_guardado(self, db):
+    def test_update_tiers_batch_sin_tiered_no_borra_lo_guardado(self, db):
         """COALESCE en los campos nuevos, misma razón que en `salary_raw`: un
         re-procesamiento sin el `TieredJob` no puede borrar lo que una corrida
         anterior sí averiguó. La diferencia entre «no sé» y «sé que no hay» tiene
@@ -114,17 +114,17 @@ class TestNoPisaLoQueYaSabia:
         antes = _fila(db, "https://x.com/5")
         assert antes["match_reasons"]
 
-        db.update_tier("https://x.com/5", "Tier 3", 10)   # firma vieja, sin tiered
+        db.update_tiers_batch([("https://x.com/5", "Tier 3", 10, None, None)])   # sin tiered
         despues = _fila(db, "https://x.com/5")
         assert despues["tier"] == "Tier 3"
         assert despues["match_reasons"] == antes["match_reasons"]
         assert despues["score_version"] == antes["score_version"]
 
-    def test_la_firma_vieja_sigue_funcionando(self, db):
+    def test_tiered_y_salario_son_opcionales(self, db):
         """`tiered` es opcional a propósito: los llamadores que no tengan el objeto
         no se rompen."""
         db.mark_seen_batch([_job(n=6)])
-        db.update_tier("https://x.com/6", "Tier 2", 55, salary_raw="$100k")
+        db.update_tiers_batch([("https://x.com/6", "Tier 2", 55, "$100k", None)])
         fila = _fila(db, "https://x.com/6")
         assert fila["tier"] == "Tier 2"
         assert fila["match_score"] == 55
@@ -147,10 +147,10 @@ class TestLimites:
         assert len(guardado) == _MAX_RAZONES
 
     def test_un_objeto_sin_los_campos_degrada_a_NULL(self, db):
-        """`update_tier` lee con getattr: un objeto que no sea un TieredJob no
+        """`update_tiers_batch` lee con getattr: un objeto que no sea un TieredJob no
         explota, guarda NULL."""
         db.mark_seen_batch([_job(n=7)])
-        db.update_tier("https://x.com/7", "Tier 3", 20, tiered=object())
+        db.update_tiers_batch([("https://x.com/7", "Tier 3", 20, None, object())])
         fila = _fila(db, "https://x.com/7")
         assert fila["tier"] == "Tier 3"
         assert fila["match_reasons"] is None

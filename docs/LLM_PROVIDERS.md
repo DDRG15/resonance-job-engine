@@ -97,11 +97,6 @@ fila**. Un proveedor sin límite declarado siempre alcanza: el presupuesto restr
 hay dato, no donde falta. Si la tabla no se puede leer, la llamada se hace igual; se
 degrada a descubrir el límite chocándolo.
 
-`provider_budget.py` también trae `orden_por_evidencia` y `reordenar`, que reordenarían la
-cadena por tasa de éxito y latencia de los últimos 14 días (con un mínimo de 8 llamadas y
-una histéresis de 0,15 para que el orden no oscile). **Hoy ninguna parte de la cadena las
-llama**: el orden lo fija la config, y el presupuesto solo saltea.
-
 ---
 
 ## El auditor excluye a `PRIMARY_LLM`, no al primario de `parse`

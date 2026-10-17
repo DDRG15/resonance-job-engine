@@ -16,7 +16,7 @@ Uso:
     python tools/check_provider_models.py          # exit 1 si algo está mal
     python tools/check_provider_models.py --list   # además imprime los modelos disponibles
 
-Pensado para correr a mano tras renovar credenciales, y como gate en build_beta.bat.
+Pensado para correr a mano tras renovar credenciales.
 No corre en la suite: pega a APIs reales.
 """
 

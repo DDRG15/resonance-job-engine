@@ -95,19 +95,19 @@ class TestHashesPuntuados:
         jobs = _jobs(4)
         db.mark_seen_batch(jobs)
         assert db.hashes_puntuados() == set()
-        db.update_tier(jobs[0].url, "Tier 2", 50)
+        db.update_tiers_batch([(jobs[0].url, "Tier 2", 50, None, None)])
         assert len(db.hashes_puntuados(version=None)) == 1
 
     def test_filtra_por_version(self, db):
         jobs = _jobs(2)
         db.mark_seen_batch(jobs)
-        db.update_tier(jobs[0].url, "Tier 2", 50)          # sin version
+        db.update_tiers_batch([(jobs[0].url, "Tier 2", 50, None, None)])   # sin version
         assert db.hashes_puntuados(version=config.SCORE_VERSION) == set()
         assert len(db.hashes_puntuados(version=None)) == 1
 
 
 class TestEscrituraEnLote:
-    def test_persiste_todo_lo_que_persistia_update_tier(self, db):
+    def test_persiste_todo_lo_que_persistia_la_escritura_por_fila(self, db):
         jobs = _jobs(3)
         db.mark_seen_batch(jobs)
         matcher.bucket_jobs(jobs, CFG, db=db)
@@ -120,7 +120,7 @@ class TestEscrituraEnLote:
         assert db.update_tiers_batch([]) == 0
 
     def test_es_mucho_mas_rapido_que_fila_por_fila(self, db):
-        """Medido el 2026-09-16: `update_tier` cuesta 107 ms por aviso porque
+        """Medido el 2026-09-16: escribir fila por fila cuesta 107 ms por aviso porque
         `_get_connection` abre, corre PRAGMA, commitea y cierra — un fsync por fila.
         Con 940 avisos por corrida eso son ~100 s de puro escribir.
 
@@ -137,7 +137,7 @@ class TestEscrituraEnLote:
 
         t0 = time.perf_counter()
         for j in jobs[:10]:
-            db.update_tier(j.url, "Tier 3", 20)
+            db.update_tiers_batch([(j.url, "Tier 3", 20, None, None)])
         una_por_una = (time.perf_counter() - t0) / 10 * 60
 
         assert lote < una_por_una / 5, (

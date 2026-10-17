@@ -5,18 +5,17 @@ Loads per-domain cookies from the local `cookies/` directory and injects them
 into a Playwright BrowserContext, enabling scraping of boards that require auth.
 
 Supported boards (once cookies are exported from your Chrome session):
-    wellfound.com, arc.dev, welcometothejungle.com
+    arc.dev
 
 Cookie file format: JSON array in Chrome DevTools / EditThisCookie export format.
-    File naming: cookies/<domain>.json  (e.g., cookies/wellfound.com.json)
+    File naming: cookies/<domain>.json  (e.g., cookies/arc.dev.json)
 
 The cookies/ directory is gitignored — cookie files never leave your machine.
 
 Usage:
     vault = CookieVault()
-    if vault.has_cookies("wellfound.com"):
-        count = await vault.inject_into_context("wellfound.com", context)
-        logger.info("Injected %d cookies for wellfound.com", count)
+    count = await vault.inject_into_context("arc.dev", context)
+    logger.info("Injected %d cookies for arc.dev", count)
 
 How to export cookies from Chrome:
     1. Log into the target site in Chrome
@@ -58,17 +57,6 @@ class CookieVault:
     # -------------------------------------------------------------------------
     # Public API
     # -------------------------------------------------------------------------
-
-    def has_cookies(self, domain: str) -> bool:
-        """Return True if a non-empty cookies file exists for this domain."""
-        path = self._cookie_path(domain)
-        if not path.exists():
-            return False
-        try:
-            cookies = self._read_file(path)
-            return len(cookies) > 0
-        except Exception:
-            return False
 
     def load_cookies(self, domain: str) -> list[dict]:
         """
@@ -114,22 +102,12 @@ class CookieVault:
             )
             return 0
 
-    def list_domains(self) -> list[str]:
-        """Return list of domains that have cookie files in the vault."""
-        if not self._dir.exists():
-            return []
-        return [
-            p.stem  # filename without .json → domain name
-            for p in sorted(self._dir.glob("*.json"))
-            if p.is_file()
-        ]
-
     # -------------------------------------------------------------------------
     # Private helpers
     # -------------------------------------------------------------------------
 
     def _cookie_path(self, domain: str) -> Path:
-        # Strip leading dot so ".wellfound.com" → "wellfound.com.json"
+        # Strip leading dot so ".arc.dev" → "arc.dev.json"
         clean = domain.lstrip(".")
         return self._dir / f"{clean}.json"
 

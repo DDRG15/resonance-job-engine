@@ -11,7 +11,6 @@ la defensa la celda SI sale como formula— porque un test que no puede fallar n
 """
 
 import io
-import zipfile
 
 import pandas as pd
 import pytest
@@ -22,35 +21,14 @@ from openpyxl.utils.exceptions import IllegalCharacterError
 import api as api_module
 import config
 import run_manager as run_manager_module
-from excel_seguro import (
-    COLUMNAS_EXTERNAS,
-    construir_xlsx,
-    es_url_enlazable,
-    limpiar_celda,
-)
+from excel_seguro import es_url_enlazable, limpiar_celda
 from models import JobResult, TieredJob
 
 FORMULA = '=HYPERLINK("http://evil","x")'
 
 
-def _fila(**kw):
-    base = {
-        "Tier": 1, "Title": "Python Backend Developer", "Company": "Acme",
-        "Salary": "$120k", "Match Score": 88, "Apply Link": "https://acme.com/jobs/1",
-        "Source": "remoteok.com", "Date Fetched": "2026-09-30 12:00 UTC",
-    }
-    base.update(kw)
-    return base
-
-
 def _hoja(buf):
     return load_workbook(buf).active
-
-
-def _celdas(hoja):
-    """{(encabezado, fila): celda} para las filas de datos."""
-    enc = {c.column: c.value for c in hoja[1]}
-    return {(enc[c.column], c.row): c for fila in hoja.iter_rows(min_row=2) for c in fila}
 
 
 class TestLaPremisa:
@@ -68,82 +46,13 @@ class TestLaPremisa:
                 io.BytesIO(), index=False, engine="openpyxl")
 
 
-class TestFormulas:
-    @pytest.mark.parametrize("columna,valor", [
-        ("Title", FORMULA),
-        ("Company", "+cmd"),
-        ("Salary", "-1+1"),
-        ("Source", "@SUM(A1)"),
-        ("Title", "=cmd|' /C calc'!A0"),                  # el vector clasico de DDE
-        ("Title", " =1+1"),                               # tras un espacio
-        ("Company", "\t=1+1"),                            # tras un tab
-        ("Apply Link", "=HYPERLINK(\"http://evil\")"),
-    ])
-    def test_toda_celda_externa_sale_como_texto_y_conserva_su_contenido(self, columna, valor):
-        hoja = _hoja(construir_xlsx([_fila(**{columna: valor})]))
-        celda = _celdas(hoja)[(columna, 2)]
-        assert celda.data_type == "s"
-        assert celda.value == valor, "el contenido visible cambio"
-
-    def test_los_controles_antes_de_la_formula_se_quitan_y_sigue_siendo_texto(self):
-        """`\\x01=1+1`: el control es invisible y XML no lo admite; sin quitarlo el export
-        entero fallaba. Lo visible, `=1+1`, se conserva y NO es formula."""
-        hoja = _hoja(construir_xlsx([_fila(Title="\x01\x02=1+1")]))
-        celda = _celdas(hoja)[("Title", 2)]
-        assert celda.data_type == "s" and celda.value == "=1+1"
-
-    def test_ninguna_celda_del_libro_es_formula(self):
-        filas = [
-            _fila(Title=FORMULA, Company="+cmd", Salary="-1+1", **{"Source": "@x"}),
-            _fila(Title="=1+1", **{"Apply Link": "=2+2"}),
-            _fila(),
-        ]
-        hoja = _hoja(construir_xlsx(filas))
-        assert [c.coordinate for fila in hoja.iter_rows() for c in fila
-                if c.data_type == "f"] == []
-
-    def test_el_xml_de_la_hoja_no_tiene_ningun_elemento_de_formula(self):
-        """Independiente del lector de openpyxl: se mira el XML que Excel va a evaluar."""
-        buf = construir_xlsx([_fila(Title=FORMULA, Company="=1+1")])
-        with zipfile.ZipFile(buf) as z:
-            xml = z.read("xl/worksheets/sheet1.xml")
-        assert b"<f>" not in xml and b"<f " not in xml
-        assert b"HYPERLINK" in xml, "el texto no se perdio: esta como cadena"
-
-    def test_un_titulo_normal_sigue_igual(self):
-        hoja = _hoja(construir_xlsx([_fila()]))
-        c = _celdas(hoja)
-        assert c[("Title", 2)].value == "Python Backend Developer"
-        assert c[("Title", 2)].data_type == "s"
-        assert c[("Company", 2)].value == "Acme"
-        assert c[("Salary", 2)].value == "$120k"
-
-    def test_las_columnas_que_calcula_gema_conservan_su_tipo(self):
-        c = _celdas(_hoja(construir_xlsx([_fila(**{"Match Score": 88})])))
-        assert c[("Tier", 2)].data_type == "n" and c[("Tier", 2)].value == 1
-        assert c[("Match Score", 2)].data_type == "n" and c[("Match Score", 2)].value == 88
-
-    def test_el_encabezado_no_cambia(self):
-        hoja = _hoja(construir_xlsx([_fila()]))
-        assert [c.value for c in hoja[1]] == list(_fila().keys())
-
-    def test_la_defensa_sigue_a_la_columna_aunque_cambie_el_orden(self):
-        fila = {"Source": "@x", "Title": FORMULA, "Tier": 2}
-        c = _celdas(_hoja(construir_xlsx([fila])))
-        assert c[("Title", 2)].data_type == "s" and c[("Source", 2)].data_type == "s"
-
-    def test_todas_las_columnas_externas_estan_cubiertas(self):
-        assert set(COLUMNAS_EXTERNAS) == {"Title", "Company", "Salary", "Apply Link", "Source"}
-
-
 class TestEnlaces:
     @pytest.mark.parametrize("url", [
         "https://acme.com/jobs/1", "http://acme.com/j?id=1&x=2", "HTTPS://ACME.COM/x",
+        "  https://acme.com/jobs/1  ",
     ])
     def test_http_y_https_con_host_son_enlaces(self, url):
-        celda = _celdas(_hoja(construir_xlsx([_fila(**{"Apply Link": url})])))[("Apply Link", 2)]
-        assert celda.hyperlink is not None and celda.hyperlink.target == url
-        assert celda.value == url and celda.data_type == "s"
+        assert es_url_enlazable(url)
 
     @pytest.mark.parametrize("url", [
         "javascript:alert(1)",
@@ -157,40 +66,34 @@ class TestEnlaces:
         "acme.com/jobs/1",
         "https://acme.com/" + "a" * 2100,  # mas largo de lo que Excel acepta como enlace
         "",
+        None,
+        "http://[::1",                   # urlparse lanza ValueError
     ])
-    def test_cualquier_otra_cosa_queda_como_texto_sin_hipervinculo(self, url):
-        celda = _celdas(_hoja(construir_xlsx([_fila(**{"Apply Link": url})])))[("Apply Link", 2)]
-        assert celda.hyperlink is None
-        if url:
-            assert celda.data_type == "s" and celda.value == url, \
-                "se oculto el texto: el usuario tiene que poder ver que es"
-
-    def test_es_url_enlazable(self):
-        assert es_url_enlazable("https://a.com")
-        assert not es_url_enlazable("javascript:alert(1)")
-        assert not es_url_enlazable(None)
-        assert not es_url_enlazable("http://[::1")      # urlparse lanza ValueError
+    def test_cualquier_otra_cosa_no_es_enlace(self, url):
+        assert not es_url_enlazable(url)
 
 
 class TestLimpieza:
-    def test_el_caracter_de_control_se_quita_y_el_export_no_falla(self):
-        c = _celdas(_hoja(construir_xlsx([_fila(Title="Senior\x07 Engineer\x00")])))
-        assert c[("Title", 2)].value == "Senior Engineer"
+    def test_el_caracter_de_control_se_quita(self):
+        assert limpiar_celda("Senior\x07 Engineer\x00") == "Senior Engineer"
+
+    def test_un_texto_normal_no_cambia(self):
+        assert limpiar_celda(FORMULA) == FORMULA
+        assert limpiar_celda("Python Backend Developer") == "Python Backend Developer"
 
     def test_tope_de_una_celda(self):
-        c = _celdas(_hoja(construir_xlsx([_fila(Title="x" * 40000)])))
-        assert len(c[("Title", 2)].value) == 32767
+        assert len(limpiar_celda("x" * 40000)) == 32767
 
     def test_none_se_vuelve_vacio(self):
         assert limpiar_celda(None) == ""
 
-    def test_sin_filas_el_libro_es_valido(self):
-        hoja = _hoja(construir_xlsx([]))
-        assert hoja.max_row <= 1
+    def test_un_valor_que_no_es_cadena_se_vuelve_cadena(self):
+        assert limpiar_celda(88) == "88"
 
-    def test_salario_vacio_no_rompe(self):
-        c = _celdas(_hoja(construir_xlsx([_fila(Salary="")])))
-        assert c[("Salary", 2)].value in (None, "")
+    def test_lo_limpio_ya_no_tumba_el_export(self):
+        """El caracter de control que openpyxl rechaza no sobrevive a la limpieza."""
+        pd.DataFrame([{"Title": limpiar_celda("A\x07B")}]).to_excel(
+            io.BytesIO(), index=False, engine="openpyxl")
 
 
 # =============================================================================

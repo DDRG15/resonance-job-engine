@@ -78,10 +78,8 @@ function Buscar-Prohibidos([string]$carpeta) {
     $dirsVetados = '\\(cookies|credentials|backups|drift_quarantine)\\'
     $nombresVetados = @('.env', '.env.local', 'user_profile.yaml', 'cv_profile.json',
                         'api_state.json', 'board_strategy.json')
-    # Unica excepcion: datos ESTATICOS de un paquete de terceros (ver PERMITIDOS en datos.py).
     Get-ChildItem -LiteralPath $carpeta -Recurse -Force -File | Where-Object {
         $n = $_.Name.ToLower(); $f = $_.FullName.ToLower()
-        if ($f -like '*\camoufox\webgl\webgl_data.db') { return $false }
         ($nombresVetados -contains $n) -or
         ($n -like '.env.*.local') -or
         ($n -like '*.db') -or ($n -like '*.db-shm') -or ($n -like '*.db-wal') -or ($n -like '*.bak') -or
