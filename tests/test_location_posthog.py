@@ -306,12 +306,12 @@ def test_titulo_empresa_y_link_por_el_camino_real():
         ("Field Marketer (Founding)", "Nango",
          "https://jobs.ashbyhq.com/Nango/c946685a-e091-47f9-9ac4-796c6d2955de"
          "?utm_source=posthog"),
-        # derive_company_from_url no conoce jobs.gem.com (allowlist cerrada): el aviso
-        # se conserva con el placeholder de la Fase 31b, igual que en el registry.
-        ("Product Engineer", "(empresa no listada)",
+        # jobs.gem.com lleva la empresa en el primer segmento de la ruta: el aviso ya no
+        # queda como «(empresa no listada)».
+        ("Product Engineer", "Converge",
          "https://jobs.gem.com/converge/am9icG9zdDreA6I3WJ4ZJ1Yx_WHS5zKP"
          "?utm_source=posthog"),
-        ("Account Executive", "(empresa no listada)",
+        ("Account Executive", "Converge",
          "https://jobs.gem.com/converge/am9icG9zdDr1aeHCHQYLLzHpg3nAKdgC"
          "?utm_source=posthog"),
     ]

@@ -788,6 +788,10 @@ SELECTORS: dict[str, DomainSelectors] = {
             "h2 a",
             "h2",
         ],
+        # `span.listing-company-name` envuelve el enlace del título Y el nombre de la
+        # empresa: inner_text devuelve «[NEW ]<título>\n<empresa>» (67 de 67 avisos del
+        # registry). No hay un nodo solo con la empresa; `empresa.normalizar_empresa`
+        # separa la línea del título.
         company = [
             "span.listing-company-name",
             ".company",

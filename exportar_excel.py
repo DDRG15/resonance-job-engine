@@ -44,6 +44,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.filters import AutoFilter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
+from empresa import TEXTO_MOTIVO
 from excel_seguro import es_url_enlazable, limpiar_celda
 from models import TieredJob, salario_anual_usd
 
@@ -94,6 +95,7 @@ _ORDEN_TIER = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3}
 
 _MOTIVOS_PILA = {
     "url_no_verificable_titulo_real": "URL no verificable; título y empresa reales",
+    **TEXTO_MOTIVO,
 }
 
 #: Que significa cada causa que `meta["causas"]` puede traer, en una frase.

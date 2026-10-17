@@ -45,7 +45,7 @@ const COLUMNS: ColumnDef<TieredJobDto>[] = [
       const v = c.getValue<string>()
       // 247 de 1399 filas traen algo que no es un nombre de empresa. Mostrarlas
       // como si lo fueran es peor que no mostrarlas: el dato entra a Notion igual.
-      return companyIsDirty(v)
+      return companyIsDirty(v, c.row.original.job.empresa_no_confirmada)
         ? <span className="cell-dirty" title={v.replace(/\n/g, ' · ')}>sin empresa</span>
         : <span className="cell-dim">{v}</span>
     },

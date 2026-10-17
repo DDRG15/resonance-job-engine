@@ -202,6 +202,20 @@ possible to ask how many Tier 1 jobs were lost to eligibility. A bare "USA" loca
 flags the job instead: many of those postings accept contractors from Latin America. Jobs with a real title and company but a URL that can't be
 verified go to a manual review pile. **Resonance never discards data it can recover.**
 
+Company names mixed with the job title are separated before storage. Missing names and
+text that looks like a slogan stay attached to the job and appear in manual review with
+the reason. Marking one as reviewed keeps the job in the registry.
+
+To repair names already stored, stop the app and use the same `GEMA_DB_PATH` as the app:
+
+```bash
+python tools/limpiar_empresas_registry.py              # preview the changes
+python tools/limpiar_empresas_registry.py --aplicar    # snapshot, then repair
+```
+
+The tool preserves job rows, backs up the database before applying changes, and leaves
+jobs with a corrected company pending re-scoring. Uncertain names go to manual review.
+
 The scoring version (`SCORE_VERSION=v7`) is frozen by a test with known inputs and
 expected scores. Changing the formula means bumping the version, and
 `tools/repuntuar_registry.py` re-scores the whole registry after taking a snapshot first.

@@ -19,7 +19,8 @@ const PLACEHOLDER = /^\(empresa no listada\)$/i
 /** Un nombre de empresa de más de 60 caracteres es una frase, no un nombre. */
 const LARGO_MAX = 60
 
-export function companyIsDirty(company: string): boolean {
+export function companyIsDirty(company: string, noConfirmada?: boolean): boolean {
+  if (typeof noConfirmada === 'boolean') return noConfirmada
   const c = (company ?? '').trim()
   if (c === '') return true
   if (PLACEHOLDER.test(c)) return true
@@ -37,7 +38,7 @@ export function fieldConfidence(tj: TieredJobDto): {
   notches: { key: string; label: string; state: 'on' | 'off' | 'bad' }[]
 } {
   const j = tj.job
-  const dirty = companyIsDirty(j.company)
+  const dirty = companyIsDirty(j.company, j.empresa_no_confirmada)
   const notches: { key: string; label: string; state: 'on' | 'off' | 'bad' }[] = [
     { key: 'title', label: 'Título', state: j.title?.trim() ? 'on' : 'off' },
     { key: 'company', label: 'Empresa', state: dirty ? 'bad' : 'on' },

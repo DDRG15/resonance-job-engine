@@ -22,6 +22,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
+from empresa import PLACEHOLDER_EMPRESA, motivo_empresa_dudosa, normalizar_empresa
+
 logger = logging.getLogger(__name__)
 
 # AUDIT NEW #2 (2026-07-10): sanitización de keywords en el borde de entrada.
@@ -220,8 +222,28 @@ class JobResult(BaseModel):
 
     @field_validator("title", "company", mode="before")
     @classmethod
-    def strip_whitespace(cls, v: str) -> str:
+    def strip_whitespace(cls, v: str, info) -> str:
+        if v is None and info.field_name == "company":
+            return ""
         return str(v).strip()
+
+    @field_validator("company", mode="after")
+    @classmethod
+    def limpiar_empresa(cls, v: str, info) -> str:
+        """Separa la empresa del título cuando el selector trajo ambos en el mismo
+        nodo (python.org) y quita ruido de scraping. Es identidad sobre un nombre ya
+        limpio. Si el campo era solo el título, no hay empresa: queda el marcador
+        `(empresa no listada)` y el aviso se conserva."""
+        if not v:
+            return v
+        limpia = normalizar_empresa(v, info.data.get("title", ""))
+        return limpia or PLACEHOLDER_EMPRESA
+
+    @computed_field
+    @property
+    def empresa_no_confirmada(self) -> bool:
+        """La UI usa el mismo criterio de calidad que la pila de revisión."""
+        return motivo_empresa_dudosa(self.company) is not None
 
     def parse_salary_usd(self) -> Optional[int]:
         """

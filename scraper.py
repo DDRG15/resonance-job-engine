@@ -82,6 +82,7 @@ from board_strategy import (
 )
 from selectors_registry import DomainSelectors, get_selectors
 from database import GemaDatabase
+from empresa import normalizar_empresa
 from integrations.cookie_vault import CookieVault
 from integrations.session_jar import SessionJar
 from integrations.webhook_client import WebhookClient
@@ -692,6 +693,7 @@ _ATS_COMPANY_SLUG = {
     "boards.greenhouse.io": 0,  # estructura documentada: /<empresa>/jobs/<id>
     "job-boards.greenhouse.io": 0,
     "jobs.lever.co":     0,   # estructura documentada: /<empresa>/<id>
+    "jobs.gem.com":      0,   # verificado en el registry (avisos de posthog.com): /<empresa>/<id>
 }
 
 # Board propio → nombre de la empresa cuando el job es del board mismo
@@ -2402,6 +2404,9 @@ class GemaScraper:
                 logger.debug("[NULL CARD] %s — title vacío", url)
                 return None
 
+            # La tarjeta de python.org trae título y empresa en el mismo nodo; si el
+            # nodo era solo el título, queda vacía y cae a la URL o al marcador.
+            company = normalizar_empresa(company, title) if company else company
             if not company:
                 # posthog full: la empresa suele estar en la URL del job (ATS
                 # externo: jobs.ashbyhq.com/<empresa>/, o /careers/ propio del

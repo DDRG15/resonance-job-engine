@@ -67,7 +67,7 @@ export default function JobDetail({ tj }: Props) {
   }
 
   const j = tj.job
-  const dirty = companyIsDirty(j.company)
+  const dirty = companyIsDirty(j.company, j.empresa_no_confirmada)
   const conf = fieldConfidence(tj)
 
   return (
@@ -88,7 +88,7 @@ export default function JobDetail({ tj }: Props) {
 
       {dirty ? (
         <div className="detail-company dirty" title={j.company.replace(/\n/g, ' · ')}>
-          Empresa no extraída — el selector de {j.source_domain} devolvió otra cosa
+          Empresa sin confirmar — revisá el aviso de {j.source_domain}
         </div>
       ) : (
         <div className="detail-company">{j.company}</div>

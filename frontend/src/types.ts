@@ -118,6 +118,7 @@ export interface SchedulerUpdate {
 export interface JobDto {
   title: string
   company: string
+  empresa_no_confirmada?: boolean
   url: string
   salary_raw: string | null
   location_raw: string | null

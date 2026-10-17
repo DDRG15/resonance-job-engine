@@ -9,6 +9,23 @@ interface Props {
 // pila de revisión manual: jobs con title+empresa REALES pero URL
 // no verificable (el LLM fallback la produjo mal). En vez de tirarlos, el humano
 // corrige la URL (usando la pista del SRP) o los descarta como no-rescatables.
+// Motivos de empresa dudosa: el aviso YA está en la lista con su URL real; lo que se
+// revisa es el nombre de la empresa. No hay URL que corregir, solo marcarlo como visto.
+const MOTIVO_EMPRESA: Record<string, string> = {
+  empresa_dudosa_sin_empresa: 'La fuente no publica la empresa; el aviso se conserva sin ese dato.',
+  empresa_dudosa_eslogan: 'El campo empresa parece un eslogan o una descripción, no un nombre.',
+}
+
+function enlaceWeb(value: string | null): string | null {
+  if (!value) return null
+  try {
+    const parsed = new URL(value)
+    return ['https:', 'http:'].includes(parsed.protocol) ? value : null
+  } catch {
+    return null
+  }
+}
+
 export default function ReviewPanel({ onClose, onChanged }: Props) {
   const [jobs, setJobs] = useState<ReviewJob[] | null>(null)
   const [stats, setStats] = useState<{ pending: number; resolved: number } | null>(null)
@@ -60,8 +77,9 @@ export default function ReviewPanel({ onClose, onChanged }: Props) {
         </span>
       </div>
       <p>
-        Jobs con puesto y empresa reales pero URL que Resonance no pudo verificar. Corregí
-        la URL (usá la pista del listado) o descartalos si no son rescatables.
+        Jobs con puesto y empresa reales pero URL que Resonance no pudo verificar: corregí
+        la URL (usá la pista del listado) o descartalos si no son rescatables. Los avisos con
+        empresa dudosa siguen en la lista; acá solo se marcan como revisados.
       </p>
       <div className="actions" style={{ marginTop: 0, marginBottom: 12 }}>
         <span style={{ flex: 1 }} />
@@ -81,19 +99,37 @@ export default function ReviewPanel({ onClose, onChanged }: Props) {
 
       {jobs !== null && jobs.length > 0 && (
         <div className="review-list">
-          {jobs.map((j) => (
+          {jobs.map((j) => {
+            const motivoEmpresa = j.reason ? MOTIVO_EMPRESA[j.reason] : undefined
+            const aviso = enlaceWeb(j.original_url)
+            const listado = enlaceWeb(j.srp_url)
+            return (
             <div className="review-card" key={j.review_hash}>
               <div className="review-main">
                 <b>{j.title}</b>
                 <span className="review-meta">
                   {j.company} · {j.source_domain}
                 </span>
+                {motivoEmpresa && <span className="review-meta">{motivoEmpresa}</span>}
               </div>
-              {j.srp_url && (
-                <a className="review-lead" href={j.srp_url} target="_blank" rel="noopener noreferrer">
-                  Ver listado (pista) ↗
+              {motivoEmpresa && aviso ? (
+                <a className="review-lead" href={aviso} target="_blank" rel="noopener noreferrer">
+                  Abrir el aviso ↗
                 </a>
+              ) : (
+                listado && (
+                  <a className="review-lead" href={listado} target="_blank" rel="noopener noreferrer">
+                    Ver listado (pista) ↗
+                  </a>
+                )
               )}
+              {motivoEmpresa ? (
+                <div className="review-actions">
+                  <button className="btn mini" onClick={() => resolve(j.review_hash, null)}>
+                    Marcar como revisado
+                  </button>
+                </div>
+              ) : (
               <div className="review-actions">
                 <input
                   className="text-input"
@@ -114,8 +150,10 @@ export default function ReviewPanel({ onClose, onChanged }: Props) {
                   Descartar
                 </button>
               </div>
+              )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

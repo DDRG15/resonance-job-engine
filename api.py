@@ -680,14 +680,14 @@ def registry_jobs(limit: int = 200, hours: Optional[int] = None):
 # =============================================================================
 
 class ReviewResolve(BaseModel):
-    # None → el humano descarta el job como no-rescatable; str → la URL real.
+    # None → cerrar la revisión sin cambiar la URL; str → la URL real corregida.
     resolved_url: Optional[str] = None
 
 
 @app.get("/api/review")
 def list_review(include_resolved: bool = False):
-    """Jobs rescatados: title+company reales pero URL no verificable. El humano
-    corrige la URL o los descarta. `srp_url` es la pista (dónde apareció)."""
+    """Avisos con URL no verificable o empresa dudosa. El motivo determina qué
+    revisa el humano; cerrar la revisión conserva el aviso en el registry."""
     return {
         "jobs": app.state.db.get_manual_review(include_resolved=include_resolved),
         "stats": app.state.db.get_review_stats(),

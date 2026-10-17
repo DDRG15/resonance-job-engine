@@ -21,6 +21,7 @@ from typing import Generator, Optional
 from urllib.parse import urlparse, urlunparse
 from zoneinfo import ZoneInfo
 
+from empresa import MOTIVO_ESLOGAN, MOTIVO_VACIA, PLACEHOLDER_EMPRESA, motivo_empresa_dudosa, normalizar_empresa
 from models import JobResult, SearchConfig, SearchVaultEntry
 import config
 import metrics
@@ -452,6 +453,10 @@ _DDL_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_eval_run        ON eval_results(eval_run_id);",
 ]
 
+_INSERT_MANUAL_REVIEW = """INSERT OR IGNORE INTO manual_review
+    (review_hash, title, company, source_domain, original_url, srp_url, reason, captured_at, resolved)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)"""
+
 
 # =============================================================================
 # Connection Management
@@ -833,6 +838,7 @@ class GemaDatabase:
                     job.salary_raw, getattr(job, "descripcion", None),
                 ),
             )
+        self._marcar_empresas_dudosas([job])
 
     def mark_seen_batch(self, jobs: list[JobResult]) -> None:
         """Bulk-registers a list of jobs in a single transaction."""
@@ -856,6 +862,81 @@ class GemaDatabase:
                 records,
             )
         logger.info("Batch-registered %d jobs.", len(records))
+        self._marcar_empresas_dudosas(jobs)
+
+    def _marcar_empresas_dudosas(self, jobs: list[JobResult]) -> int:
+        """El aviso ya quedó en el registry; si su `company` no sirve como nombre
+        (vacía, o un eslogan) se anota además en la pila de revisión con el motivo.
+        Nunca descarta ni altera el aviso, y un fallo acá no rompe el registro."""
+        try:
+            records = [self._review_record(j, None, motivo)
+                       for j in jobs if (motivo := motivo_empresa_dudosa(j.company))]
+            if not records:
+                return 0
+            with _get_connection(self.db_path) as conn:
+                cur = conn.executemany(_INSERT_MANUAL_REVIEW, records)
+                return cur.rowcount
+        except Exception as exc:
+            logger.debug("[EMPRESA] no se pudo marcar el lote: %s", exc)
+            return 0
+
+    @staticmethod
+    def _planificar_empresas(filas) -> tuple[list, list]:
+        from scraper import derive_company_from_url   # import tardío: scraper importa este módulo
+        cambios, dudosas = [], []
+        for f in filas:
+            actual = f["company"] or ""
+            nueva = normalizar_empresa(actual, f["title"]) or PLACEHOLDER_EMPRESA
+            if nueva == PLACEHOLDER_EMPRESA:
+                nueva = derive_company_from_url(f["url"], f["source_domain"]) or nueva
+            if nueva != actual:
+                cambios.append((nueva, f["job_hash"]))
+            if motivo_empresa_dudosa(nueva):
+                dudosas.append((f, nueva))
+        return cambios, dudosas
+
+    @classmethod
+    def previsualizar_empresas(cls, db_path: str) -> dict:
+        """Cuenta la reparación sin abrir un escritor ni ejecutar migraciones."""
+        path = Path(db_path).resolve()
+        if not path.exists():
+            return {"filas": 0, "corregidas": 0, "dudosas": 0}
+        conn = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+        conn.row_factory = sqlite3.Row
+        try:
+            filas = conn.execute(
+                "SELECT job_hash, url, title, company, source_domain FROM seen_jobs_registry"
+            ).fetchall()
+        finally:
+            conn.close()
+        cambios, dudosas = cls._planificar_empresas(filas)
+        return {"filas": len(filas), "corregidas": len(cambios), "dudosas": len(dudosas)}
+
+    def reparar_empresas(self, aplicar: bool = False) -> dict:
+        """Repara empresas ya guardadas sin borrar avisos; invalida sus puntajes.
+
+        INSERT OR IGNORE conserva las filas antiguas aunque se arregle el scraper.
+        Esta pasada rescata nombres y deriva la empresa de la URL cuando es posible.
+        Lo dudoso va a revisión. Con aplicar=False solo cuenta los cambios.
+        """
+        with _get_connection(self.db_path) as conn:
+            filas = conn.execute(
+                "SELECT job_hash, url, title, company, source_domain FROM seen_jobs_registry"
+            ).fetchall()
+        cambios, dudosas = self._planificar_empresas(filas)
+        if aplicar:
+            with _get_connection(self.db_path) as conn:
+                conn.executemany(
+                    "UPDATE seen_jobs_registry SET company = ?, score_version = NULL WHERE job_hash = ?", cambios
+                )
+            for f, nueva in dudosas:
+                try:
+                    job = JobResult(title=f["title"], company=nueva, url=f["url"],
+                                    source_domain=f["source_domain"])
+                    self.add_to_manual_review(job, None, reason=motivo_empresa_dudosa(nueva))
+                except Exception as exc:
+                    logger.debug("[EMPRESA] no se pudo marcar %r: %s", f["title"], exc)
+        return {"filas": len(filas), "corregidas": len(cambios), "dudosas": len(dudosas)}
 
     # =========================================================================
     # Search Vault (Vol 1.3)
@@ -921,24 +1002,28 @@ class GemaDatabase:
         )
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
-    def add_to_manual_review(
-        self, job: "JobResult", srp_url: Optional[str], reason: str
-    ) -> bool:
-        """Rescata un job (title+company reales, URL no verificable) a la pila.
-        Retorna True si se insertó, False si ya existía (idempotente).
-        SEAM 30b: original_url = la URL mala del LLM; srp_url = la pista."""
+    def _review_record(self, job: "JobResult", srp_url: Optional[str], reason: str) -> tuple:
         review_hash = self.compute_review_hash(
             job.title, job.company, job.source_domain
         )
+        if reason in (MOTIVO_VACIA, MOTIVO_ESLOGAN):
+            # Estos avisos tienen URL: dos puestos con igual título y empresa
+            # desconocida deben revisarse por separado. La revisión de URLs conserva
+            # su clave previa, porque ahí no se puede confiar en la URL extraída.
+            review_hash = hashlib.sha256(
+                f"{review_hash}|{reason}|{self.compute_hash(job.url)}".encode("utf-8")
+            ).hexdigest()
+        return (review_hash, job.title, job.company, job.source_domain,
+                job.url, srp_url, reason, datetime.now(timezone.utc).isoformat())
+
+    def add_to_manual_review(
+        self, job: "JobResult", srp_url: Optional[str], reason: str
+    ) -> bool:
+        """Rescata un aviso con URL no verificable o empresa dudosa a la pila.
+        Retorna True si se insertó, False si ya existía (idempotente).
+        original_url conserva el enlace de origen; srp_url es la pista del listado."""
         with _get_connection(self.db_path) as conn:
-            cur = conn.execute(
-                """INSERT OR IGNORE INTO manual_review
-                   (review_hash, title, company, source_domain, original_url,
-                    srp_url, reason, captured_at, resolved)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)""",
-                (review_hash, job.title, job.company, job.source_domain,
-                 job.url, srp_url, reason, datetime.now(timezone.utc).isoformat()),
-            )
+            cur = conn.execute(_INSERT_MANUAL_REVIEW, self._review_record(job, srp_url, reason))
             return cur.rowcount > 0
 
     def get_manual_review(self, include_resolved: bool = False,

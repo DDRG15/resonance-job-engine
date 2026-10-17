@@ -160,6 +160,22 @@ describe('StatTiles', () => {
 })
 
 describe('Results', () => {
+  it('usa la calidad del backend para conservar nombres largos y señalar eslóganes cortos', () => {
+    const name = 'Department of Customer Services, Open Data and Small and Family Business'
+    const results: ResultsResponse = {
+      ...RESULTS,
+      tiers: {
+        tier1: [makeJob({ company: name, empresa_no_confirmada: false })],
+        tier2: [makeJob({ company: 'We build your future.', empresa_no_confirmada: true,
+                        url: 'https://example.com/slogan' }, { tier: 'Tier 2', match_score: 60 })],
+        tier3: [],
+      },
+    }
+    render(<Results results={results} />)
+    expect(screen.getAllByText(name).length).toBeGreaterThan(0)
+    expect(screen.getByTitle('We build your future.')).toHaveTextContent('sin empresa')
+  })
+
   it('renderiza el job card con link real y score', () => {
     render(<Results results={RESULTS} />)
     const link = screen.getByRole('link', { name: 'Senior Python Backend Engineer' })
