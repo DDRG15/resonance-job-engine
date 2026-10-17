@@ -396,6 +396,13 @@ class TestScrape:
         assert r.status_code == 200
         assert "spreadsheetml" in r.headers["content-type"]
         assert r.content[:2] == b"PK"  # firma ZIP de un .xlsx real
+        # Es el libro nuevo (Resumen primero, Avisos como tabla), no la hoja suelta vieja.
+        import io
+        import openpyxl
+        import exportar_excel
+        wb = openpyxl.load_workbook(io.BytesIO(r.content))
+        assert wb.sheetnames[:2] == [exportar_excel.HOJA_RESUMEN, exportar_excel.HOJA_AVISOS]
+        assert wb[exportar_excel.HOJA_AVISOS].tables
 
     def test_stream_emits_logs_and_done(self, client, fake_scrape):
         _put_config(client)

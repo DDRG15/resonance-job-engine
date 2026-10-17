@@ -39,7 +39,6 @@ from pydantic import BaseModel
 import config
 import fuentes_estado
 import selectors_registry
-from excel_seguro import construir_xlsx
 from host_guard import HostGuardMiddleware
 from origin_guard import OriginGuardMiddleware
 from database import GemaDatabase
@@ -580,35 +579,39 @@ def get_results():
 
 @app.get("/api/export.xlsx")
 def export_excel():
+    """
+    El libro de resultados: Resumen, Avisos (una tabla de Excel con filtros y el veredicto
+    a la izquierda) y Revision manual. Lo arma `exportar_excel.construir_excel`.
+
+    Titulo, empresa, salario y URL los escribio un board: el generador los pasa por
+    `excel_seguro`, que los deja como texto (nunca formula) y solo enlaza http/https.
+    """
+    import io
+    from datetime import datetime, timezone
+
+    import exportar_excel
+
     runs: RunManager = app.state.runs
     if runs.results is None:
         raise HTTPException(404, "no hay resultados para exportar")
     t1, t2, t3, t4 = runs.results
-    all_tiered = (
-        [(tj, 1) for tj in t1] + [(tj, 2) for tj in t2] +
-        [(tj, 3) for tj in t3] + [(tj, 4) for tj in t4]
+    try:
+        revision = app.state.db.get_manual_review(include_resolved=False)
+    except Exception:
+        # La pila de revision es un extra del libro: si la base no responde, el export de
+        # los resultados de la corrida sale igual.
+        revision = []
+    contenido = exportar_excel.construir_excel(
+        {"tier1": t1, "tier2": t2, "tier3": t3, "tier4": t4},
+        manual_review=revision,
+        meta={"fecha": datetime.now(timezone.utc)},
     )
-    rows = []
-    for tj, tier_num in sorted(all_tiered, key=lambda x: x[0].match_score, reverse=True):
-        rows.append({
-            "Tier":         tier_num,
-            "Title":        tj.job.title,
-            "Company":      tj.job.company,
-            "Salary":       tj.job.salary_raw or "",
-            "Match Score":  tj.match_score if tj.match_score >= 0 else "Manual",
-            "Apply Link":   tj.job.url,
-            "Source":       tj.job.source_domain,
-            "Date Fetched": tj.job.scraped_at.strftime("%Y-%m-%d %H:%M UTC"),
-        })
-    # Titulo, empresa, salario y URL los escribio un board.
-    # excel_seguro los deja como texto —nunca formula— y solo enlaza http/https.
-    buf = construir_xlsx(rows)
-    run_id_short = (runs.run_id or "gema")[:8]
+    run_id_short = (runs.run_id or "resultados")[:8]
     return StreamingResponse(
-        buf,
+        io.BytesIO(contenido),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f'attachment; filename="gema_results_{run_id_short}.xlsx"'
+            "Content-Disposition": f'attachment; filename="resonance_{run_id_short}.xlsx"'
         },
     )
 

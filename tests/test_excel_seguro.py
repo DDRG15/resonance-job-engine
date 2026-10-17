@@ -231,18 +231,22 @@ class TestEndpoint:
         r = client.get("/api/export.xlsx")
         assert r.status_code == 200
 
-        hoja = _hoja(io.BytesIO(r.content))
-        assert [c.coordinate for fila in hoja.iter_rows() for c in fila
-                if c.data_type == "f"] == []
-        c = _celdas(hoja)
-        # Orden por score descendente y estable: el adversarial (fila 2) y el normal (fila 3).
-        assert c[("Title", 2)].value == FORMULA and c[("Title", 2)].data_type == "s"
-        assert c[("Company", 2)].value == "+cmd" and c[("Company", 2)].data_type == "s"
-        assert c[("Salary", 2)].value == "=1+1" and c[("Salary", 2)].data_type == "s"
-        assert c[("Apply Link", 2)].value == "javascript:alert(1)"
-        assert c[("Apply Link", 2)].hyperlink is None
-        assert c[("Title", 3)].value == "Backend Engineer"
-        assert c[("Apply Link", 3)].hyperlink.target == "https://acme.com/jobs/1"
+        import openpyxl
+        import exportar_excel
+        wb = openpyxl.load_workbook(io.BytesIO(r.content))
+        # Ninguna celda de formula en NINGUNA hoja del libro (Resumen incluido).
+        assert [(h.title, c.coordinate) for h in wb.worksheets for fila in h.iter_rows()
+                for c in fila if c.data_type == "f"] == []
+        hoja = wb[exportar_excel.HOJA_AVISOS]
+        cab = {c.value: c.column for c in hoja[1]}
+        filas = {hoja.cell(f, cab["Título"]).value: f for f in range(2, hoja.max_row + 1)}
+        mala, buena = filas[FORMULA], filas["Backend Engineer"]
+        for columna, esperado in (("Título", FORMULA), ("Empresa", "+cmd"),
+                                  ("Salario (texto original)", "=1+1")):
+            celda = hoja.cell(mala, cab[columna])
+            assert celda.value == esperado and celda.data_type == "s", columna
+        assert hoja.cell(mala, cab["URL"]).hyperlink is None          # javascript: nunca enlaza
+        assert hoja.cell(buena, cab["URL"]).hyperlink.target == "https://acme.com/jobs/1"
 
     def test_el_texto_original_no_cambia_en_el_estado_del_servidor(self, client):
         """La defensa vive en el borde: el objeto que lee la UI no se toca."""
