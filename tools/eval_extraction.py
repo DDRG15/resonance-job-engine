@@ -66,11 +66,14 @@ def _casos_fixtures() -> list[dict]:
         if not d.get("source_text"):
             print(f"  [SKIP] {p.name}: sin source_text")
             continue
+        expected = d.get("expected_jobs") if d.get("human_confirmed") is True else None
         casos.append({
             "nombre": p.stem,
             "source": "fixture",
             "texto": d["source_text"],
-            "esperados": len(d.get("expected_jobs") or []) or None,
+            "esperados": len(expected) if expected is not None else None,
+            "expected_jobs": expected,
+            "source_url": d.get("source_url"),
             "url_esperada": None,
         })
     return casos
@@ -153,13 +156,15 @@ def correr_caso(caso: dict) -> dict:
         "error": None,
     }
     try:
-        resultado = extract_jobs_from_text(caso["texto"], source_url=None)
+        resultado = extract_jobs_from_text(caso["texto"], source_url=caso.get("source_url"),
+                                           raise_on_failure=True)
         jobs = list(resultado.jobs)
     except Exception as exc:
         fila["error"] = f"{type(exc).__name__}: {exc}"
         fila.update(puntuar_caso(jobs=[], texto_fuente=caso["texto"],
                                  jobs_esperados=caso.get("esperados"),
-                                 url_esperada=caso.get("url_esperada")))
+                                 url_esperada=caso.get("url_esperada"),
+                                 expected_jobs=caso.get("expected_jobs")))
         return fila
 
     fila.update(puntuar_caso(
@@ -167,6 +172,7 @@ def correr_caso(caso: dict) -> dict:
         texto_fuente=caso["texto"],
         jobs_esperados=caso.get("esperados"),
         url_esperada=caso.get("url_esperada"),
+        expected_jobs=caso.get("expected_jobs"),
     ))
     return fila
 

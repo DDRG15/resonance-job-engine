@@ -439,6 +439,18 @@ def _progreso_dto() -> Optional[dict]:
         return None
 
 
+@app.post("/api/scrape/{run_id}/resume", status_code=202)
+def resume_scrape(run_id: str):
+    from graph.checkpoints import ResumeError
+    try:
+        resumed = app.state.runs.resume(run_id, app.state.profile)
+    except RunInProgressError:
+        raise HTTPException(409, "ya hay una corrida activa")
+    except ResumeError as exc:
+        raise HTTPException(409, str(exc))
+    return {"run_id": resumed}
+
+
 @app.get("/api/scrape/stream")
 async def stream_logs():
     runs: RunManager = app.state.runs
@@ -534,7 +546,14 @@ def _last_run_dto() -> Optional[dict]:
     else:
         mensaje = f"Última corrida ({origen}, inicio {inicio} UTC): estado «{estado}»."
 
+    from graph.checkpoints import resume_info
+    availability = resume_info(app.state.db, fila["run_id"], app.state.profile)
+    if availability["resumable"]:
+        mensaje += " Podés reanudar desde el último avance guardado."
+        if availability["resume_requires_cv"]:
+            mensaje += " Primero volvé a cargar el mismo perfil de CV."
     return {
+        **availability,
         "run_id": fila.get("run_id"),
         "status": estado,
         "trigger": fila.get("trigger"),
@@ -937,6 +956,8 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
         profile = generate_ephemeral_profile(raw_text, raise_on_failure=True)
     except RuntimeError as exc:
         raise HTTPException(503, f"el análisis del CV falló en toda la cadena LLM: {exc}")
+    import hashlib
+    profile = {**profile, "_cv_source_hash": hashlib.sha256(raw_text.encode("utf-8")).hexdigest()}
     with app.state.state_lock:
         app.state.profile = profile
         # el perfil nuevo llega también al scheduler (antes solo al siguiente
@@ -944,7 +965,7 @@ def upload_cv(file: UploadFile = File(...), llm_consent: str = Form("")):
         app.state.sched.set_profile(profile)
     # Privacidad: el CV crudo no se persiste — solo el perfil (en memoria; en disco solo
     # con retain_cv)
-    return {"profile": profile}
+    return {"profile": {k: v for k, v in profile.items() if not k.startswith("_")}}
 
 
 @app.delete("/api/cv")
@@ -956,7 +977,9 @@ def clear_cv():
 
 @app.get("/api/cv")
 def get_cv_profile():
-    return {"profile": app.state.profile}
+    profile = app.state.profile
+    return {"profile": ({k: v for k, v in profile.items() if not k.startswith("_")}
+                         if profile is not None else None)}
 
 
 @app.put("/api/godmode")

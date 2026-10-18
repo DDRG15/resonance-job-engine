@@ -1,8 +1,10 @@
 # Corpus de evaluación de extracción
 
-Esta carpeta es la **única fuente del corpus con respuestas correctas conocidas**. Las
-otras dos (`drift_quarantine/` y `manual_review`) se llenan solas, pero no traen anotado
-qué debería haber salido.
+Esta carpeta conserva entradas reales y, cuando fueron confirmadas por una persona,
+sus respuestas de referencia. `human_confirmed: true` es obligatorio para usar
+`expected_jobs` al medir acuerdo; los casos sin confirmar solo miden grounding y campos.
+Las ocho entradas capturadas el 2026-10-18 conservan el texto de tarjetas públicas.
+Sus etiquetas fueron confirmadas: 23 avisos esperados y una promoción que no es un puesto.
 
 Se cura a mano. No hay atajo, y hubo un intento de saltearlo que costó caro: durante meses
 el corpus fueron 38 archivos que resultaron ser **100% artefactos de la suite**
@@ -18,6 +20,7 @@ así que conviene que diga de qué board viene:
 
 ```json
 {
+  "human_confirmed": true,
   "source_text": "el texto EXACTO que se le manda al modelo, con los href inlineados",
   "source_url": "https://arc.dev/remote-jobs?q=backend",
   "notes": "por que este caso esta en el corpus: que rompe, que verifica",
@@ -31,8 +34,9 @@ así que conviene que diga de qué board viene:
 }
 ```
 
-`expected_jobs` es opcional. Sin él, el caso sigue midiendo grounding y completitud —que
-son autoverificables contra `source_text`— pero no cuenta para `agreement`.
+`expected_jobs` es opcional. Sin confirmación humana, el caso no cuenta para `agreement`.
+Una lista vacía confirmada significa que se esperan cero avisos. Para listas con varios
+avisos, `agreement` es F1 de sus URLs: penaliza omisiones y resultados de más.
 
 ---
 

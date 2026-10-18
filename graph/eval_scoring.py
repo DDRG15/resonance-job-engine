@@ -20,9 +20,8 @@ fields_complete    — promedio de campos no vacíos sobre los que importan para
                      el modelo devuelve la cantidad correcta de jobs, todos grounded, y
                      con la mitad de los campos en null.
 
-agreement          — solo para los casos que vienen de manual_review resueltos: ¿la URL
-                     que el sistema produjo coincide con la que el humano corrigió? Es la
-                     única de las cuatro con respuesta correcta conocida.
+agreement          — URLs contra referencias humanas: coincidencia de una URL corregida
+                     o F1 del conjunto en fixtures confirmados, incluyendo casos vacíos.
 """
 
 import re
@@ -70,6 +69,7 @@ def puntuar_caso(
     texto_fuente: str,
     jobs_esperados: Optional[int] = None,
     url_esperada: Optional[str] = None,
+    expected_jobs: Optional[list[dict]] = None,
 ) -> dict:
     """
     Puntúa una extracción contra su fuente.
@@ -87,7 +87,17 @@ def puntuar_caso(
     completos = (sum(completitud(j) for j in jobs) / total) if total else 0.0
 
     acuerdo = None
-    if url_esperada is not None:
+    if expected_jobs is not None:
+        expected_urls = {str(j.get("source_url") or "").rstrip("/") for j in expected_jobs}
+        expected_urls.discard("")
+        actual_urls = {str(_campo(j, "source_url") or "").rstrip("/") for j in jobs}
+        actual_urls.discard("")
+        if not expected_jobs:
+            acuerdo = 1.0 if not jobs else 0.0
+        elif expected_urls:
+            acuerdo = 2 * len(expected_urls & actual_urls) / (len(expected_urls) + len(actual_urls))
+        jobs_esperados = len(expected_jobs)
+    elif url_esperada is not None:
         objetivo = str(url_esperada).rstrip("/")
         acuerdo = 1.0 if any(
             str(_campo(j, "source_url") or "").rstrip("/") == objetivo for j in jobs

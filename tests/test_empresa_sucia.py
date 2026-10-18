@@ -198,6 +198,27 @@ def _extraer(sel, campos, url, dominio):
 
 
 class TestTarjeta:
+    @pytest.mark.parametrize("title,company", [
+        ("Artie (YC S23) Is Hiring Enterprise AES and Senior Engineers", "Artie"),
+        ("Flexport Is Hiring a Biz Ops Leader in Office of CEO", "Flexport"),
+        ("Piramidal (YC W24) Is Hiring", "Piramidal"),
+    ])
+    def test_hn_empresa_en_titulo_no_el_host_del_ats(self, title, company):
+        sel = sr.SELECTORS["news.ycombinator.com"]
+        result = _extraer(sel, {sel.title[0]: title, sel.company[0]: "greenhouse.io"},
+                          "https://job-boards.greenhouse.io/piramidalinc/jobs/4443102009",
+                          "news.ycombinator.com")
+        assert result.company == company
+
+    def test_arc_exclusive_es_una_etiqueta_del_board_y_conserva_el_aviso(self):
+        sel = sr.SELECTORS["arc.dev"]
+        result = _extraer(sel, {sel.title[0]: "AI Integration Engineer",
+                               sel.company[0]: "Arc Exclusive"},
+                          "https://arc.dev/remote-jobs/details/ai-integration-engineer-id", "arc.dev")
+        assert result is not None
+        assert result.company == PLACEHOLDER_EMPRESA
+        assert result.empresa_no_confirmada
+
     def test_tarjeta_python_org_html_real(self, tmp_path):
         from test_location_jobspresso_arc import _extraer as extraer_html
         # Tarjeta pública capturada de https://www.python.org/jobs/ el 2026-10-17.

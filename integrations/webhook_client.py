@@ -35,6 +35,7 @@ SRE Note:
 import asyncio
 import json
 import logging
+from threading import Lock
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -264,6 +265,7 @@ class WebhookClient:
         self._slack_url      = slack_url   or config.SLACK_WEBHOOK_URL
         self._first_hit_sent = False
         self._tier1_buffer:  list[TieredJob] = []
+        self._buffer_lock = Lock()
 
     @property
     def is_enabled(self) -> bool:
@@ -282,10 +284,12 @@ class WebhookClient:
         if not self.is_enabled:
             return
 
-        self._tier1_buffer.append(tiered_job)
-
-        if not self._first_hit_sent:
+        with self._buffer_lock:
+            self._tier1_buffer.append(tiered_job)
+            first = not self._first_hit_sent
             self._first_hit_sent = True
+
+        if first:
             logger.info(
                 "[WEBHOOK] First Tier 1 hit — firing immediate ping: %s @ %s",
                 tiered_job.job.title, tiered_job.job.company,

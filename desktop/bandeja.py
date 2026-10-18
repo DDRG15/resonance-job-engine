@@ -58,6 +58,22 @@ def _imagen_icono():
     return img
 
 
+def reanudar_corrida(url: str) -> tuple[str, str]:
+    try:
+        status, body = runtime.http_json("GET", f"{url}/api/results", timeout=5.0)
+        last = body.get("last_run") if status == 200 and isinstance(body, dict) else None
+        if not last or not last.get("resumable"):
+            return "sin_avance", "No hay una corrida pendiente para reanudar."
+        if last.get("resume_requires_cv"):
+            return "requiere_cv", "Cargá el mismo CV en el panel para reanudar."
+        from urllib.parse import quote
+        run_id = quote(last["run_id"], safe="")
+        status, _ = runtime.http_json("POST", f"{url}/api/scrape/{run_id}/resume", {}, timeout=30.0)
+        return ("iniciada", "Corrida reanudada.") if status == 202 else ("error", "Abrí el panel para revisar la corrida.")
+    except Exception as exc:
+        return "error", f"No se pudo reanudar: {exc}"
+
+
 class Bandeja:
     def __init__(self, url: str, abrir: Callable[[], None],
                  al_salir: Callable[[], None]) -> None:
@@ -84,6 +100,16 @@ class Bandeja:
         self._al_salir()
         self.detener()
 
+    def _on_reanudar(self, icono=None, item=None) -> None:
+        resultado, mensaje = reanudar_corrida(self._url)
+        if resultado in ("requiere_cv", "error"):
+            self._abrir()
+        try:
+            if self._icono is not None:
+                self._icono.notify(mensaje, "Resonance")
+        except Exception:
+            log.info("bandeja: %s", mensaje)
+
     def ejecutar(self) -> None:
         """Bloquea hasta `detener()`. Levanta ImportError si pystray/Pillow no están."""
         import pystray
@@ -91,6 +117,7 @@ class Bandeja:
         menu = pystray.Menu(
             pystray.MenuItem("Abrir", self._on_abrir, default=True),
             pystray.MenuItem("Correr búsqueda ahora", self._on_correr),
+            pystray.MenuItem("Reanudar corrida", self._on_reanudar),
             pystray.MenuItem("Salir", self._on_salir),
         )
         self._icono = pystray.Icon("resonance", _imagen_icono(), "Resonance", menu)

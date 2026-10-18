@@ -506,6 +506,11 @@ class GemaDatabase:
             conn.execute(_DDL_SEARCH_VAULT)
             conn.execute(_DDL_MANUAL_REVIEW)  # Phase 30a
             conn.execute(_DDL_RUNS)           # v3 Fase 4
+            conn.execute("""CREATE TABLE IF NOT EXISTS run_jobs (
+                run_id TEXT NOT NULL, job_hash TEXT NOT NULL, payload TEXT NOT NULL,
+                PRIMARY KEY(run_id, job_hash))""")
+            conn.execute("""CREATE TABLE IF NOT EXISTS run_limits (
+                run_id TEXT PRIMARY KEY, fallback_used INTEGER NOT NULL DEFAULT 0)""")
             conn.execute(_DDL_NODE_TRACES)    # v3 Fase 4
             conn.execute(_DDL_LLM_CALLS)      # v3 Fase 4
             conn.execute(_DDL_EVAL_RESULTS)   # v3 Fase 7
@@ -840,7 +845,7 @@ class GemaDatabase:
             )
         self._marcar_empresas_dudosas([job])
 
-    def mark_seen_batch(self, jobs: list[JobResult]) -> None:
+    def mark_seen_batch(self, jobs: list[JobResult], *, run_id: Optional[str] = None) -> None:
         """Bulk-registers a list of jobs in a single transaction."""
         records = [
             (
@@ -861,8 +866,31 @@ class GemaDatabase:
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 records,
             )
+            if run_id:
+                conn.executemany("INSERT OR IGNORE INTO run_jobs(run_id, job_hash, payload) "
+                                 "VALUES (?, ?, ?)",
+                                 [(run_id, self.compute_hash(j.url), j.model_dump_json())
+                                  for j in jobs])
         logger.info("Batch-registered %d jobs.", len(records))
         self._marcar_empresas_dudosas(jobs)
+
+    def get_run_jobs(self, run_id: str) -> list[JobResult]:
+        with _get_connection(self.db_path) as conn:
+            return [JobResult.model_validate_json(row[0]) for row in conn.execute(
+                "SELECT payload FROM run_jobs WHERE run_id=? ORDER BY rowid", (run_id,))]
+
+    def clear_run_jobs(self, run_id: str) -> None:
+        with _get_connection(self.db_path) as conn:
+            conn.execute("DELETE FROM run_jobs WHERE run_id=?", (run_id,))
+            conn.execute("DELETE FROM run_limits WHERE run_id=?", (run_id,))
+
+    def reserve_run_fallback(self, run_id: str, limit: int) -> bool:
+        """Reserve before calling the LLM, including calls interrupted by a process exit."""
+        with _get_connection(self.db_path) as conn:
+            conn.execute("INSERT OR IGNORE INTO run_limits(run_id) VALUES (?)", (run_id,))
+            changed = conn.execute("UPDATE run_limits SET fallback_used=fallback_used+1 "
+                                   "WHERE run_id=? AND fallback_used<?", (run_id, limit))
+            return changed.rowcount == 1
 
     def _marcar_empresas_dudosas(self, jobs: list[JobResult]) -> int:
         """El aviso ya quedó en el registry; si su `company` no sirve como nombre
@@ -1961,6 +1989,17 @@ class GemaDatabase:
                 )
         except Exception as exc:
             logger.warning("[TELEMETRY] record_run_start failed for %s: %s", run_id, exc)
+
+    def mark_run_resumed(self, run_id: str) -> None:
+        """Keep the original start time and configuration when continuing a run."""
+        with _get_connection(self.db_path) as conn:
+            conn.execute("UPDATE runs SET status='running', completed_at=NULL, "
+                         "interrupted_at=NULL, error=NULL WHERE run_id=?", (run_id,))
+
+    def mark_run_completed(self, run_id: str) -> None:
+        with _get_connection(self.db_path) as conn:
+            conn.execute("UPDATE runs SET status='ok', completed_at=?, interrupted_at=NULL, "
+                         "error=NULL WHERE run_id=?", (_now_iso(), run_id))
 
     def record_run_end(
         self,

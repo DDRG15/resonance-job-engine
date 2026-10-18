@@ -51,8 +51,14 @@ if (-not (Test-Path (Join-Path $Raiz "frontend\dist\index.html"))) {
 
 # --- 1. Limpieza ---------------------------------------------------------------
 foreach ($d in @("build", "dist")) {
-    $ruta = Join-Path $Raiz $d
-    if (Test-Path $ruta) { Remove-Item -Recurse -Force $ruta }
+    $ruta = [IO.Path]::GetFullPath((Join-Path $Raiz $d))
+    if ((Split-Path -Parent $ruta) -ne $Raiz) { Fallar "ruta de limpieza fuera del proyecto" }
+    if (Test-Path -LiteralPath $ruta) {
+        if ((Get-Item -LiteralPath $ruta -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            Fallar "la carpeta de build no puede ser un enlace"
+        }
+        Remove-Item -LiteralPath $ruta -Recurse -Force
+    }
 }
 
 # --- 2. PyInstaller ------------------------------------------------------------
@@ -83,6 +89,7 @@ function Buscar-Prohibidos([string]$carpeta) {
         ($nombresVetados -contains $n) -or
         ($n -like '.env.*.local') -or
         ($n -like '*.db') -or ($n -like '*.db-shm') -or ($n -like '*.db-wal') -or ($n -like '*.bak') -or
+        ($n -like '*.sqlite') -or ($n -like '*.sqlite-shm') -or ($n -like '*.sqlite-wal') -or ($n -like '*.sqlite-journal') -or
         ($n -like '*.log') -or ($n -like '*.xlsx') -or
         ($f -match '\\cookies\\.*\.json$') -or ($f -match '\\cookies\\session\\') -or
         ($f -match '\\credentials\\.*\.(json|p12)$') -or
@@ -165,7 +172,13 @@ if (-not $SinSmoke) {
         if ($proc -and -not $proc.HasExited) { Detener-Arbol $proc.Id }
         $env:RESONANCE_HOME = $envPrevio
         Start-Sleep -Milliseconds 500
-        Remove-Item -Recurse -Force $home_ -ErrorAction SilentlyContinue
+        $tempRaiz = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+        $homeSeguro = [IO.Path]::GetFullPath($home_)
+        if ((Split-Path -Parent $homeSeguro) -ne $tempRaiz -or
+            (Split-Path -Leaf $homeSeguro) -notlike 'resonance-smoke-*') {
+            Fallar "ruta temporal de smoke fuera del directorio esperado"
+        }
+        Remove-Item -LiteralPath $homeSeguro -Recurse -Force -ErrorAction SilentlyContinue
     }
 
     # El smoke no debe dejar nada en dist\ (la app corrio con su RESONANCE_HOME aparte).

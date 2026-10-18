@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import time
+from threading import RLock
 from enum import Enum
 from pathlib import Path
 from typing import Optional
@@ -31,6 +32,8 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 import config
+
+_REGISTRY_LOCK = RLock()
 
 
 # ── Constrained vocabularies (validated by pydantic on assignment) ───────────
@@ -205,7 +208,8 @@ class BoardStrategyRegistry:
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path or config.BOARD_STRATEGY_PATH)
         self._strategies: dict[str, BoardStrategy] = {}
-        self._load()
+        with _REGISTRY_LOCK:
+            self._load()
 
     def _load(self) -> None:
         if self.path.exists():
@@ -273,14 +277,17 @@ class BoardStrategyRegistry:
     def update(self, domain: str, **fields) -> BoardStrategy:
         """Update fields on a board's strategy and persist. Unknown fields raise;
         enum fields are validated by pydantic (validate_assignment)."""
-        strat = self.get(domain)
-        for key, value in fields.items():
-            if key not in BoardStrategy.model_fields:
-                raise AttributeError(f"BoardStrategy has no field {key!r}")
-            setattr(strat, key, value)  # validates enum/type on assignment
-        strat.last_updated = time.time()
-        self._save()
-        return strat
+        with _REGISTRY_LOCK:
+            # Other board branches may have written since this instance was created.
+            self._load()
+            strat = self.get(domain)
+            for key, value in fields.items():
+                if key not in BoardStrategy.model_fields:
+                    raise AttributeError(f"BoardStrategy has no field {key!r}")
+                setattr(strat, key, value)
+            strat.last_updated = time.time()
+            self._save()
+            return strat
 
     def all_domains(self) -> list[str]:
         return list(self._strategies.keys())

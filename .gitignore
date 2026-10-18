@@ -22,6 +22,10 @@ node_modules/
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sqlite-journal
 *.bak
 backups/
 drift_quarantine/

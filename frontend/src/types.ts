@@ -176,6 +176,8 @@ export interface SummaryDto {
 // nada de ninguna corrida (típicamente tras reiniciar el servidor). `results_available`
 // es false siempre: los tiers completos no se reconstruyen desde la DB.
 export interface LastRunDto {
+  resumable?: boolean
+  resume_requires_cv?: boolean
   run_id: string
   status: 'ok' | 'interrupted' | 'crashed' | 'running' | string
   trigger: string | null

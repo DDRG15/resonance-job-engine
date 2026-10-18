@@ -6,7 +6,7 @@ dato en el card. Medido en vivo el 2026-09-28 por el camino real
 (GemaScraper._extract_all_cards), viejo contra nuevo sobre la misma pagina:
 
     jobspresso.co   location 0/30 -> 30/30   title+url identicos 30/30
-    arc.dev         location 0/6  -> 6/6     empresa placeholder 6 -> 0
+    arc.dev         location 0/6  -> 6/6; Arc Exclusive es una etiqueta del board.
 
 Los tres cards de cada board se copiaron del DOM renderizado (sin los <svg>).
 """
@@ -140,7 +140,9 @@ def test_arc_ubicacion_y_empresa(tmp_path):
     jobs = asyncio.run(_extraer(ARC_CARDS, "arc.dev", tmp_path))
     assert jobs, "no se extrajo ningun card"
     assert all(j.location_raw == "Remote anywhere" for j in jobs)
-    assert all(j.company == "Arc Exclusive" for j in jobs),         "la empresa volvio al alt del logo o al placeholder"
+    assert len(jobs) == 3
+    assert all(j.company == "(empresa no listada)" for j in jobs), \
+        "la etiqueta del board no identifica al empleador"
 
 
 def test_los_selectores_estan_declarados():

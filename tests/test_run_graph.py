@@ -199,7 +199,8 @@ class TestRunGraph:
 # =============================================================================
 
 NODOS_ESPERADOS = ["init_run", "fuentes_endpoint", "fuentes_ats", "fuentes_gmail",
-                   "navegador", "bucket", "summarize", "persist_run", "notify", "push"]
+                   "navegador", "scrapear_board", "cerrar_navegador", "aprobacion",
+                   "bucket", "summarize", "persist_run", "notify", "push"]
 
 
 def _ctx_con_db(tmp_db, **kw):
@@ -215,14 +216,16 @@ class TestSecuenciaDeNodos:
         assert nodos == NODOS_ESPERADOS
         assert [n for n, _ in rg.NODOS] == NODOS_ESPERADOS
 
-    def test_las_aristas_son_una_cadena_sin_ramas(self):
+    def test_las_aristas_distribuyen_boards_y_se_reunen_antes_del_bucket(self):
         import graph.run_graph as rg
 
         aristas = [(e.source, e.target) for e in rg.RUN_GRAPH.get_graph().edges]
         esperadas = list(zip(["__start__"] + NODOS_ESPERADOS, NODOS_ESPERADOS + ["__end__"]))
+        esperadas.append(("navegador", "cerrar_navegador"))
         # LangGraph no garantiza el orden de la lista de aristas, solo cuáles son.
         assert sorted(aristas) == sorted(esperadas)
-        assert not any(getattr(e, "conditional", False) for e in rg.RUN_GRAPH.get_graph().edges)
+        assert {e.target for e in rg.RUN_GRAPH.get_graph().edges if e.conditional} == {
+            "scrapear_board", "cerrar_navegador"}
 
     def test_la_corrida_ejecuta_los_nodos_en_orden(self, fake_scrape, tmp_db):
         estado = run_pipeline(config=_cfg(), ctx=_ctx_con_db(tmp_db), trigger="cli")
@@ -230,14 +233,14 @@ class TestSecuenciaDeNodos:
         trazas = tmp_db.get_node_traces(estado["run_id"])
         ejecutados = [t["node"] for t in trazas if t["graph"] == "run"
                       and t["node"] in NODOS_ESPERADOS]
-        assert ejecutados == NODOS_ESPERADOS
+        assert ejecutados == [n for n in NODOS_ESPERADOS if n != "scrapear_board"]
 
     def test_cada_fase_deja_su_traza_con_el_run_id(self, fake_scrape, tmp_db):
         estado = run_pipeline(config=_cfg(), ctx=_ctx_con_db(tmp_db), trigger="cli")
 
         trazas = {t["node"]: t for t in tmp_db.get_node_traces(estado["run_id"])
                   if t["node"] in NODOS_ESPERADOS}
-        assert set(trazas) == set(NODOS_ESPERADOS)
+        assert set(trazas) == set(NODOS_ESPERADOS) - {"scrapear_board"}
         for nodo, t in trazas.items():
             assert t["status"] == "ok", f"{nodo} termino {t['status']}: {t['error']}"
             assert t["exec_ms"] is not None and t["graph"] == "run"
@@ -281,6 +284,8 @@ class TestEstadoYContexto:
         assert set(estado) == {
             "run_id", "trigger", "config", "ttl_hours", "plan", "jobs", "errors",
             "counters", "summary", "tier1", "tier2", "tier3", "status", "error",
+            "browser_domains", "board_results", "scraper_runtime", "profile_hash",
+            "approval_request",
         }
 
     def test_el_perfil_del_cv_no_entra_al_estado_y_llega_al_bucket(

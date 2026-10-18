@@ -128,6 +128,13 @@ class RunState(TypedDict, total=False):
     # {"endpoint": [...], "ats": [...], "navegador": [...]}: qué dominios va a cada fase.
     # Lo arma init_run una vez; las fases lo leen y no lo recalculan.
     plan:        dict
+    browser_domains: list[str]
+    board_domain: str
+    board_results: Annotated[list, operator.add]
+    scraper_runtime: dict
+    profile_hash: Optional[str]
+    approval_request: Optional[dict]
+    approval_result: Any
 
     # ── acumulado ────────────────────────────────────────────────────────────
     # Cada nodo de fuentes devuelve SOLO lo que sumó él; el reducer concatena. Repetir un

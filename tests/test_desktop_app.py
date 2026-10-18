@@ -143,6 +143,29 @@ def test_correr_busqueda_con_api_caida_no_levanta():
     assert resultado == "error"
 
 
+def test_reanudar_bandeja_usa_el_identificador_guardado(monkeypatch):
+    calls = []
+    def request(method, url, *args, **kwargs):
+        calls.append((method, url))
+        if method == "GET":
+            return 200, {"last_run": {"run_id": "saved-id", "resumable": True}}
+        return 202, {"run_id": "saved-id"}
+    monkeypatch.setattr(runtime, "http_json", request)
+    assert bandeja.reanudar_corrida("http://localhost:8000")[0] == "iniciada"
+    assert calls[-1] == ("POST", "http://localhost:8000/api/scrape/saved-id/resume")
+
+
+def test_reanudar_bandeja_pide_cv_sin_iniciar_otro_run(monkeypatch):
+    calls = []
+    def request(method, url, *args, **kwargs):
+        calls.append(method)
+        return 200, {"last_run": {"run_id": "saved-id", "resumable": True,
+                                  "resume_requires_cv": True}}
+    monkeypatch.setattr(runtime, "http_json", request)
+    assert bandeja.reanudar_corrida("http://localhost:8000")[0] == "requiere_cv"
+    assert calls == ["GET"]
+
+
 # --- ventana ------------------------------------------------------------------
 
 def test_ventana_usa_app_mode_si_hay_navegador(monkeypatch):

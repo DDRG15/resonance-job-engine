@@ -12,8 +12,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   })
   if (!res.ok) {
-    const body = await res.text()
-    throw new Error(`HTTP ${res.status} — ${body}`)
+    throw new Error(await mensajeDeError(res))
   }
   return res.json() as Promise<T>
 }
@@ -57,6 +56,11 @@ export const postScrape = (ttlHours: number) =>
   })
 
 export const getResults = () => request<ResultsResponse>('/api/results')
+
+export const postResume = (runId: string) =>
+  request<{ run_id: string }>(`/api/scrape/${encodeURIComponent(runId)}/resume`, {
+    method: 'POST',
+  })
 
 // La búsqueda confirmada que el servidor ya tiene. Existía GET /api/config y el front
 // nunca lo pedía: un refresh perdía la búsqueda aunque el server la conservara.

@@ -70,9 +70,11 @@ resto. El parser se escribió contra fixtures sintéticas: antes de prenderla ha
 `tools/autorizar_gmail.py --probar`. Con el flag prendido y sin token la corrida sigue y el
 error queda en el resumen.
 
-**CSS.** Es la capa que queda para boards sin endpoint. `Semaphore(SCRAPER_CONCURRENCY=3)`
-limita las pestañas abiertas. Cada uno de los 8 boards se consulta una vez por título de la
-búsqueda: con 51 títulos son 408 ramas por corrida.
+**CSS.** Es la capa que queda para boards sin endpoint. El grafo permite hasta
+`min(2, SCRAPER_CONCURRENCY)` boards simultáneos y una pestaña por board. Cada board se
+consulta una vez por título de la búsqueda: ocho boards y 51 títulos son 408 consultas.
+El camino directo `GemaScraper.run()` conserva el semáforo de pestañas con su límite
+`SCRAPER_CONCURRENCY`.
 
 Las cuatro capas terminan en `_ingest_external_jobs` o en el delta load de la rama CSS: la
 misma dedup contra el registry, el mismo `JobResult`, el mismo escritor de DB.
@@ -90,6 +92,7 @@ la razón escrita. Sin eso, la razón vivía en un comentario y se re-diagnostic
 
 ```
 init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+         ─> Send(scrapear_board × board) ─> cerrar_navegador ─> aprobacion
          ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
 ```
 
@@ -99,10 +102,13 @@ init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegado
 | `fuentes_endpoint` | Boards que se leen con un GET: sin navegador |
 | `fuentes_ats` | Los tableros de empresa de Greenhouse, Lever y Ashby |
 | `fuentes_gmail` | Las alertas de LinkedIn e Indeed. Apagada por flag: sin flag el nodo corre y no hace nada |
-| `navegador` | Probe de boards, Chromium, fan-out por (dominio × título) y el cierre común del scraper (webhook, contadores del resumen). Si no queda ningún board de CSS, no lanza Chromium |
+| `navegador` | Probe único de boards; distribuye los permitidos con `Send` |
+| `scrapear_board` | Un navegador por board, una pestaña activa y aislamiento de fallos; conserva los avisos parciales |
+| `cerrar_navegador` | Une resultados, restaura el breaker por dominio y cierra el resumen del scraper |
+| `aprobacion` | Gancho `interrupt` inactivo en corridas normales; una solicitud explícita pausa hasta recibir una decisión |
 | `bucket` | Corre los correlators de identidad (`correlacionar_duplicados`) y después `bucket_jobs`: puntúa y reparte en tres tiers |
 | `summarize` | Cierra el `ScrapeRunSummary` con los conteos |
-| `persist_run` | Cierra la fila de `runs` con los tiers |
+| `persist_run` | Guarda resumen y tiers; la fila sigue activa hasta terminar las salidas del grafo |
 | `notify` | Reporte a Discord: tiers, errores del run, avisos con salario sin confirmar y las próximas acciones vencidas |
 | `push` | Notion y Sheets, cada uno aislado |
 
@@ -159,7 +165,9 @@ El trabajo de cada fuente sigue en `scraper.py`. Lo que cambió es quién lo inv
 | `fase_endpoint(plan)` | `fuentes_endpoint` | Boards de endpoint |
 | `fase_ats(plan)` | `fuentes_ats` | Tableros de empresa |
 | `fase_gmail()` | `fuentes_gmail` | Alertas del buzón |
-| `fase_navegador(plan)` | `navegador` | Probe, Chromium, fan-out y cierre común |
+| `preparar_navegador(plan)` | `navegador` | Probe único y lista de dominios permitidos |
+| `fase_board(domain)` | `scrapear_board` | Chromium y consultas del board, sin repetir el probe |
+| `fase_cierre()` | `cerrar_navegador` | Webhook agregado y contadores del resumen |
 | `run()` | `run_scrape_session` | Encadena los mismos pasos en un solo event loop, para quien lo use directo |
 
 Cada `fase_*` es síncrona, abre su propio event loop y devuelve los avisos nuevos desde la
@@ -474,24 +482,27 @@ lo comprueba.
 
 ## Condiciones de borde documentadas
 
-**Sin checkpointing.** `SqliteSaver` parece dar resumibilidad gratis; no la da. El
-`RuntimeContext` no es serializable, y un run "resumido" con un `BrowserContext` muerto es
-peor que volver a correrlo. El estado del run ya es serializable y los recursos viven en el
-contexto, pero hoy ninguna corrida se guarda entre nodos: un nodo que no encuentra al
-scraper en el contexto lo reconstruye desde el resumen y los avisos del estado, y la dedup
-contra la base evita repetir lo ya escrito. El navegador no se retoma: la fase se vuelve a
-correr entera.
+**Checkpoint SQLite.** `graph/checkpoints.py` abre `checkpoints.sqlite` junto al registry,
+con `thread_id=run_id` y persistencia síncrona antes del siguiente paso. El serializador
+admite los cuatro modelos de datos propios y los tipos seguros de LangGraph, con pickle
+desactivado. La base, los clientes y el perfil del CV viven exclusivamente en el contexto.
+Solo se conserva una huella del perfil; reanudar exige la misma huella. Un intento con un
+perfil diferente se rechaza antes de modificar la corrida.
 
-**El fan-out por (dominio × título) sigue dentro de `GemaScraper.run()`**, con
-`asyncio.gather`, no como ramas `Send`. Descomponerlo queda pendiente. No se
-hizo porque ese código funciona y se lo vio entregar 74 jobs con 0 errores contra boards
-reales. Los reducers (`merge_counters`, `union_domains`) ya están escritos y probados para
-cuando ocurra.
+**Reanudación.** `POST /api/scrape/{run_id}/resume` toma el mismo gate del cron y la API,
+usa la configuración guardada e invoca el grafo con `None`. Se reconstruyen scraper,
+breaker (con reloj convertido entre procesos), estrategias, presupuesto LLM y notificaciones.
+`run_jobs` se escribe en la misma transacción que el registry: un corte después del commit
+y antes del checkpoint no pierde esos avisos del resultado al repetir la fuente.
+Los avances de corridas terminadas y sus diarios se eliminan; los pendientes se conservan.
+Una entrega externa puede repetirse si el proceso muere después de enviarla y antes de
+guardar el avance: las integraciones no ofrecen una transacción compartida con SQLite.
 
-Consecuencia medible: el grafo del run no ve las ramas, pero la telemetría sí. Cada rama CSS
-acumula su traza (`scrape_srp`, con `domain`, `title`, `items` y `aceptados`) y el lote se
-escribe en una sola transacción después del `gather`; endpoint y ATS escriben una fila por
-board y por empresa. El detalle por board se consulta en `node_traces`, no en el log.
+**Ramas por board.** `Send` distribuye hasta dos boards a la vez; cada rama limita sus
+pestañas a una. El límite total de fallback LLM y el primer aviso se comparten bajo locks.
+Las actualizaciones del registro de estrategias se serializan y releen antes de escribir.
+El camino directo `GemaScraper.run()` conserva el navegador compartido como alternativa.
+Las trazas de `scrapear_board` y `scrape_srp` permiten separar sitio, título y espera.
 
 **`setup_wizard.needs_setup()` no recarga `config`.** Releía el `.env` con
 `importlib.reload(config)` en cada `GET /api/status`, y como `config.py` carga con

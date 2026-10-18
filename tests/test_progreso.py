@@ -510,7 +510,7 @@ class TestFasesPorNodo:
             totales["en_endpoint"] = snap["total"]
 
         monkeypatch.setattr(GemaScraper, "_scrape_endpoint_boards", _endpoint)
-        monkeypatch.setattr(GemaScraper, "fase_navegador", lambda self, plan: [])
+        monkeypatch.setattr(GemaScraper, "preparar_navegador", lambda self, plan: [])
         cfg = SearchConfig(target_titles=["python"],
                            target_domains=["remoteok.com", "arc.dev"])
         run_pipeline(config=cfg, ctx=RuntimeContext(db=tmp_db), trigger="cli")

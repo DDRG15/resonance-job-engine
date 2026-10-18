@@ -12,6 +12,7 @@ por el cron nunca llegaba a Notion y nadie lo había decidido: se filtró al cop
 loop. Ahora son dos llamadas a este grafo con distinto `trigger`.
 
     init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+             ─> Send(scrapear_board) ─> cerrar_navegador ─> aprobacion
              ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
 
 LA CORRIDA, EN NODOS REALES
@@ -22,11 +23,11 @@ los 12 minutos no quedaba nada que retomar y la traza era un solo número. Ahora
 es un nodo: deja su fila en `node_traces`, el progreso cambia de fase en el nodo que
 corresponde y un checkpointer puede guardar entre una y otra.
 
-El trabajo de cada fase sigue en `GemaScraper` (probe de boards, BrowserContext
-compartido, cookie jar, fan-out con semáforo, circuit breaker, cola de escritura, fallback
-LLM — todo probado y verificado en vivo el 2026-09-01: 85 URLs, 74 jobs nuevos, 0
-errores). Lo que cambió es quién lo invoca: el scraper expone `iniciar` y un `fase_*` por
-nodo, y `run_scrape_session` sigue existiendo para quien lo use directo.
+El trabajo de cada fase sigue en `GemaScraper`: probe de boards, cookie jar, circuit
+breaker, cola de escritura y fallback LLM. Cada rama posee su navegador y escritor;
+comparte el presupuesto de fallback y las notificaciones. El scraper expone `iniciar`
+y un `fase_*` por nodo. `run_scrape_session` conserva el camino de uso directo con un
+BrowserContext compartido.
 
 QUÉ VIVE DÓNDE
 --------------
@@ -41,13 +42,15 @@ retiene si el usuario lo pide, y un estado que lo contuviera lo persistiría sin
 lo decidiera. No hay un loop compartido: cada fase abre el suyo (ver
 `GemaScraper._correr_fase`).
 
-LÍMITE DECLARADO: el fan-out por (dominio × título) sigue viviendo dentro del nodo
-`navegador`, con asyncio.gather, no como ramas del grafo.
+El grafo distribuye una rama Send por board, con hasta dos browsers simultáneos y una
+pestaña por rama. El checkpoint síncrono guarda avances y reconstruye recursos al retomar.
+Un diario transaccional conserva avisos escritos antes de que el nodo termine.
 
 IMPORT DIFERIDO
 ---------------
-Este módulo no importa langgraph al cargarse: el grafo se compila la primera vez que
-`run_pipeline` lo usa (`LazyGraph`). `import api` no paga ese costo.
+Este módulo no importa langgraph al cargarse. `run_pipeline` construye el grafo al abrir
+el saver de una corrida persistente; `LazyGraph` conserva la compilación del camino sin
+persistencia. `import api` no paga ese costo.
 """
 
 import http.client
@@ -87,10 +90,9 @@ def _now() -> str:
 # =============================================================================
 # Nodos
 #
-# Ninguno degrada. Es una secuencia de corrida, no un fan-out: si el scrape revienta,
-# seguir a bucket con una lista vacía produciría una corrida "exitosa" con cero
-# resultados, que es peor que un fallo visible. El degrade pertenece al fan-out por
-# board, donde hay ramas hermanas que salvar.
+# Los nodos secuenciales propagan los fallos: continuar con una lista vacía ocultaría
+# una extracción fallida. Las ramas por board conservan sus resultados parciales y
+# registran sus errores; las ramas hermanas pueden continuar.
 #
 # La excepción son `notify` y `push`: esos SÍ degradan, porque ocurren DESPUÉS de que el
 # scrape ya guardó todo en la DB. Un push a Notion caído no puede convertir una corrida
@@ -197,13 +199,15 @@ def _scraper_de(state: RunState, ctx):
         sc = _crear_scraper(state, ctx)
         sc.restaurar(state.get("summary"), state.get("jobs") or [],
                      len(state.get("errors") or []))
+        sc.restaurar_runtime(state.get("scraper_runtime") or {})
         ctx.scraper = sc
     return sc
 
 
 def _aporte(sc, jobs: list) -> dict:
     """Lo que una fase suma al estado: sus avisos, sus errores y el resumen vigente."""
-    return {"jobs": list(jobs), "errors": sc.nuevos_errores(), "summary": sc.summary}
+    return {"jobs": list(jobs), "errors": sc.nuevos_errores(), "summary": sc.summary,
+            "scraper_runtime": sc.snapshot_runtime()}
 
 
 def es_error_de_red(exc: BaseException) -> bool:
@@ -268,11 +272,10 @@ def fuentes_gmail(state: RunState, config: "RunnableConfig") -> dict:
 @traced_node("navegador", graph="run")
 def navegador(state: RunState, config: "RunnableConfig") -> dict:
     """
-    Probe de boards, Chromium y el fan-out por (dominio × título), y el cierre común del
-    scraper (webhook, contadores del resumen).
+    Probe de boards y preparación de los dominios que el grafo distribuirá por Send.
 
-    Sin RetryPolicy a propósito: el fan-out ya aísla cada rama (return_exceptions) y
-    repetir el nodo entero relanzaría Chromium y volvería a pedir cada página.
+    Sin RetryPolicy: cada board registra sus propios errores y el probe ya degrada
+    ante fallos de red, sin repetir todas las consultas.
 
     `ttl_hours` sale del ESTADO, no de una constante. Ese fue el punto exacto donde los
     dos orquestadores derivaron: el cron hardcodeaba 24 y la corrida manual pasaba lo que
@@ -280,7 +283,72 @@ def navegador(state: RunState, config: "RunnableConfig") -> dict:
     hora del día y nadie sabía por qué.
     """
     sc = _scraper_de(state, _rt(config))
-    return _aporte(sc, sc.fase_navegador(state.get("plan") or {}))
+    domains = sc.preparar_navegador(state.get("plan") or {})
+    return {**_aporte(sc, sc.nuevos_avisos()), "browser_domains": domains}
+
+
+def _distribuir_boards(state: RunState):
+    from langgraph.types import Send
+    domains = state.get("browser_domains") or []
+    if not domains:
+        return "cerrar_navegador"
+    return [Send("scrapear_board", {"run_id": state["run_id"],
+                                  "config": state["config"],
+                                  "ttl_hours": state.get("ttl_hours", 0),
+                                  "board_domain": domain,
+                                  "scraper_runtime": state.get("scraper_runtime") or {}})
+            for domain in domains]
+
+
+@traced_node("scrapear_board", graph="run")
+def scrapear_board(state: RunState, config: "RunnableConfig") -> dict:
+    """One browser and writer per board; a failed board preserves its partial results."""
+    ctx = _rt(config)
+    sc = _crear_scraper(state, ctx)
+    sc._concurrency = 1
+    sc.restaurar_runtime(state.get("scraper_runtime") or {})
+    if getattr(ctx, "scraper", None) is not None:
+        sc.webhook = ctx.scraper.webhook
+        sc._reserve_fallback = ctx.scraper._reserve_fallback
+    domain = state["board_domain"]
+    try:
+        sc.fase_board(domain)
+    except Exception as exc:
+        sc.summary.errors.append(f"{domain}: {type(exc).__name__}: {exc}")
+        ctx.emit(f"[ERROR] {domain}: {exc}")
+    runtime = sc.snapshot_runtime()
+    if getattr(ctx, "scraper", None) is not None:
+        runtime["fallback_boards"] = ctx.scraper._llm_fallback_boards_used
+    runtime["circuit"] = {d: v for d, v in runtime["circuit"].items() if d == domain}
+    runtime["rate_hits"] = {d: v for d, v in runtime["rate_hits"].items() if d == domain}
+    return {"board_results": [{"domain": domain, "jobs": list(sc._all_jobs),
+                               "summary": sc.summary, "runtime": runtime}]}
+
+
+@traced_node("cerrar_navegador", graph="run")
+def cerrar_navegador(state: RunState, config: "RunnableConfig") -> dict:
+    sc = _scraper_de(state, _rt(config))
+    for board in state.get("board_results") or []:
+        summary = board["summary"]
+        for field in ("total_urls_found", "skipped_seen", "skipped_ttl"):
+            setattr(sc.summary, field, getattr(sc.summary, field) + getattr(summary, field))
+        sc.summary.errors.extend(summary.errors)
+        sc._all_jobs.extend(board["jobs"])
+        sc.restaurar_runtime(board["runtime"])
+    # Same URL can be present on multiple boards. Publish it only once.
+    from database import GemaDatabase
+    sc._all_jobs = list({GemaDatabase.compute_hash(job.url): job for job in sc._all_jobs}.values())
+    return _aporte(sc, sc.fase_cierre())
+
+
+@traced_node("aprobacion", graph="run")
+def aprobacion(state: RunState, config: "RunnableConfig") -> dict:
+    """Dormant hook for a future user approval flow; ordinary runs pass straight through."""
+    request = state.get("approval_request")
+    if not request:
+        return {}
+    from langgraph.types import interrupt
+    return {"approval_result": interrupt(request)}
 
 
 @traced_node("bucket", graph="run")
@@ -290,6 +358,12 @@ def bucket(state: RunState, config: "RunnableConfig") -> dict:
 
     ctx = _rt(config)
     jobs = state.get("jobs") or []
+    recovered = []
+    if ctx.db is not None and state.get("run_id"):
+        seen = {ctx.db.compute_hash(job.url) for job in jobs}
+        recovered = [job for job in ctx.db.get_run_jobs(state["run_id"])
+                     if ctx.db.compute_hash(job.url) not in seen]
+        jobs = jobs + recovered
     # el scrape termino; lo que sigue (correlacion, puntaje, persistencia y push)
     # es la fase final de la barra.
     progreso.cambiar_fase("puntuando")
@@ -314,7 +388,7 @@ def bucket(state: RunState, config: "RunnableConfig") -> dict:
     ctx.emit(f"[MATCHER] Scoring {len(jobs)} new jobs...")
     t1, t2, t3 = bucket_jobs(jobs, state["config"], ctx.db,
                                  profile=getattr(ctx, "profile", None))
-    return {"tier1": t1, "tier2": t2, "tier3": t3}
+    return {"tier1": t1, "tier2": t2, "tier3": t3, "jobs": recovered}
 
 
 @traced_node("summarize", graph="run")
@@ -329,6 +403,7 @@ def summarize(state: RunState, config: "RunnableConfig") -> dict:
     t1, t2, t3 = (state.get("tier1") or [], state.get("tier2") or [],
                   state.get("tier3") or [])
     if summary is not None:
+        summary.new_processed = len(state.get("jobs") or [])
         summary.tier1_count = len(t1)
         summary.tier2_count = len(t2)
         summary.tier3_count = len(t3)
@@ -352,7 +427,8 @@ def persist_run(state: RunState, config: "RunnableConfig") -> dict:
         pass
     ctx.db.record_run_end(
         state["run_id"],
-        status=state.get("status", "ok"),
+        status=("running" if (config or {}).get("configurable", {}).get("thread_id")
+                else state.get("status", "ok")),
         summary_json=(summary.model_dump_json()
                       if hasattr(summary, "model_dump_json") else None),
         tier_counts=(len(state.get("tier1") or []), len(state.get("tier2") or []),
@@ -498,6 +574,9 @@ NODOS = (
     ("fuentes_ats", fuentes_ats),
     ("fuentes_gmail", fuentes_gmail),
     ("navegador", navegador),
+    ("scrapear_board", scrapear_board),
+    ("cerrar_navegador", cerrar_navegador),
+    ("aprobacion", aprobacion),
     ("bucket", bucket),
     ("summarize", summarize),
     ("persist_run", persist_run),
@@ -509,7 +588,7 @@ NODOS = (
 NODOS_CON_REINTENTO = frozenset({"fuentes_endpoint", "fuentes_ats", "fuentes_gmail"})
 
 
-def build_run_graph():
+def build_run_graph(checkpointer=None):
     # langgraph se importa acá y no arriba: ver el docstring del módulo. `global` publica
     # RunnableConfig para que LangGraph resuelva la anotación de string de cada nodo.
     global RunnableConfig
@@ -532,9 +611,13 @@ def build_run_graph():
 
     g.set_entry_point(NODOS[0][0])
     for (origen, _), (destino, _) in zip(NODOS, NODOS[1:]):
-        g.add_edge(origen, destino)
+        if origen == "navegador":
+            g.add_conditional_edges(origen, _distribuir_boards,
+                                    ["scrapear_board", "cerrar_navegador"])
+        else:
+            g.add_edge(origen, destino)
     g.add_edge(NODOS[-1][0], END)
-    return g.compile()
+    return g.compile(checkpointer=checkpointer)
 
 
 RUN_GRAPH = LazyGraph(build_run_graph)
@@ -549,6 +632,9 @@ def run_pipeline(
     ttl_hours: int = 0,
     run_id: Optional[str] = None,
     log_queue: Any = None,
+    resume: bool = False,
+    approval_request: Optional[dict] = None,
+    approval_response: Any = None,
 ) -> RunState:
     """
     Corre el pipeline completo. El único punto de entrada para API, cron y CLI.
@@ -569,14 +655,75 @@ def run_pipeline(
         "jobs": [], "errors": [], "counters": {},
         "tier1": [], "tier2": [], "tier3": [],
         "status": "running", "error": None,
+        "board_results": [], "approval_request": approval_request,
     }
     # una corrida, un seguimiento. Lo abre el unico punto de entrada comun a API,
     # cron y CLI y lo cierra el finally: aunque el grafo reviente, la barra no queda
     # clavada en una corrida que ya no existe.
     progreso.iniciar(inicial["run_id"], getattr(ctx, "db", None))
     try:
-        return RUN_GRAPH.invoke(inicial, config={"configurable": {"ctx": ctx}})
+        from graph.checkpoints import (checkpoint_path, open_checkpoints, register_run,
+                                       require_matching_profile, finish_run,
+                                       profile_fingerprint, ResumeError)
+        import config as app_config
+        opts = {"configurable": {"ctx": ctx, "thread_id": inicial["run_id"]},
+                "max_concurrency": max(1, min(2, app_config.SCRAPER_CONCURRENCY))}
+        if checkpoint_path(getattr(ctx, "db", None)) is None:
+            if resume or approval_request:
+                raise ResumeError("Esta corrida requiere una base persistente.")
+            return RUN_GRAPH.invoke(inicial, config=opts)
+        with open_checkpoints(ctx.db) as saver:
+            graph = build_run_graph(checkpointer=saver)
+            if resume:
+                require_matching_profile(saver, inicial["run_id"], profile)
+                snapshot = graph.get_state(opts)
+                if not snapshot.next:
+                    raise ResumeError("La corrida no tiene pasos pendientes.")
+                ctx.run_id = inicial["run_id"]
+                entry = None
+                if any(task.interrupts for task in snapshot.tasks):
+                    from langgraph.types import Command
+                    if approval_response is None:
+                        raise ResumeError("La corrida espera una decisión de aprobación.")
+                    entry = Command(resume=approval_response)
+                ctx.db.mark_run_resumed(ctx.run_id)
+                import nlp_engine
+                nlp_engine.set_telemetry_sink(ctx.db, ctx.run_id)
+                if snapshot.values.get("plan"):
+                    sc = _scraper_de(snapshot.values, ctx)
+                    for task in snapshot.tasks:
+                        completed = task.result if isinstance(task.result, dict) else {}
+                        for board in completed.get("board_results") or []:
+                            sc.restaurar_runtime(board["runtime"])
+                    pending = min((i for i, (name, _) in enumerate(NODOS)
+                                   if name in snapshot.next), default=len(NODOS))
+                    plan = snapshot.values["plan"]
+                    progreso.fijar_total("endpoint", len(plan.get("endpoint") or []) if pending <= 1 else 0)
+                    progreso.fijar_total("ats", sc._contar_fuentes_ats()
+                                         if plan.get("ats") and pending <= 2 else 0)
+                    progreso.fijar_total("css", sc._ramas_css(plan.get("navegador") or [])
+                                         if pending <= 5 else 0)
+                    ctx.emit("[REANUDAR] Avance recuperado; continúan los pasos pendientes.")
+            else:
+                register_run(saver, inicial["run_id"], profile)
+                inicial["profile_hash"] = profile_fingerprint(profile)
+                entry = inicial
+            result = graph.invoke(entry, config=opts, durability="sync")
+            if result.get("__interrupt__"):
+                ctx.db.record_run_end(inicial["run_id"], status="paused")
+                result["status"] = "paused"
+            else:
+                ctx.db.mark_run_completed(inicial["run_id"])
+                try:
+                    finish_run(saver, inicial["run_id"])
+                    ctx.db.clear_run_jobs(inicial["run_id"])
+                except Exception as cleanup_error:
+                    logger.warning("No se pudo limpiar el avance terminado: %s", cleanup_error)
+            return result
     except Exception as exc:
+        from graph.checkpoints import ResumeError
+        if isinstance(exc, ResumeError):
+            raise
         if ctx is not None and ctx.db is not None:
             try:
                 # La corrida murio: hay que desconectar el sink igual, o las llamadas LLM
@@ -595,6 +742,12 @@ def run_pipeline(
         raise
     finally:
         progreso.finalizar()
+        if ctx is not None and ctx.db is not None:
+            try:
+                import nlp_engine
+                nlp_engine.set_telemetry_sink(ctx.db, None)
+            except Exception:
+                pass
         # Suelta los recursos de la corrida: el scraper retiene los avisos, el registro de
         # estrategias y el breaker, y el perfil del CV no sobrevive a la corrida.
         for recurso in ("scraper", "profile"):

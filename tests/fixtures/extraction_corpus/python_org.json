@@ -1,0 +1,24 @@
+{
+  "source_text": "New Software Engineer - Full Stack (https://www.python.org/jobs/8177/) 3Gimbals Remote, United States (https://www.python.org/jobs/location/remote-united-states/) Back end (https://www.python.org/jobs/type/back-end/) , Cloud (https://www.python.org/jobs/type/cloud/) , Front end (https://www.python.org/jobs/type/front-end/) Posted: 14 October 2026 Developer / Engineer (https://www.python.org/jobs/category/developer-engineer/) New Junior Machine Learning Engineer (https://www.python.org/jobs/8176/) HFT Architecture Remote, Worldwide (https://www.python.org/jobs/location/remote-worldwide/) Finance (https://www.python.org/jobs/type/finance/) , Machine Learning (https://www.python.org/jobs/type/machine-learning/) Posted: 14 October 2026 Developer / Engineer (https://www.python.org/jobs/category/developer-engineer/) New Machine Learning Engineer (https://www.python.org/jobs/8175/) HFT Architecture Remote, Worldwide (https://www.python.org/jobs/location/remote-worldwide/) Finance (https://www.python.org/jobs/type/finance/) , Machine Learning (https://www.python.org/jobs/type/machine-learning/) Posted: 14 October 2026 Developer / Engineer (https://www.python.org/jobs/category/developer-engineer/)",
+  "source_url": "https://www.python.org/jobs/?q=python",
+  "captured_at": "2026-10-18T17:59:46.751902+00:00",
+  "human_confirmed": true,
+  "notes": "Public job-card HTML converted by scraper._strip_html_to_text; labels confirmed by the owner. Advertisements are excluded from expected jobs.",
+  "expected_jobs": [
+    {
+      "title": "Software Engineer - Full Stack",
+      "company": "3Gimbals",
+      "source_url": "https://www.python.org/jobs/8177"
+    },
+    {
+      "title": "Junior Machine Learning Engineer",
+      "company": "HFT Architecture",
+      "source_url": "https://www.python.org/jobs/8176"
+    },
+    {
+      "title": "Machine Learning Engineer",
+      "company": "HFT Architecture",
+      "source_url": "https://www.python.org/jobs/8175"
+    }
+  ]
+}

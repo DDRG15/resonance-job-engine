@@ -1,0 +1,24 @@
+{
+  "source_text": "(https://builtin.com/company/airdna) AirDNA (https://builtin.com/company/airdna) Product Support Specialist - Adapt (LATAM & Caribbean) (https://builtin.com/job/product-support-specialist-adapt-latam-caribbean/11735653) Yesterday Saved Easy Apply Remote or Hybrid 10 Locations Easy Apply 26K-33K Annually Junior 26K-33K Annually Junior Software • Travel Provides Tier 2 technical support for AirDNA’s Adapt pricing engine. Diagnoses pricing and synchronization issues using SQL, Python, APIs, logs, analytics, and existing code; explains root causes to customers; creates support content and SOPs; identifies escalation trends and at-risk accounts; and partners with Product and Engineering to drive lasting fixes. Top Skills: APIs Beyond Guesty Hostaway Intercom Pricelabs Python SQL Webhooks Wheelhouse Zendesk (https://builtin.com/company/netbox-labs) NetBox Labs (https://builtin.com/company/netbox-labs) Senior Full Stack Engineer, Observability (https://builtin.com/job/senior-full-stack-engineer-observability/11394738) 20 Days Ago Saved In-Office or Remote 12 Locations 85K-195K Annually Senior level 85K-195K Annually Senior level Cloud • Software Build and operate full-stack observability features across Go and Python services, gRPC and REST APIs, data ingestion pipelines, and React/TypeScript dashboards. Design scalable telemetry visualizations, real-time data flows, automated tests, and production reliability practices. Collaborate cross-functionally, participate in on-call, mentor teammates, shape architecture and roadmaps, and use AI-enabled development tools responsibly. Top Skills: Canvas Claude Code Clickhouse Cursor D3 Echarts Github Copilot Gnmi Gnoi Go Grafana Grpc Grpc-Web Influxdb Jest Kafka Mimir Model Context Protocol (Mcp) Netbox Openapi Opentelemetry Otlp Prometheus Promql Protocol Buffers Python RabbitMQ React React Testing Library Recharts Rest Server-Sent Events Snmp Tailwindcss Tanstack Query Typescript Uplot Visx Webgl Websockets (https://builtin.com/company/netbox-labs) NetBox Labs (https://builtin.com/company/netbox-labs) Senior DevOps Engineer, Observability (https://builtin.com/job/senior-devops-engineer-observability/11394735) 20 Days Ago Saved In-Office or Remote 12 Locations 75K-185K Annually Senior level 75K-185K Annually Senior level Cloud • Software Design, build, and operate scalable AWS infrastructure, internal platforms, CI/CD pipelines, and observability systems for SaaS and on-premise products. Improve automation, reliability, security, cost efficiency, monitoring, alerting, SLOs, and incident response. Collaborate with product engineering teams, support developer self-service, document processes, and participate in on-call rotation. The role requires strong Kubernetes, infrastructure-as-code, scripting, and cloud operations expertise in a fast-paced B2B software environment. Top Skills: Amqp AWS Change Data Capture Chatgpt Copilot Cursor Ec2 Eks Event Streaming Github Actions Go Grafana Helm Iam Kubernetes Loki Mimir Mqtt Netbox Prometheus Python Rds Shell Scripting Soc 2 Terraform Vpc",
+  "source_url": "https://builtin.com/jobs/remote?search=python",
+  "captured_at": "2026-10-18T18:02:09.608549+00:00",
+  "human_confirmed": true,
+  "notes": "Public job-card HTML converted by scraper._strip_html_to_text; labels confirmed by the owner. Advertisements are excluded from expected jobs.",
+  "expected_jobs": [
+    {
+      "title": "Product Support Specialist - Adapt (LATAM & Caribbean)",
+      "company": "AirDNA",
+      "source_url": "https://builtin.com/job/product-support-specialist-adapt-latam-caribbean/11735653"
+    },
+    {
+      "title": "Senior Full Stack Engineer, Observability",
+      "company": "NetBox Labs",
+      "source_url": "https://builtin.com/job/senior-full-stack-engineer-observability/11394738"
+    },
+    {
+      "title": "Senior DevOps Engineer, Observability",
+      "company": "NetBox Labs",
+      "source_url": "https://builtin.com/job/senior-devops-engineer-observability/11394735"
+    }
+  ]
+}

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getConfig, getCvProfile, getFuentes, getRegistryStats, getResults, getScheduler, getStatus, getVault,
-  loadVaultEntry,
+  loadVaultEntry, postResume,
 } from './api'
 import CommandCenter from './components/CommandCenter'
 import DbViewer from './components/DbViewer'
@@ -214,7 +214,10 @@ export default function App() {
                       onChanged={() => void dupQ.refetch()} />
         )}
         {results === null && runId === null && !status?.is_running && lastRun && (
-          <LastRunBanner lastRun={lastRun} />
+          <LastRunBanner lastRun={lastRun} onResume={async (id) => {
+            const resumed = await postResume(id)
+            handleScrapeStarted(resumed.run_id)
+          }} />
         )}
         {results && <StatTiles results={results} />}
         <CommandCenter profile={cvQ.data?.profile ?? null} onParsed={handleParsed} />

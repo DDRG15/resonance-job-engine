@@ -296,6 +296,7 @@ The pipeline is a LangGraph state graph. The API, the cron and the CLI all run t
 
 ```
 init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+         ─> Send(scrapear_board × board) ─> cerrar_navegador ─> aprobacion
          ─> bucket ─> summarize ─> persist_run ─> notify ─> push
 ```
 
@@ -313,11 +314,21 @@ the API does not pay for it. The state holds only serializable values; the datab
 the scraper and the CV profile live in the runtime context, and the profile never enters
 the state.
 
+Each completed step is saved synchronously in `checkpoints.sqlite`, beside the registry.
+After a restart, **Resume run** in the UI (or the tray menu) continues the pending steps
+with the original configuration. Browser work uses up to two boards at once, one tab per
+board; completed branches are preserved. Jobs committed during an interrupted step are
+recovered from a transactional run journal. Completed cursors and journals are removed.
+The checkpoint stores only a fingerprint of the CV profile: after losing an ephemeral
+profile, upload the same profile again before resuming. The approval hook is dormant
+unless a caller explicitly supplies an approval request.
+
 The FastAPI app serves the React UI and the API. The main endpoints:
 
 ```
 POST /api/parse              free text -> validated SearchConfig, cross-checked by a second provider
 POST /api/scrape             start a run;  GET /api/scrape/stream for live logs (SSE)
+POST /api/scrape/{id}/resume  continue an interrupted run with its saved configuration
 GET  /api/results            the three tiers
 GET  /api/export.xlsx        Excel export, with formula injection neutralized
 GET  /api/fuentes            per-source health;  GET /api/embudo for the funnel
@@ -400,8 +411,8 @@ With the virtual environment from the Quick start active:
 
 ```bash
 pip install -r requirements-dev.txt       # starts with -r requirements.txt: runtime + test tools, all pinned
-python -m pytest -q                       # 2,573 tests: 2,572 pass, 1 is skipped (no extraction corpus yet); ~25 min on a 2-core laptop
-cd frontend && npx vitest run && npx tsc --noEmit -p .    # 99 tests in 11 files
+python -m pytest -q                       # backend suite; use --collect-only -q for the current count
+cd frontend && npx vitest run && npx tsc --noEmit -p .    # 103 tests in 12 files
 ```
 
 **The suite never touches the internet.** An autouse fixture blocks every connection
@@ -430,11 +441,11 @@ python tools/eval_extraction.py --gate
 | Gmail alerts | Disabled, pending real validation | The parser has only seen synthetic fixtures. |
 | MCP server | Implemented | Eight tools; thin client of the local API. |
 | Desktop app and installer | Implemented (Windows) | PyInstaller build; `packaging/build.ps1` smoke-tests the packaged app. |
-| Resuming an interrupted run | Not implemented | A run that stops starts over. |
+| Resuming an interrupted run | Implemented | SQLite checkpoints; UI and tray action. An ephemeral CV profile must be supplied again. |
 
-**The Tier 1 threshold is still being tuned.** Tier 1 holds about 46% of everything
-scored. The four new ATS platforms stay off until the threshold is set from a live run
-that uses the v7 scores.
+**Tier 1 uses a threshold of 80.** Its share varies with the sources and search filters;
+the distribution alone does not establish relevance or justify changing the threshold.
+The four new ATS platforms stay off pending relevance calibration against human decisions.
 
 **The Gmail parser has not seen a real email yet.** It is built to tolerate format
 changes: it anchors on job links, not on markup. But it stays off until

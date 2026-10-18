@@ -257,7 +257,8 @@ def _sesion_de_scrape_reemplazable(monkeypatch):
 
     original = scraper.run_scrape_session
     reales = {n: getattr(GemaScraper, n) for n in
-              ("iniciar", "fase_endpoint", "fase_ats", "fase_gmail", "fase_navegador")}
+              ("iniciar", "fase_endpoint", "fase_ats", "fase_gmail", "fase_navegador",
+               "preparar_navegador")}
 
     def _falsa() -> bool:
         return scraper.run_scrape_session is not original
@@ -289,3 +290,13 @@ def _sesion_de_scrape_reemplazable(monkeypatch):
     monkeypatch.setattr(GemaScraper, "fase_ats", _fase_vacia("fase_ats"))
     monkeypatch.setattr(GemaScraper, "fase_gmail", _fase_vacia("fase_gmail"))
     monkeypatch.setattr(GemaScraper, "fase_navegador", _navegador)
+
+    def _preparar(self, plan):
+        if not _falsa():
+            return reales["preparar_navegador"](self, plan)
+        delivered = self._avisos_entregados
+        self.fase_navegador(plan)
+        self._avisos_entregados = min(delivered, len(self._all_jobs))
+        return []
+
+    monkeypatch.setattr(GemaScraper, "preparar_navegador", _preparar)

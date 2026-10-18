@@ -165,7 +165,11 @@ class RunManager:
                 args=(config, profile, ttl_hours, self.run_id, self.log_queue),
                 daemon=True,
             )
-            self.thread.start()
+            try:
+                self.thread.start()
+            except BaseException:
+                release_scrape_gate()
+                raise
         _fire_discord(random.choice(START_PHRASES))
         return self.run_id
 
@@ -199,6 +203,45 @@ class RunManager:
             self.summary = None
             self.session_cleared = True
 
+    def resume(self, run_id: str, profile: Optional[dict]) -> str:
+        """Continue the saved configuration under the same process gate as a new run."""
+        from graph.checkpoints import (ResumeError, resume_info, open_checkpoints,
+                                       require_matching_profile)
+        from graph.run_graph import build_run_graph
+
+        with self._lock:
+            if self.is_running or not try_acquire_scrape_gate():
+                raise RunInProgressError("ya hay una corrida activa")
+            try:
+                row = self._db.get_run(run_id)
+                if not row or row["status"] not in ("interrupted", "crashed", "paused"):
+                    raise ResumeError("No hay una corrida interrumpida con ese identificador.")
+                if not resume_info(self._db, run_id)["resumable"]:
+                    raise ResumeError("Esta corrida no tiene un avance guardado para reanudar.")
+                with open_checkpoints(self._db) as saver:
+                    require_matching_profile(saver, run_id, profile)
+                    snapshot = build_run_graph(saver).get_state(
+                        {"configurable": {"thread_id": run_id}})
+                    if not snapshot.next:
+                        raise ResumeError("La corrida ya no tiene pasos pendientes.")
+                    if any(task.interrupts for task in snapshot.tasks):
+                        raise ResumeError("Esta corrida espera una aprobación antes de continuar.")
+                    cfg = snapshot.values["config"]
+                    ttl = snapshot.values.get("ttl_hours", 0)
+                self.run_id = run_id
+                self.log_queue = queue.Queue()
+                self.logs = []
+                self.results = None
+                self.summary = None
+                self.session_cleared = False
+                self.thread = threading.Thread(target=self._worker,
+                    args=(cfg, profile, ttl, run_id, self.log_queue, True), daemon=True)
+                self.thread.start()
+            except BaseException:
+                release_scrape_gate()
+                raise
+        return run_id
+
     # ── Logs ──────────────────────────────────────────────────────────────────
     def drain_logs(self) -> tuple[list[str], bool]:
         """Drena el log_queue sin bloquear. Retorna (mensajes_nuevos, done)."""
@@ -222,7 +265,7 @@ class RunManager:
     # ── Worker (thread daemon — fuera del event loop de FastAPI) ─────────────
     def _worker(self, config: SearchConfig, profile: Optional[dict], ttl_hours: int,
                 run_id: Optional[str] = None,
-                log_queue: Optional[queue.Queue] = None) -> None:
+                log_queue: Optional[queue.Queue] = None, resume: bool = False) -> None:
         """
         Dispara el pipeline. v3 Fase 6: la orquestación vive en graph/run_graph.py.
 
@@ -273,12 +316,13 @@ class RunManager:
                     ttl_hours=ttl_hours,
                     run_id=run_id,
                     log_queue=cola,
+                    resume=resume,
                 )
 
                 # Solo se publica si esta corrida sigue siendo LA de la sesión. Con
                 # Reset rechazado mientras corre no debería ocurrir; el guard es el
                 # cinturón para el día que exista cancelación.
-                if self.run_id == run_id:
+                if self.run_id == run_id and estado.get("status") != "paused":
                     self.results = (estado.get("tier1") or [], estado.get("tier2") or [],
                                     estado.get("tier3") or [])
                     self.summary = estado.get("summary")

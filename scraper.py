@@ -993,6 +993,7 @@ class GemaScraper:
         # (Fase 0) + a per-run cap so a drift storm can't burn unbounded tokens.
         self._strategy = BoardStrategyRegistry()
         self._llm_fallback_boards_used = 0
+        self._fallback_lock = threading.Lock()
 
     def _log(self, msg: str) -> None:
         logger.info(msg)
@@ -1087,7 +1088,9 @@ class GemaScraper:
         loop = asyncio.get_running_loop()
         jobs_copy = list(batch)
         try:
-            await loop.run_in_executor(None, self.db.mark_seen_batch, jobs_copy)
+            from functools import partial
+            await loop.run_in_executor(None, partial(self.db.mark_seen_batch, jobs_copy,
+                                                     run_id=self.summary.run_id))
             self._log(f"[DB WRITER] Flushed {len(jobs_copy)} jobs to registry.")
             batch.clear()
         except Exception as exc:
@@ -1250,11 +1253,11 @@ class GemaScraper:
             progreso.cambiar_fase("gmail")
             await self._scrape_gmail_alertas()
 
-    async def _paso_navegador(self, plan: dict) -> None:
+    async def _preparar_navegador(self, plan: dict) -> list[str]:
         all_domains = list(plan.get("navegador") or [])
         if not all_domains:
             self._log("[BLITZ] Todos los boards se leyeron por endpoint — sin navegador.")
-            return
+            return []
 
         # Pre-scrape board probe — classify protection type, skip hard-blocked domains
         # Runs only if board_probe is importable (graceful degradation if missing deps)
@@ -1296,6 +1299,14 @@ class GemaScraper:
         # cuentan como terminadas para que la barra pueda llegar al 100%.
         progreso.unidad_hecha("css", self._ramas_css(
             [d for d in all_domains if d not in domains]))
+
+        return domains
+
+    async def _paso_navegador(self, plan: dict, *, prepared: bool = False) -> None:
+        domains = (list(plan.get("navegador") or []) if prepared
+                   else await self._preparar_navegador(plan))
+        if not domains:
+            return
 
         async with async_playwright() as pw:
             browser: Browser = await pw.chromium.launch(
@@ -1355,6 +1366,7 @@ class GemaScraper:
                         f"[VAULT] Injected {injected} session cookies for {domain}"
                     )
 
+            writer_task = None
             try:
                 # Start the DB writer task — runs for the entire scrape session
                 writer_task = asyncio.create_task(self._db_writer_task())
@@ -1498,6 +1510,9 @@ class GemaScraper:
                 await writer_task
 
             finally:
+                if writer_task is not None and not writer_task.done():
+                    await self._write_q.put(None)
+                    await writer_task
                 # Cookie jar: capturar el clearance nuevo (best-effort) ANTES de
                 # cerrar el context, para reusarlo la próxima corrida.
                 try:
@@ -1559,7 +1574,7 @@ class GemaScraper:
         reemplazarla no pierde nada.
         """
         self._write_q = asyncio.Queue()
-        self._sem = asyncio.Semaphore(config.SCRAPER_CONCURRENCY)
+        self._sem = asyncio.Semaphore(getattr(self, "_concurrency", config.SCRAPER_CONCURRENCY))
 
     def _correr_fase(self, paso, *args) -> list[JobResult]:
         async def _fase() -> None:
@@ -1586,6 +1601,61 @@ class GemaScraper:
             await self._paso_navegador(plan)
             await self._finalizar_run()
         return self._correr_fase(_navegador_y_cierre)
+
+    def preparar_navegador(self, plan: dict) -> list[str]:
+        """Probe once; each graph branch receives one of the surviving boards."""
+        return asyncio.run(self._preparar_navegador(plan))
+
+    def fase_board(self, domain: str) -> list[JobResult]:
+        return self._correr_fase(self._paso_board, domain)
+
+    async def _paso_board(self, domain: str) -> None:
+        await self._paso_navegador({"navegador": [domain]}, prepared=True)
+
+    def fase_cierre(self) -> list[JobResult]:
+        return self._correr_fase(self._finalizar_run)
+
+    def snapshot_runtime(self) -> dict:
+        """Data only. Monotonic clocks become wall timestamps across processes."""
+        domains = {}
+        for domain, values in self.circuit._domains.items():
+            row = dict(values)
+            row["state"] = row["state"].value
+            row["opened_epoch"] = time.time() - max(0, time.monotonic() - row.pop("opened_at"))
+            domains[domain] = row
+        webhook = self.webhook
+        notifications = {"first": getattr(webhook, "_first_hit_sent", False),
+                         "buffer": list(getattr(webhook, "_tier1_buffer", []))}
+        return {"circuit": domains, "rate_hits": dict(self._rate_hits_by_domain),
+                "visited": sorted(self._visited_srp_urls),
+                "fallback_boards": self._llm_fallback_boards_used,
+                "notifications": notifications}
+
+    def restaurar_runtime(self, saved: dict) -> None:
+        for domain, values in (saved.get("circuit") or {}).items():
+            row = dict(values)
+            row["state"] = CircuitState(row["state"])
+            row["opened_at"] = time.monotonic() - max(0, time.time() - row.pop("opened_epoch"))
+            self.circuit._domains[domain] = row
+        self._rate_hits_by_domain.update(saved.get("rate_hits") or {})
+        self._visited_srp_urls.update(saved.get("visited") or [])
+        self._llm_fallback_boards_used = max(self._llm_fallback_boards_used,
+                                            int(saved.get("fallback_boards") or 0))
+        notifications = saved.get("notifications") or {}
+        if hasattr(self.webhook, "_tier1_buffer"):
+            combined = self.webhook._tier1_buffer + list(notifications.get("buffer") or [])
+            self.webhook._tier1_buffer = list({j.job.url: j for j in combined}.values())
+            self.webhook._first_hit_sent |= bool(notifications.get("first"))
+
+    def _reserve_fallback(self) -> bool:
+        with self._fallback_lock:
+            if self._llm_fallback_boards_used >= config.LLM_FALLBACK_MAX_BOARDS_PER_RUN:
+                return False
+            reserve = getattr(self.db, "reserve_run_fallback", None)
+            if callable(reserve) and not reserve(self.summary.run_id, config.LLM_FALLBACK_MAX_BOARDS_PER_RUN):
+                return False
+            self._llm_fallback_boards_used += 1
+            return True
 
     def nuevos_avisos(self) -> list[JobResult]:
         """Los avisos que el writer agrego desde la ultima entrega."""
@@ -2149,13 +2219,12 @@ class GemaScraper:
         capped per run, and only jobs with a distinct absolute URL are accepted."""
         if not config.LLM_EXTRACTION_FALLBACK_ENABLED:
             return []
-        if self._llm_fallback_boards_used >= config.LLM_FALLBACK_MAX_BOARDS_PER_RUN:
+        if not self._reserve_fallback():
             self._log(
                 f"[LLM-FALLBACK] cap reached "
                 f"({config.LLM_FALLBACK_MAX_BOARDS_PER_RUN}) — skipping {domain}"
             )
             return []
-        self._llm_fallback_boards_used += 1
 
         # Prefer the CARD containers' HTML over the whole page. On a drifted board
         # the card selector still matches (it's the title/company sub-selectors
@@ -2504,6 +2573,12 @@ class GemaScraper:
         try:
             title    = await _try_chain(card, sel.title)
             company  = await _try_chain(card, sel.company)
+            if domain == "news.ycombinator.com" and title:
+                named = re.match(r"^(.+?)\s+(?:\([^)]*\)\s+)?(?:is\s+)?hiring\b", title, re.I)
+                if named:
+                    company = named.group(1)
+            if domain == "arc.dev" and (company or "").strip().casefold() == "arc exclusive":
+                company = None
             salary   = await _try_chain(card, sel.salary)   if sel.salary   else None
             salary   = con_moneda_implicita(salary, getattr(sel, "moneda_implicita", ""))
             location = await _try_chain(card, sel.location) if sel.location else None

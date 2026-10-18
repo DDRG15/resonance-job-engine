@@ -1,0 +1,24 @@
+{
+  "source_text": "SDK Engineer - Python (https://remotivated.com/jobs/sdk-engineer-python-at-supabase) Supabase (https://remotivated.com/companies/supabase) 96 Remote Score Remote Anywhere 💻 Engineering 2 days ago Forward Deployed Engineer (Senior, Python,AI/ML) (https://remotivated.com/jobs/forward-deployed-engineer-senior-pythonaiml-at-modus-create-2) Modus Create (https://remotivated.com/companies/modus-create) 84 Remote Score Remote Brazil, Colombia +1 more 3 locations 💼 Sales 2 weeks ago Senior Open-Source Python Engineer, ML Developer Tools - US Remote (https://remotivated.com/jobs/senior-open-source-python-engineer-ml-developer-tools-us-remote-at-hugging-face) Hugging Face (https://remotivated.com/companies/hugging-face) 82 Remote Score Remote US 💻 Engineering 3 weeks ago",
+  "source_url": "https://remotivated.com/jobs?q=python",
+  "captured_at": "2026-10-18T17:57:50.918424+00:00",
+  "human_confirmed": true,
+  "notes": "Public job-card HTML converted by scraper._strip_html_to_text; labels confirmed by the owner. Advertisements are excluded from expected jobs.",
+  "expected_jobs": [
+    {
+      "title": "SDK Engineer - Python",
+      "company": "Supabase",
+      "source_url": "https://remotivated.com/jobs/sdk-engineer-python-at-supabase"
+    },
+    {
+      "title": "Forward Deployed Engineer (Senior, Python,AI/ML)",
+      "company": "Modus Create",
+      "source_url": "https://remotivated.com/jobs/forward-deployed-engineer-senior-pythonaiml-at-modus-create-2"
+    },
+    {
+      "title": "Senior Open-Source Python Engineer, ML Developer Tools - US Remote",
+      "company": "Hugging Face",
+      "source_url": "https://remotivated.com/jobs/senior-open-source-python-engineer-ml-developer-tools-us-remote-at-hugging-face"
+    }
+  ]
+}

@@ -53,6 +53,7 @@ IMPORTS_OCULTOS: list[str] = [
     "apscheduler.triggers.interval",
     "apscheduler.triggers.date",
     "sqlite3",
+    "langgraph.checkpoint.sqlite",
 ]
 
 #: Submódulos completos (paquetes que cargan implementaciones por nombre).
@@ -96,6 +97,7 @@ PROHIBIDOS: list[str] = [
     "*backups/*",
     # bases y sus satélites
     "*.db", "*.db-shm", "*.db-wal", "*.bak",
+    "*.sqlite", "*.sqlite-shm", "*.sqlite-wal", "*.sqlite-journal",
     # logs y exportaciones
     "*.log", "*.xlsx",
 ]

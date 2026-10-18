@@ -251,6 +251,9 @@ def traced_node(
             try:
                 result = fn(state, config)
             except Exception as exc:
+                from langgraph.errors import GraphInterrupt
+                if isinstance(exc, GraphInterrupt):
+                    raise
                 status = "failed"
                 error = f"{type(exc).__name__}: {exc}"
                 metrics.emit("node_failed_total", 1, node=name,

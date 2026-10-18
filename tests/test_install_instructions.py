@@ -57,7 +57,7 @@ def project_python_files() -> list[Path]:
     for folder, dirs, files in os.walk(ROOT):
         dirs[:] = [d for d in dirs
                    if not d.startswith(".") and d not in {"node_modules", "build", "dist",
-                                                          "__pycache__", "site-packages"}
+                       "data", "backups", "cookies", "credentials", "__pycache__", "site-packages"}
                    and not (Path(folder) / d / "pyvenv.cfg").exists()]
         found.extend(Path(folder) / f for f in files if f.endswith(".py"))
     return found

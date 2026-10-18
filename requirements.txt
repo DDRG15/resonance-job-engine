@@ -34,6 +34,7 @@ google-generativeai==0.8.3
 
 # ── Orchestration (v3 — el pipeline como state graph) ────────────────────────
 langgraph==1.2.11      # SOLO langgraph: nada de langchain, ni wrappers de chat model.
+langgraph-checkpoint-sqlite==3.1.2  # MIT; durable local run cursors
                        # La 0.6.7 no sirve: pip-audit la rechazó (PYSEC-2026-83, fix
                        # en 1.0.10) junto a 3 vulns de langgraph-checkpoint y 2 de
                        # langgraph-sdk. La rama 1.0.x las cierra todas.

@@ -47,9 +47,11 @@ del schema diluiría la señal: que falte `experience_max_years` no cambia nada.
 Existe para el **modo de falla silencioso**: cantidad correcta de jobs, todos grounded, y
 la mitad de los campos en `null`. `grounding_rate` diría 1.0 y todo parecería perfecto.
 
-**`agreement`** — solo para casos de `manual_review` resueltos: ¿la URL que produjo el
-sistema es la que el humano corrigió? La única de las cuatro con respuesta correcta
-conocida, y apunta al campo que más falla.
+**`agreement`** — compara URLs contra respuestas confirmadas. En `manual_review` indica
+si aparece la URL corregida; en fixtures con `human_confirmed: true` es F1 del conjunto
+de URLs, penalizando tanto omisiones como extras. Un caso vacío confirmado obtiene 1
+solo si la extracción devuelve cero avisos. Las etiquetas propuestas sin confirmar no
+intervienen en esta métrica.
 
 ---
 

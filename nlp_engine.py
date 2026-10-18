@@ -494,11 +494,13 @@ def _call_gemini(messages: list[dict]) -> LLMCallResult:
     try:
         model = genai.GenerativeModel(
             model_name=config.GEMINI_MODEL,
-            system_instruction=_SYSTEM_PROMPT,
+            system_instruction="\n".join(m["content"] for m in messages
+                                          if m["role"] == "system") or None,
         )
-        user_text = "\n".join(m["content"] for m in messages if m["role"] == "user")
+        contents = [{"role": "model" if m["role"] == "assistant" else "user",
+                     "parts": [m["content"]]} for m in messages if m["role"] != "system"]
         resp = model.generate_content(
-            user_text,
+            contents,
             generation_config=genai.GenerationConfig(
                 temperature=0.0,
                 response_mime_type="application/json",
@@ -1551,9 +1553,11 @@ Rules:
 • If the description text begins with a company name (first proper noun before a comma or dash)
   that is not a job board, that is the company.
 • If the description says "FinTech startup in London" with no name → "FinTech Startup (London)".
-• If no company is identifiable after careful reading → null (this job will be dropped).
-• NEVER set company to: Ashby, G2i, Himalayas, Wellfound, Greenhouse, WorkingNomads,
-  Remotivated, WelcomeToTheJungle, PostHog, HackerNews, YCombinator.
+• If no company is identifiable, preserve the listing with company "(empresa no listada)".
+  This is an explicit unknown marker, not an invented employer.
+• Board badges such as "Arc Exclusive" and "Fast apply" are not company names.
+• Never copy a board name as employer merely because it hosts the listing. A board can
+  also be the real employer: PostHog's own posthog.com/careers/ roles are one example.
 
 ═══ 7. CV MATCH SCORE (ALWAYS required) ═══
 User core skills: {skills}
@@ -1595,8 +1599,10 @@ Result is your integrity_score. Round to 2 decimal places.
 • location_strictness allowed values ONLY: Strict, Flexible, Match
 • source_url: extract THIS job's OWN url from the text. Each job's link usually appears in parentheses right after its title, e.g. "Senior Backend Dev (https://site.com/jobs/42)" → use https://site.com/jobs/42. Every job in a listing has a DIFFERENT url — never reuse one url for multiple jobs. NEVER invent, guess, or fabricate a url, and NEVER copy the example url shown in the schema below — that is only an illustration. If you cannot find this job's real url in the text, set source_url to null. A null url is honest; a fabricated one is a data-integrity failure.
 • Multiple postings in input → return all as separate objects in the "jobs" list.
-• Duplicate post, ghost post (no real requirements), or unreadable garbage → {{"jobs": []}}.
-• Missing title OR missing company → skip that entry entirely. Do not include it.
+• Short cards with a title and their own job URL are real listings even when they omit
+  salary, requirements or the employer. Preserve them; do not filter against the profile.
+• Omit duplicates, course advertisements, placement-service promotions and unreadable garbage.
+• Missing title → skip that entry. Missing company → use "(empresa no listada)".
 • Return ONLY valid JSON matching the schema below.
 • No prose. No markdown fences. No "Here is the data." Just the JSON.
 
@@ -1668,6 +1674,8 @@ def extract_jobs_from_text(
     source_url: Optional[str] = None,
     log_callback=None,
     extraction_prompt: Optional[str] = None,
+    *,
+    raise_on_failure: bool = False,
 ) -> ExtractionResult:
     """
     Converts raw job posting text into a validated list of ExtractedJob objects.
@@ -1723,7 +1731,12 @@ def extract_jobs_from_text(
                 line for line in cleaned.split("\n")
                 if not line.strip().startswith("```")
             ).strip()
-        result = ExtractionResult(**json.loads(cleaned))
+        payload = json.loads(cleaned)
+        if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
+            raise ValueError("Expected a JSON object with a jobs list; another response schema is invalid")
+        result = ExtractionResult(**payload)
+        if payload["jobs"] and not result.jobs:
+            raise ValueError("The response contained no valid job entries; return valid jobs or an explicit empty list")
         # Backfill source_url if the LLM left it null and we have it
         if source_url:
             for job in result.jobs:
@@ -1743,12 +1756,14 @@ def extract_jobs_from_text(
         ],
         parser=_parse_extraction,
         retry_inject=_EXTRACTION_RETRY_INJECT,
-        on_exhaustion="empty",
+        on_exhaustion="raise" if raise_on_failure else "empty",
         log=_log,
     )
 
     result = state.get("parsed")
     if result is None:
+        if raise_on_failure:
+            raise RuntimeError(f"Extraction providers exhausted: {state.get('last_error')}")
         _log(
             f"[EXTRACT] All attempts exhausted. Last error: {state.get('last_error')}."
             f" Returning empty result."
