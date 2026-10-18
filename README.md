@@ -2,9 +2,10 @@
 
 Resonance finds remote jobs, reads them from public APIs and company ATS boards, scores
 each one against your CV, and ranks them into tiers. **The scoring engine is deterministic
-and spends zero LLM tokens.** A run that finds 1,000 jobs costs the same as one that finds
-ten. LLMs show up in three narrow places, all optional: turning a free-text search into a
-config, turning a CV into a skills profile, and recovering a scraper whose selectors broke.
+and makes no LLM call per job**, so scoring 1,000 jobs spends no LLM tokens. LLMs show up in
+three narrow places, all optional: turning a free-text search into a config, turning a CV
+into a skills profile, and recovering a scraper whose selectors broke. A run still takes
+time and network requests in proportion to the sources, ATS companies and boards it visits.
 With every provider down, Resonance still finds, scores and ranks.
 
 ```
@@ -40,12 +41,35 @@ longer where most jobs come from.
 
 ## Quick start
 
+**Prerequisites:** Python 3.12 (developed and tested on 3.12.10; the Docker image runs
+Python 3.10), Node.js 22 or newer for the frontend build, and git. Check yours with
+`python --version` and `node --version`.
+
+Windows (PowerShell):
+
+```powershell
+git clone https://github.com/DDRG15/resonance-job-engine.git
+cd resonance-job-engine
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+playwright install chromium         # only needed for the browser-scraped boards
+
+cd frontend; npm ci; npm run build; cd ..          # without this, / returns 404
+
+copy .env.example .env              # every key is optional, see below
+uvicorn api:app --port 8000 --workers 1
+```
+
+Linux and macOS:
+
 ```bash
 git clone https://github.com/DDRG15/resonance-job-engine.git
 cd resonance-job-engine
 
 python -m venv .venv
-.venv/Scripts/activate              # Windows;  source .venv/bin/activate on Unix
+source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium         # only needed for the browser-scraped boards
 
@@ -54,6 +78,9 @@ cd frontend && npm ci && npm run build && cd ..    # without this, / returns 404
 cp .env.example .env                # every key is optional, see below
 uvicorn api:app --port 8000 --workers 1
 ```
+
+If PowerShell blocks `Activate.ps1`, allow it for that window only with
+`Set-ExecutionPolicy -Scope Process RemoteSigned` and activate again.
 
 Open `http://localhost:8000`.
 
@@ -83,7 +110,10 @@ Keep the originals until you have verified the results; the new volume starts em
 
 ### Desktop app
 
+With the virtual environment from the Quick start active:
+
 ```powershell
+pip install -r requirements-dev.txt     # adds PyInstaller, which build.ps1 requires
 cd frontend; npm ci; npm run build; cd ..
 powershell -ExecutionPolicy Bypass -File packaging/build.ps1
 ```
@@ -146,14 +176,16 @@ it flags a possible hang. The same data is in `GET /api/status` and in the MCP's
 ## Configuration
 
 Everything lives in `.env`. Nothing is mandatory. Internal names keep the engine's
-original codename, GEMA: environment variables are prefixed `GEMA_` and the registry is
-`gema_registry.db`.
+original codename, GEMA: three variables (`GEMA_DB_PATH`, `GEMA_GMAIL_ALERTAS`,
+`GEMA_BACKUP_DIR`) and the registry file `gema_registry.db`. The other variables have no
+prefix. `.env.example` lists all of them with placeholders only.
 
 | Variable | What it does |
 |---|---|
 | `GROQ_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY`, `COHERE_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY`, `SAMBANOVA_API_KEY` | LLM providers, all free tier. Any one is enough. With none, scraping and scoring still run, but parsing a free-text search or a CV does not. |
 | `PAIS_CANDIDATO` | Your country (required for the location policy; empty by default, e.g. `Colombia`). Drives the location policy: a role that requires US work authorization is not a match for someone based in Bogota, no matter how good the title is. |
 | `DISCORD_WEBHOOK_URL` | Run report, overdue follow-ups and Tier 1 alerts |
+| `SLACK_WEBHOOK_URL` | Tier 1 alert and batch summary to Slack. If both webhooks are set, both fire. |
 | `NOTION_API_KEY`, `NOTION_DATABASE_ID` | Push results to a Notion database |
 | `GOOGLE_CREDENTIALS_PATH`, `GOOGLE_SHEET_ID` | Append results to a Google Sheet |
 | `GEMA_GMAIL_ALERTAS` | `1` turns on the Gmail alert source (see below). Default off. |
@@ -263,12 +295,23 @@ The pipeline is a LangGraph state graph. The API, the cron and the CLI all run t
 **same** graph with a different `trigger`:
 
 ```
-init_run ─> scrape ─> bucket ─> summarize ─> persist_run ─> notify ─> push
+init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+         ─> bucket ─> summarize ─> persist_run ─> notify ─> push
 ```
+
+Every source layer is its own node, so each one leaves its own trace and moves the progress
+bar to its own phase. The three network nodes (`fuentes_endpoint`, `fuentes_ats`,
+`fuentes_gmail`) retry transient network errors with a LangGraph `RetryPolicy`; a bug in the
+code is never retried.
 
 `notify` (Discord) and `push` (Notion, Sheets) degrade instead of failing. By then the
 results are already in SQLite, so an integration that is down never turns a successful
 run into a failed one.
+
+LangGraph is imported lazily: the graph compiles the first time a run uses it, so starting
+the API does not pay for it. The state holds only serializable values; the database handle,
+the scraper and the CV profile live in the runtime context, and the profile never enters
+the state.
 
 The FastAPI app serves the React UI and the API. The main endpoints:
 
@@ -334,11 +377,14 @@ correlators.py          cross-source duplicate detection
 fuentes_estado.py       suspicious-source rule
 database.py             SQLite: registry, runs, traces, applications, review pile
 nlp_engine.py           the 7 LLM providers and their callers
-graph/                  the pipeline as a state graph
+graph/                  the run as a state graph, the LLM provider chain, board recovery
 integrations/           Discord, Notion, Sheets, cookie jar
 tools/                  CLI utilities (provider check, ATS discovery, re-scoring, Gmail auth, ...)
 desktop/                desktop app: launcher, ports, runtime.json, tray
 mcp_server/             MCP server (stdio), thin client of the local API
+empresa.py              company-name cleanup: title glued to company, slogans, missing names
+exportar_excel.py       the Excel workbook behind /api/export.xlsx
+rutas.py                where the app keeps its data (RESONANCE_HOME)
 progreso.py             run progress and ETA
 packaging/              PyInstaller spec, build + smoke script, Inno Setup installer
 frontend/               React + Vite + TypeScript, served from /
@@ -350,9 +396,12 @@ docs/                   architecture, observability, LLM providers, eval
 
 ## Tests
 
+With the virtual environment from the Quick start active:
+
 ```bash
-python -m pytest -q                       # 2,263 tests, ~30 min on a 2-core laptop
-cd frontend && npx vitest run && npx tsc --noEmit -p .
+pip install -r requirements-dev.txt       # starts with -r requirements.txt: runtime + test tools, all pinned
+python -m pytest -q                       # 2,573 tests: 2,572 pass, 1 is skipped (no extraction corpus yet); ~25 min on a 2-core laptop
+cd frontend && npx vitest run && npx tsc --noEmit -p .    # 99 tests in 11 files
 ```
 
 **The suite never touches the internet.** An autouse fixture blocks every connection
@@ -369,6 +418,19 @@ python tools/eval_extraction.py --gate
 ---
 
 ## Status and known limits
+
+| Component | State | Notes |
+|---|---|---|
+| Public APIs and feeds (Himalayas, Remotive, Jobicy, Arbeitnow, RemoteOK, WeWorkRemotely) | Active | Read on every run; each source's rate limit is respected between runs. |
+| ATS boards: Greenhouse, Lever, Ashby | Active | Companies marked `activa` in `ats_registry.py`. |
+| ATS boards: Recruitee, Workable, BambooHR, Personio | Implemented, disabled | No company is active until the Tier 1 threshold is tuned. |
+| Browser scraping (Playwright) | Optional | Needs `playwright install chromium`. Only for boards with no API. |
+| LLM providers (7) | Optional | One key is enough. With none, parsing a free-text search or a CV does not work. |
+| Discord, Slack, Notion, Google Sheets | Optional | Off until configured. The suite blocks non-local network, so these are tested against fakes, never the real services. |
+| Gmail alerts | Disabled, pending real validation | The parser has only seen synthetic fixtures. |
+| MCP server | Implemented | Eight tools; thin client of the local API. |
+| Desktop app and installer | Implemented (Windows) | PyInstaller build; `packaging/build.ps1` smoke-tests the packaged app. |
+| Resuming an interrupted run | Not implemented | A run that stops starts over. |
 
 **The Tier 1 threshold is still being tuned.** Tier 1 holds about 46% of everything
 scored. The four new ATS platforms stay off until the threshold is set from a live run

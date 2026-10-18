@@ -110,16 +110,28 @@ class RunState(TypedDict, total=False):
     empujaba a Notion y Sheets, scheduler_service._fire no, y encima hardcodeaba
     ttl_hours=24. La misma responsabilidad con comportamiento según quién disparara.
     Ahora son dos llamadas a este grafo con distinto `trigger`.
+
+    TODO lo que hay acá tiene que serializarse a JSON (pydantic, listas, dicts, strings):
+    es lo que un checkpointer va a guardar y lo que una corrida retomada va a leer. Lo que
+    no cumple esa condición vive en RuntimeContext: la base, el scraper, las integraciones
+    y el PERFIL DEL CV. El perfil es efímero por diseño (solo se retiene si el usuario lo
+    pide), así que un estado que lo contuviera lo persistiría sin que nadie lo decidiera.
     """
 
     # ── entrada ──────────────────────────────────────────────────────────────
     run_id:      str
     trigger:     Literal["api", "cron", "cli"]
     config:      Any            # SearchConfig
-    profile:     Optional[dict]
     ttl_hours:   int
 
+    # ── plan de fuentes ──────────────────────────────────────────────────────
+    # {"endpoint": [...], "ats": [...], "navegador": [...]}: qué dominios va a cada fase.
+    # Lo arma init_run una vez; las fases lo leen y no lo recalculan.
+    plan:        dict
+
     # ── acumulado ────────────────────────────────────────────────────────────
+    # Cada nodo de fuentes devuelve SOLO lo que sumó él; el reducer concatena. Repetir un
+    # nodo no duplica avisos porque la dedup vive en la base (`is_seen`), no acá.
     jobs:        Annotated[list, operator.add]
     errors:      Annotated[list, operator.add]
     counters:    Annotated[dict, merge_counters]

@@ -11,36 +11,62 @@ Misma responsabilidad, comportamiento distinto según quién disparara. Un job e
 por el cron nunca llegaba a Notion y nadie lo había decidido: se filtró al copiar el
 loop. Ahora son dos llamadas a este grafo con distinto `trigger`.
 
-    init_run ─> scrape ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
+    init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+             ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
 
-QUÉ SE CANIBALIZA, Y POR QUÉ NO SE REESCRIBE
---------------------------------------------
-El nodo `scrape` llama a `run_scrape_session` tal cual. Adentro viven el probe de boards,
-el BrowserContext compartido, el cookie jar, el fan-out con semáforo, el circuit breaker,
-la cola de escritura y el fallback LLM — todo probado y todo verificado en vivo el
-2026-09-01: 85 URLs, 74 jobs nuevos, 0 errores. Reescribir eso como nodos `Send` sería
-cambiar código que funciona por uniformidad estructural, y el riesgo no lo paga nadie.
+LA CORRIDA, EN NODOS REALES
+---------------------------
+Hasta la versión anterior el nodo `scrape` era una caja negra: `run_scrape_session` hacía
+endpoints, ATS, Gmail y navegador adentro de un solo `asyncio.run`. Si la corrida moría a
+los 12 minutos no quedaba nada que retomar y la traza era un solo número. Ahora cada fuente
+es un nodo: deja su fila en `node_traces`, el progreso cambia de fase en el nodo que
+corresponde y un checkpointer puede guardar entre una y otra.
 
-Lo que SÍ era ruido, y desaparece acá, es la orquestación duplicada alrededor.
+El trabajo de cada fase sigue en `GemaScraper` (probe de boards, BrowserContext
+compartido, cookie jar, fan-out con semáforo, circuit breaker, cola de escritura, fallback
+LLM — todo probado y verificado en vivo el 2026-09-01: 85 URLs, 74 jobs nuevos, 0
+errores). Lo que cambió es quién lo invoca: el scraper expone `iniciar` y un `fase_*` por
+nodo, y `run_scrape_session` sigue existiendo para quien lo use directo.
 
-LÍMITE DECLARADO: el fan-out por (dominio × título) sigue viviendo dentro de
-GemaScraper.run(), con asyncio.gather, no como ramas del grafo. Descomponerlo con Send queda
-pendiente. Lo que entrega el grafo es el nivel
-de corrida — que es donde estaba la duplicación real y donde faltaba el escritor de
-telemetría.
+QUÉ VIVE DÓNDE
+--------------
+Estado (serializable, lo que un checkpoint guarda): run_id, trigger, config, ttl_hours,
+plan de fuentes, avisos (`jobs`, con reducer), errores (con reducer), summary, tiers y
+status.
+
+RuntimeContext (por `configurable`, nunca en el estado): la base, el scraper de la corrida
+—dueño de la cola de escritura, el circuit breaker, el registro de estrategias y el set de
+dedup—, las integraciones, la cola de logs y el PERFIL DEL CV. El perfil es efímero: solo se
+retiene si el usuario lo pide, y un estado que lo contuviera lo persistiría sin que nadie
+lo decidiera. No hay un loop compartido: cada fase abre el suyo (ver
+`GemaScraper._correr_fase`).
+
+LÍMITE DECLARADO: el fan-out por (dominio × título) sigue viviendo dentro del nodo
+`navegador`, con asyncio.gather, no como ramas del grafo.
+
+IMPORT DIFERIDO
+---------------
+Este módulo no importa langgraph al cargarse: el grafo se compila la primera vez que
+`run_pipeline` lo usa (`LazyGraph`). `import api` no paga ese costo.
 """
 
-import json
+import http.client
 import logging
+import socket
+import urllib.error
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
-from langgraph.graph import END, StateGraph
-from langgraph.types import RunnableConfig
+if TYPE_CHECKING:
+    # Solo para anotar. En ejecución langgraph se importa en `build_run_graph`, que publica
+    # el nombre como global del módulo: LangGraph resuelve la anotación "RunnableConfig"
+    # de cada nodo ahí para saber que debe inyectar la config.
+    from langgraph.types import RunnableConfig
 
 import progreso
 from graph.instrumentation import traced_node
+from graph.lazy import LazyGraph
 from graph.state import RunState
 
 # Fase 9. Los nodos avisan al humano por `ctx.emit` (el stream que mira); este logger
@@ -50,7 +76,7 @@ from graph.state import RunState
 logger = logging.getLogger("gema.run_graph")
 
 
-def _rt(config: RunnableConfig):
+def _rt(config: "RunnableConfig"):
     return (config or {}).get("configurable", {}).get("ctx")
 
 
@@ -72,7 +98,7 @@ def _now() -> str:
 # =============================================================================
 
 @traced_node("init_run", graph="run")
-def init_run(state: RunState, config: RunnableConfig) -> dict:
+def init_run(state: RunState, config: "RunnableConfig") -> dict:
     """Abre la corrida: id, fila en `runs`, y limpieza de cooldowns de la anterior."""
     ctx = _rt(config)
     run_id = state.get("run_id") or uuid.uuid4().hex
@@ -84,10 +110,10 @@ def init_run(state: RunState, config: RunnableConfig) -> dict:
         ctx.cooldowns.clear()
         ctx.run_id = run_id
         if ctx.db is not None:
-            # NO se hace backup acá: GemaScraper.run() ya lo hace al arrancar
-            # (scraper.py, primera línea del run). Ponerlo también en este nodo hacía
-            # que cada corrida respaldara la base DOS veces — medido en 618ms y 389ms
-            # por corrida con una DB de test vacía, y crece con el tamaño real.
+            # NO se hace backup acá: GemaScraper.iniciar() ya lo hace (al final de este
+            # nodo). Ponerlo también acá hacía que cada corrida respaldara la base DOS
+            # veces — medido en 618ms y 389ms por corrida con una DB de test vacía, y
+            # crece con el tamaño real.
             cfg = state.get("config")
             ctx.db.record_run_start(
                 run_id,
@@ -125,38 +151,140 @@ def init_run(state: RunState, config: RunnableConfig) -> dict:
             ctx.emit(f"[BARRIDO] no corrio ({type(exc).__name__}) — la corrida sigue.")
         ctx.emit(f"[GEMA] Run {run_id[:8]} ({trigger}) starting.")
 
+    # El scraper de la corrida y su plan de fuentes. Va al final: la fila de `runs` y el
+    # barrido ya quedaron escritos, y si armar el scraper falla la corrida se cierra
+    # `crashed` con esa causa en vez de morir sin fila.
+    plan: dict = {}
+    if ctx is not None:
+        ctx.scraper = _crear_scraper(state, ctx, run_id)
+        plan = ctx.scraper.iniciar()
+
     return {"run_id": run_id, "trigger": trigger, "status": "running",
-            "jobs": [], "errors": [], "counters": {}}
+            "plan": plan, "jobs": [], "errors": [], "counters": {}}
 
 
-@traced_node("scrape", graph="run")
-def scrape(state: RunState, config: RunnableConfig) -> dict:
+# =============================================================================
+# Fuentes — un nodo por fase del scraper
+#
+# Ninguno degrada: si una fuente obligatoria revienta, seguir con una lista vacía produciría
+# una corrida "exitosa" con cero resultados. Lo transitorio de red NO llega a ese punto: los
+# tres primeros llevan RetryPolicy (ver `es_error_de_red`) y reintentan antes de rendirse.
+# Los errores por fuente (un board caído, un token vencido) los captura el scraper, que los
+# anota en `summary.errors`: eso es un aviso al humano, no una excepción del nodo.
+# =============================================================================
+
+def _crear_scraper(state: RunState, ctx, run_id: Optional[str] = None):
+    """Arma el GemaScraper de esta corrida con lo que viene del estado y del contexto."""
+    from scraper import GemaScraper
+
+    return GemaScraper(
+        state["config"],
+        ctx.db,
+        getattr(ctx, "_log_queue", None),
+        state.get("ttl_hours", 0),
+        profile=ctx.profile,
+        run_id=run_id or state.get("run_id"),
+    )
+
+
+def _scraper_de(state: RunState, ctx):
     """
-    Corre el scraper completo. Canibaliza run_scrape_session sin tocarlo.
+    El scraper de la corrida. Si el contexto no lo trae —una corrida retomada en un
+    proceso nuevo— lo reconstruye y lo siembra con el resumen y los avisos del estado.
+    """
+    sc = getattr(ctx, "scraper", None)
+    if sc is None:
+        sc = _crear_scraper(state, ctx)
+        sc.restaurar(state.get("summary"), state.get("jobs") or [],
+                     len(state.get("errors") or []))
+        ctx.scraper = sc
+    return sc
+
+
+def _aporte(sc, jobs: list) -> dict:
+    """Lo que una fase suma al estado: sus avisos, sus errores y el resumen vigente."""
+    return {"jobs": list(jobs), "errors": sc.nuevos_errores(), "summary": sc.summary}
+
+
+def es_error_de_red(exc: BaseException) -> bool:
+    """
+    True si `exc` es un fallo de red que puede no repetirse: se reintenta.
+
+    Escenario: un corte de DNS de 2 segundos durante `fuentes_ats` mataba una corrida de 10
+    minutos. Consecuencia de reintentar TODO: un `KeyError` de un parser se repetiría 3 veces
+    con el mismo resultado y esconde un bug detrás de segundos de espera. Decisión: se
+    reintenta por tipo de fallo de transporte (conexión, timeout, DNS, 429/5xx) y nada más.
+    Un error de programación, de configuración (`FileNotFoundError`) o un 4xx suben tal cual.
+    """
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code == 429 or exc.code >= 500
+    if isinstance(exc, (ConnectionError, TimeoutError, socket.gaierror, socket.timeout,
+                        urllib.error.URLError, http.client.IncompleteRead)):
+        return True
+    try:
+        import requests
+        if isinstance(exc, requests.exceptions.HTTPError):
+            code = getattr(exc.response, "status_code", 0) or 0
+            return code == 429 or code >= 500
+        if isinstance(exc, (requests.exceptions.ConnectionError,
+                            requests.exceptions.Timeout,
+                            requests.exceptions.ChunkedEncodingError)):
+            return True
+    except ImportError:
+        pass
+    try:
+        import httpx
+        if isinstance(exc, httpx.HTTPStatusError):
+            code = exc.response.status_code
+            return code == 429 or code >= 500
+        if isinstance(exc, (httpx.TransportError, httpx.TimeoutException)):
+            return True
+    except ImportError:
+        pass
+    return False
+
+
+@traced_node("fuentes_endpoint", graph="run")
+def fuentes_endpoint(state: RunState, config: "RunnableConfig") -> dict:
+    """Boards que se leen con un GET, sin navegador."""
+    sc = _scraper_de(state, _rt(config))
+    return _aporte(sc, sc.fase_endpoint(state.get("plan") or {}))
+
+
+@traced_node("fuentes_ats", graph="run")
+def fuentes_ats(state: RunState, config: "RunnableConfig") -> dict:
+    """Tableros de empresa de Greenhouse, Lever y Ashby."""
+    sc = _scraper_de(state, _rt(config))
+    return _aporte(sc, sc.fase_ats(state.get("plan") or {}))
+
+
+@traced_node("fuentes_gmail", graph="run")
+def fuentes_gmail(state: RunState, config: "RunnableConfig") -> dict:
+    """Alertas de LinkedIn e Indeed desde el buzón. Apagada por flag: entonces no hace nada."""
+    sc = _scraper_de(state, _rt(config))
+    return _aporte(sc, sc.fase_gmail())
+
+
+@traced_node("navegador", graph="run")
+def navegador(state: RunState, config: "RunnableConfig") -> dict:
+    """
+    Probe de boards, Chromium y el fan-out por (dominio × título), y el cierre común del
+    scraper (webhook, contadores del resumen).
+
+    Sin RetryPolicy a propósito: el fan-out ya aísla cada rama (return_exceptions) y
+    repetir el nodo entero relanzaría Chromium y volvería a pedir cada página.
 
     `ttl_hours` sale del ESTADO, no de una constante. Ese fue el punto exacto donde los
     dos orquestadores derivaron: el cron hardcodeaba 24 y la corrida manual pasaba lo que
     el usuario pidiera, así que el mismo board devolvía resultados distintos según la
     hora del día y nadie sabía por qué.
     """
-    from scraper import run_scrape_session
-
-    ctx = _rt(config)
-    log_q = getattr(ctx, "_log_queue", None)
-    jobs, summary = run_scrape_session(
-        state["config"],
-        ctx.db,
-        log_q,
-        state.get("ttl_hours", 0),
-        profile=state.get("profile"),
-        run_id=state.get("run_id"),
-    )
-    return {"jobs": list(jobs), "summary": summary,
-            "errors": list(getattr(summary, "errors", []) or [])}
+    sc = _scraper_de(state, _rt(config))
+    return _aporte(sc, sc.fase_navegador(state.get("plan") or {}))
 
 
 @traced_node("bucket", graph="run")
-def bucket(state: RunState, config: RunnableConfig) -> dict:
+def bucket(state: RunState, config: "RunnableConfig") -> dict:
     """Puntúa y reparte en tiers. Canibaliza bucket_jobs."""
     from matcher import bucket_jobs
 
@@ -185,12 +313,12 @@ def bucket(state: RunState, config: RunnableConfig) -> dict:
 
     ctx.emit(f"[MATCHER] Scoring {len(jobs)} new jobs...")
     t1, t2, t3 = bucket_jobs(jobs, state["config"], ctx.db,
-                                 profile=state.get("profile"))
+                                 profile=getattr(ctx, "profile", None))
     return {"tier1": t1, "tier2": t2, "tier3": t3}
 
 
 @traced_node("summarize", graph="run")
-def summarize(state: RunState, config: RunnableConfig) -> dict:
+def summarize(state: RunState, config: "RunnableConfig") -> dict:
     """
     Cierra el summary con los conteos por tier.
 
@@ -209,7 +337,7 @@ def summarize(state: RunState, config: RunnableConfig) -> dict:
 
 
 @traced_node("persist_run", graph="run")
-def persist_run(state: RunState, config: RunnableConfig) -> dict:
+def persist_run(state: RunState, config: "RunnableConfig") -> dict:
     """Cierra la fila de `runs`. Es el escritor que la Fase 4 dejó sin conectar."""
     ctx = _rt(config)
     if ctx is None or ctx.db is None:
@@ -236,7 +364,7 @@ def persist_run(state: RunState, config: RunnableConfig) -> dict:
 
 
 @traced_node("notify", graph="run", degrade=lambda exc, state: {})
-def notify(state: RunState, config: RunnableConfig) -> dict:
+def notify(state: RunState, config: "RunnableConfig") -> dict:
     """
     Reporte a Discord. Un solo formato para los dos triggers.
 
@@ -329,7 +457,7 @@ def _seccion_vencidas(ctx) -> str:
 
 
 @traced_node("push", graph="run", degrade=lambda exc, state: {})
-def push(state: RunState, config: RunnableConfig) -> dict:
+def push(state: RunState, config: "RunnableConfig") -> dict:
     """
     Notion y Sheets, cada uno aislado.
 
@@ -362,25 +490,54 @@ def push(state: RunState, config: RunnableConfig) -> dict:
     return {}
 
 
-def build_run_graph():
-    g = StateGraph(RunState)
-    for nombre, fn in (("init_run", init_run), ("scrape", scrape), ("bucket", bucket),
-                       ("summarize", summarize), ("persist_run", persist_run),
-                       ("notify", notify), ("push", push)):
-        g.add_node(nombre, fn)
+#: Los nodos de la corrida, en orden. Es la fuente de verdad de la secuencia: el grafo se
+#: arma recorriéndola y los tests comparan contra ella.
+NODOS = (
+    ("init_run", init_run),
+    ("fuentes_endpoint", fuentes_endpoint),
+    ("fuentes_ats", fuentes_ats),
+    ("fuentes_gmail", fuentes_gmail),
+    ("navegador", navegador),
+    ("bucket", bucket),
+    ("summarize", summarize),
+    ("persist_run", persist_run),
+    ("notify", notify),
+    ("push", push),
+)
 
-    g.set_entry_point("init_run")
-    g.add_edge("init_run", "scrape")
-    g.add_edge("scrape", "bucket")
-    g.add_edge("bucket", "summarize")
-    g.add_edge("summarize", "persist_run")
-    g.add_edge("persist_run", "notify")
-    g.add_edge("notify", "push")
-    g.add_edge("push", END)
+#: Los nodos que hablan con la red y reintentan ante un fallo transitorio.
+NODOS_CON_REINTENTO = frozenset({"fuentes_endpoint", "fuentes_ats", "fuentes_gmail"})
+
+
+def build_run_graph():
+    # langgraph se importa acá y no arriba: ver el docstring del módulo. `global` publica
+    # RunnableConfig para que LangGraph resuelva la anotación de string de cada nodo.
+    global RunnableConfig
+    from langgraph.graph import END, StateGraph
+    from langgraph.types import RetryPolicy, RunnableConfig
+
+    # 3 intentos con espera 2 s -> 4 s. Los límites propios de cada API (Retry-After de un
+    # 429, crawl-delay) los respeta el scraper por request; esto cubre el fallo que el
+    # scraper no atrapó y subió hasta el nodo.
+    reintento_red = RetryPolicy(initial_interval=2.0, backoff_factor=2.0,
+                                max_interval=15.0, max_attempts=3, jitter=True,
+                                retry_on=es_error_de_red)
+
+    g = StateGraph(RunState)
+    for nombre, fn in NODOS:
+        if nombre in NODOS_CON_REINTENTO:
+            g.add_node(nombre, fn, retry_policy=reintento_red)
+        else:
+            g.add_node(nombre, fn)
+
+    g.set_entry_point(NODOS[0][0])
+    for (origen, _), (destino, _) in zip(NODOS, NODOS[1:]):
+        g.add_edge(origen, destino)
+    g.add_edge(NODOS[-1][0], END)
     return g.compile()
 
 
-RUN_GRAPH = build_run_graph()
+RUN_GRAPH = LazyGraph(build_run_graph)
 
 
 def run_pipeline(
@@ -400,12 +557,15 @@ def run_pipeline(
     corrida que muere sin dejar rastro es la que después nadie puede explicar.
     """
     ctx._log_queue = log_queue
+    # El perfil del CV viaja por el contexto, no por el estado: es efímero y el estado es
+    # lo que un checkpoint guarda.
+    ctx.profile = profile
     inicial: RunState = {
         "run_id": run_id or uuid.uuid4().hex,
         "trigger": trigger,
         "config": config,
-        "profile": profile,
         "ttl_hours": ttl_hours,
+        "plan": {},
         "jobs": [], "errors": [], "counters": {},
         "tier1": [], "tier2": [], "tier3": [],
         "status": "running", "error": None,
@@ -435,3 +595,10 @@ def run_pipeline(
         raise
     finally:
         progreso.finalizar()
+        # Suelta los recursos de la corrida: el scraper retiene los avisos, el registro de
+        # estrategias y el breaker, y el perfil del CV no sobrevive a la corrida.
+        for recurso in ("scraper", "profile"):
+            try:
+                setattr(ctx, recurso, None)
+            except Exception:
+                pass

@@ -1,45 +1,48 @@
 """
-extract_graph.py — recuperación de un board drifteado, como grafo.
+extract_graph.py — recuperación de un board drifteado, en cinco pasos trazados.
 
 El scraper llega hasta acá cuando los selectores CSS de un board fallaron pero el texto
 sigue estando en la página. A partir de ese texto, la secuencia es siempre la misma:
 
-    extract ─> map_to_jobs ─> ground ─> salvage ─> snapshot ─> END
+    extract ─> map_to_jobs ─> ground ─> salvage ─> snapshot
 
-Qué se ganó al expresarla como grafo: cada paso deja su propia traza. Antes, un board que
-recuperaba 0 jobs producía una sola línea de log y había que adivinar cuál de los cinco
-pasos lo había vaciado — ¿el LLM no devolvió nada, o devolvió jobs que el grounding tiró
-por URLs inventadas? Son dos fallas distintas con dos arreglos distintos, y se veían igual.
+Es una secuencia lineal, sin ramas ni reintentos entre pasos, así que son funciones planas
+llamadas en orden por `run_extraction`, no un grafo. Un grafo de LangGraph aquí costaba
+compilación y el import de langgraph en el arranque, y no aportaba nada que las funciones no
+den: cada paso conserva `@traced_node`, así que sigue dejando su propia fila en
+`node_traces`, su métrica y su degrade. (`llm_graph`, que sí ramifica, sigue siendo grafo.)
 
-QUÉ NO ENTRA AL GRAFO
----------------------
+Qué se ganó con las trazas por paso: antes, un board que recuperaba 0 jobs producía una sola
+línea de log y había que adivinar cuál de los cinco pasos lo había vaciado — ¿el LLM no
+devolvió nada, o devolvió jobs que el grounding tiró por URLs inventadas? Son dos fallas
+distintas con dos arreglos distintos, y se veían igual.
+
+QUÉ NO ENTRA
+------------
 El objeto `Page` de Playwright y la extracción del HTML de las cards. Ese HTML se obtiene
-antes de invocar el grafo, por la misma razón que el BrowserContext no vive en el estado:
-su ciclo de vida lo maneja un context manager que el grafo no controla.
+antes de llamar a `run_extraction`, por la misma razón que el BrowserContext no vive en un
+estado: su ciclo de vida lo maneja un context manager que no le pertenece a este módulo.
 
 Tampoco entran `_ground_and_repair` ni `_salvage_dropped_jobs`. Son métodos de GemaScraper
-que dependen de los patrones de URL aprendidos (Phase 30b) y del registry — se inyectan
-como callables por `configurable`, igual que los callers del subgrafo LLM. Mover esa
-lógica acá habría mezclado un refactor de 100 líneas con el cambio de estructura, y las
-19 pruebas que la cubren no distinguirían cuál de los dos rompió algo.
+que dependen de los patrones de URL aprendidos (Phase 30b) y del registry — se inyectan como
+callables por el `configurable`, igual que los callers de la cadena LLM. Mover esa lógica acá
+habría mezclado un refactor de 100 líneas con el cambio de estructura, y las 19 pruebas que
+la cubren no distinguirían cuál de los dos rompió algo.
 """
 
 import re
 from typing import Any, Callable, Optional
-
-from langgraph.graph import END, StateGraph
-from langgraph.types import RunnableConfig
 
 import config as app_config
 from graph.instrumentation import traced_node
 from graph.state import ExtractState
 
 
-def _rt(config: RunnableConfig) -> dict:
+def _rt(config: dict) -> dict:
     return (config or {}).get("configurable", {})
 
 
-# Estos cinco SI degradan. Este subgrafo corre sobre un board que ya drifteó: si un paso
+# Estos cinco SI degradan. Esta recuperación corre sobre un board que ya drifteó: si un paso
 # revienta, lo correcto es que ese board quede sin recuperar y los otros nueve terminen su
 # trabajo. Cada degrade devuelve el slice vacío que el nodo siguiente espera, para que la
 # secuencia llegue hasta snapshot y deje evidencia en disco en vez de cortarse a la mitad.
@@ -47,7 +50,7 @@ def _rt(config: RunnableConfig) -> dict:
              degrade=lambda exc, state: {"extracted": [],
                                          "error": f"{type(exc).__name__}: {exc}",
                                          "reason": "extraction_failed"})
-def extract(state: ExtractState, config: RunnableConfig) -> dict:
+def extract(state: ExtractState, config: dict) -> dict:
     """
     Manda el texto al subgrafo de proveedores.
 
@@ -69,7 +72,7 @@ def extract(state: ExtractState, config: RunnableConfig) -> dict:
 
 @traced_node("map_to_jobs", graph="extract",
              degrade=lambda exc, state: {"recovered": []})
-def map_to_jobs(state: ExtractState, config: RunnableConfig) -> dict:
+def map_to_jobs(state: ExtractState, config: dict) -> dict:
     """ExtractedJob (contrato del LLM) -> JobResult (contrato interno)."""
     rt = _rt(config)
     mapper = rt["map_fn"]
@@ -83,7 +86,7 @@ def map_to_jobs(state: ExtractState, config: RunnableConfig) -> dict:
 
 @traced_node("ground", graph="extract",
              degrade=lambda exc, state: {"kept": [], "dropped": [], "repaired_n": 0})
-def ground(state: ExtractState, config: RunnableConfig) -> dict:
+def ground(state: ExtractState, config: dict) -> dict:
     """
     Gate anti-alucinación: sobrevive solo el job cuya URL aparece LITERALMENTE en el
     texto que se le mandó al modelo.
@@ -100,7 +103,7 @@ def ground(state: ExtractState, config: RunnableConfig) -> dict:
 
 
 @traced_node("salvage", graph="extract", degrade=lambda exc, state: {"salvaged": 0})
-def salvage(state: ExtractState, config: RunnableConfig) -> dict:
+def salvage(state: ExtractState, config: dict) -> dict:
     """
     un job con título real y URL mala va a revisión manual, no a la basura.
 
@@ -117,7 +120,7 @@ def salvage(state: ExtractState, config: RunnableConfig) -> dict:
 
 
 @traced_node("snapshot", graph="extract", degrade=lambda exc, state: {})
-def snapshot(state: ExtractState, config: RunnableConfig) -> dict:
+def snapshot(state: ExtractState, config: dict) -> dict:
     """
     Deja el par (input exacto, salida exacta) en disco.
 
@@ -144,24 +147,8 @@ def snapshot(state: ExtractState, config: RunnableConfig) -> dict:
     return {}
 
 
-def build_extract_graph():
-    g = StateGraph(ExtractState)
-    g.add_node("extract", extract)
-    g.add_node("map_to_jobs", map_to_jobs)
-    g.add_node("ground", ground)
-    g.add_node("salvage", salvage)
-    g.add_node("snapshot", snapshot)
-
-    g.set_entry_point("extract")
-    g.add_edge("extract", "map_to_jobs")
-    g.add_edge("map_to_jobs", "ground")
-    g.add_edge("ground", "salvage")
-    g.add_edge("salvage", "snapshot")
-    g.add_edge("snapshot", END)
-    return g.compile()
-
-
-EXTRACT_GRAPH = build_extract_graph()
+#: El orden de la recuperación. Un paso nuevo se agrega acá y en ningún otro lado.
+PASOS = (extract, map_to_jobs, ground, salvage, snapshot)
 
 
 def run_extraction(
@@ -200,14 +187,17 @@ def run_extraction(
         "reason": None,
         "error": None,
     }
-    return EXTRACT_GRAPH.invoke(
-        initial,
-        config={"configurable": {
-            "extract_fn": extract_fn,
-            "map_fn": map_fn,
-            "ground_fn": ground_fn,
-            "salvage_fn": salvage_fn,
-            "snapshot_fn": snapshot_fn,
-            "should_sample_fn": should_sample_fn,
-        }},
-    )
+    runtime = {"configurable": {
+        "extract_fn": extract_fn,
+        "map_fn": map_fn,
+        "ground_fn": ground_fn,
+        "salvage_fn": salvage_fn,
+        "snapshot_fn": snapshot_fn,
+        "should_sample_fn": should_sample_fn,
+    }}
+    estado: ExtractState = dict(initial)
+    for paso in PASOS:
+        # Cada paso devuelve su slice; la última escritura gana, igual que con el
+        # reducer por defecto del grafo que esto reemplaza.
+        estado.update(paso(estado, runtime))
+    return estado

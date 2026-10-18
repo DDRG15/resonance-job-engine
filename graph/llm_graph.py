@@ -45,12 +45,15 @@ provider for the whole session.
 
 import time
 import uuid
-from typing import Any, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
-from langgraph.graph import END, StateGraph
+# langgraph NO se importa al cargar el módulo (cuesta segundos de arranque): el builder lo
+# trae la primera vez que se compila el grafo. `RunnableConfig` se anota como string y se
+# publica como global en `build_llm_graph`, que es donde LangGraph resuelve la anotación.
 # Desde langgraph.types, no desde langchain_core: el tipo es el mismo objeto reexportado
 # y el import mantiene a langchain fuera de la superficie que este proyecto declara usar.
-from langgraph.types import RunnableConfig
+if TYPE_CHECKING:
+    from langgraph.types import RunnableConfig
 
 # Alias obligatorio, no cosmético: LangGraph inyecta la config del runnable solo si el
 # segundo parámetro del nodo SE LLAMA `config`. Ese nombre queda reservado para la firma
@@ -58,6 +61,7 @@ from langgraph.types import RunnableConfig
 import config as app_config
 import metrics
 from graph.instrumentation import emit_llm_call_metrics, traced_node
+from graph.lazy import LazyGraph
 from graph.state import LLMState
 
 # Un dia. Una key vencida se arregla renovandola, no esperando — pero parkear el
@@ -135,7 +139,7 @@ def _provider_available(cooldowns: dict[str, float], name: str) -> bool:
 # otros nueve. `exhausted` tampoco se decora: lanza ProvidersExhausted por contrato, y
 # registrarlo como node_failed_total contaminaría la métrica que detecta fallos reales.
 @traced_node("select_provider", graph="llm")
-def select_provider(state: LLMState, config: RunnableConfig) -> dict:
+def select_provider(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Advance provider_index past anything still cooling down.
 
@@ -184,7 +188,7 @@ def select_provider(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("call_provider", graph="llm")
-def call_provider(state: LLMState, config: RunnableConfig) -> dict:
+def call_provider(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Invoke the current provider and classify any failure into exactly one class.
 
@@ -244,7 +248,7 @@ def call_provider(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("parse", graph="llm")
-def parse(state: LLMState, config: RunnableConfig) -> dict:
+def parse(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Run the caller-supplied parser over the raw text.
 
@@ -266,7 +270,7 @@ def parse(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("self_correct", graph="llm")
-def self_correct(state: LLMState, config: RunnableConfig) -> dict:
+def self_correct(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Feed the schema error back to the SAME provider and let it fix its own output.
 
@@ -292,7 +296,7 @@ def self_correct(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("next_provider", graph="llm")
-def next_provider(state: LLMState, config: RunnableConfig) -> dict:
+def next_provider(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Move to the next provider with a CLEAN history.
 
@@ -321,7 +325,7 @@ def next_provider(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("cooldown", graph="llm")
-def cooldown(state: LLMState, config: RunnableConfig) -> dict:
+def cooldown(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Park a rate-limited provider for a bounded window instead of killing it.
 
@@ -341,7 +345,7 @@ def cooldown(state: LLMState, config: RunnableConfig) -> dict:
 
 
 @traced_node("auth_failed", graph="llm")
-def auth_failed(state: LLMState, config: RunnableConfig) -> dict:
+def auth_failed(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Una credencial vencida no mejora reintentando: se parkea el proveedor y se dice
     en voz alta qué hay que hacer.
@@ -366,7 +370,7 @@ def auth_failed(state: LLMState, config: RunnableConfig) -> dict:
     return {}
 
 
-def exhausted(state: LLMState, config: RunnableConfig) -> dict:
+def exhausted(state: LLMState, config: "RunnableConfig") -> dict:
     """
     Every provider failed. What that means is the caller's decision, not the graph's.
 
@@ -411,7 +415,7 @@ def _route_after_parse(state: LLMState) -> str:
     left it abandons it. Anything else is not this provider's problem to fix.
     """
     if state.get("done"):
-        return END
+        return "done"
     if state.get("error_class") == "schema":
         if state.get("retry_inject") and state.get("attempt", 1) < state["max_attempts"]:
             return "self_correct"
@@ -420,6 +424,10 @@ def _route_after_parse(state: LLMState) -> str:
 
 
 def build_llm_graph():
+    global RunnableConfig
+    from langgraph.graph import END, StateGraph
+    from langgraph.types import RunnableConfig
+
     g = StateGraph(LLMState)
     g.add_node("select_provider", select_provider)
     g.add_node("call_provider", call_provider)
@@ -438,7 +446,7 @@ def build_llm_graph():
                              "auth_failed": "auth_failed",
                              "next_provider": "next_provider"})
     g.add_conditional_edges("parse", _route_after_parse,
-                            {END: END, "self_correct": "self_correct",
+                            {"done": END, "self_correct": "self_correct",
                              "next_provider": "next_provider"})
     g.add_edge("self_correct", "call_provider")
     g.add_edge("cooldown", "next_provider")
@@ -448,9 +456,10 @@ def build_llm_graph():
     return g.compile()
 
 
-# Compiled once at import — the topology is static and compiling per call would add
-# latency to every LLM request for nothing.
-LLM_GRAPH = build_llm_graph()
+# La topología es fija: se compila una vez, al primer uso, y se reutiliza entre llamadas.
+# Compilar por llamada sumaría latencia a cada request LLM; compilar al importar suma
+# el costo de langgraph al arranque aunque nadie llame al LLM.
+LLM_GRAPH = LazyGraph(build_llm_graph)
 
 
 def run_llm_chain(

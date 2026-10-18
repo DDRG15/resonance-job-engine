@@ -231,3 +231,61 @@ def fake_runtime_ctx(tmp_db):
     """RuntimeContext con DB temporal y sin integraciones ni Discord."""
     from graph.runtime import RuntimeContext
     return RuntimeContext(db=tmp_db, notion=None, sheets=None, discord=None)
+
+
+@pytest.fixture(autouse=True)
+def _sesion_de_scrape_reemplazable(monkeypatch):
+    """
+    Un test que reemplaza `scraper.run_scrape_session` sigue reemplazando TODO el scrape.
+
+    El grafo de la corrida ya no llama a `run_scrape_session`: cada fuente es un nodo y cada
+    nodo llama a una fase de `GemaScraper` (`iniciar`, `fase_endpoint`, `fase_ats`,
+    `fase_gmail`, `fase_navegador`). Decenas de tests declaran "el scrape es falso" parcheando
+    esa funcion, y sin este puente la corrida real levantaria Chromium y saldria a la red.
+
+    Mientras `scraper.run_scrape_session` sea la original, las fases son las reales. Si un
+    test la reemplaza por una sesion `(config, db, log_queue, ttl_hours, profile=, run_id=)
+    -> (avisos, summary)`, `fase_navegador` ejecuta esa sesion UNA vez —ahi corria todo antes—,
+    las fases de endpoint, ATS y Gmail no hacen nada e `iniciar` no respalda la base (el
+    backup tiene su propio test).
+
+    Autouse por la misma razon que el aislamiento de red: el test que se olvide de pedirlo
+    es el que abre un navegador de verdad.
+    """
+    import scraper
+    from scraper import GemaScraper
+
+    original = scraper.run_scrape_session
+    reales = {n: getattr(GemaScraper, n) for n in
+              ("iniciar", "fase_endpoint", "fase_ats", "fase_gmail", "fase_navegador")}
+
+    def _falsa() -> bool:
+        return scraper.run_scrape_session is not original
+
+    def _iniciar(self):
+        if not _falsa():
+            return reales["iniciar"](self)
+        return {"endpoint": [], "ats": [], "navegador": []}
+
+    def _fase_vacia(nombre):
+        def _fase(self, *args):
+            if not _falsa():
+                return reales[nombre](self, *args)
+            return []
+        return _fase
+
+    def _navegador(self, plan):
+        if not _falsa():
+            return reales["fase_navegador"](self, plan)
+        jobs, summary = scraper.run_scrape_session(
+            self.config, self.db, self.log_queue, self.ttl_hours,
+            profile=self.profile, run_id=self.summary.run_id)
+        self._all_jobs = list(jobs)
+        self.summary = summary
+        return self.nuevos_avisos()
+
+    monkeypatch.setattr(GemaScraper, "iniciar", _iniciar)
+    monkeypatch.setattr(GemaScraper, "fase_endpoint", _fase_vacia("fase_endpoint"))
+    monkeypatch.setattr(GemaScraper, "fase_ats", _fase_vacia("fase_ats"))
+    monkeypatch.setattr(GemaScraper, "fase_gmail", _fase_vacia("fase_gmail"))
+    monkeypatch.setattr(GemaScraper, "fase_navegador", _navegador)

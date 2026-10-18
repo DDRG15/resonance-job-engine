@@ -983,6 +983,11 @@ class GemaScraper:
 
         # Collected jobs from all tasks (populated via write queue)
         self._all_jobs: list[JobResult] = []
+        # Cuantos avisos y errores ya se entregaron al grafo. Cada fase devuelve solo lo
+        # que sumo desde la entrega anterior: una fase que falla y se reintenta no pierde
+        # ni duplica lo que alcanzo a escribir.
+        self._avisos_entregados = 0
+        self._errores_entregados = 0
 
         # Phase 27 — LLM extraction fallback: shared board-strategy registry
         # (Fase 0) + a per-run cap so a drift storm can't burn unbounded tokens.
@@ -991,7 +996,8 @@ class GemaScraper:
 
     def _log(self, msg: str) -> None:
         logger.info(msg)
-        self.log_queue.put(msg)
+        if self.log_queue is not None:   # sin cola (cron, scripts) el log queda en logger
+            self.log_queue.put(msg)
         progreso.latido()   # una linea de log es una senal de vida
 
     def _ramas_css(self, domains: list[str]) -> int:
@@ -1163,8 +1169,33 @@ class GemaScraper:
                 └── scrape_task(domain=trueup,    title=Automation QA)
                     (all bounded by Semaphore(3) — max 3 active at once)
         """
+        plan = self.iniciar()
+        await self._paso_endpoint(plan)
+        await self._paso_ats(plan)
+        await self._paso_gmail()
+        await self._paso_navegador(plan)
+        return await self._finalizar_run()
+
+    # =========================================================================
+    # Las fases de la corrida
+    #
+    # `run()` las encadena en un solo event loop (run_scrape_session, scripts). El grafo de
+    # la corrida las llama de a una, cada una en su nodo, por los `fase_*` de mas abajo.
+    # Los dos caminos comparten estos pasos: si cada uno tuviera su copia, volveria a
+    # pasar lo que la migracion a LangGraph vino a cerrar, dos orquestadores que driftean.
+    # =========================================================================
+
+    def iniciar(self) -> dict:
+        """
+        Abre la corrida del scraper y devuelve el PLAN: que dominios va a cada fase.
+
+        El plan es una lista de strings por fase, asi que viaja en el estado del grafo y
+        se puede guardar tal cual. Se arma una sola vez: las fases lo reciben, no lo
+        recalculan.
+        """
         self._log(f"[GEMA] Blitz run {self.summary.run_id[:8]} starting.")
-        self.db.backup()
+        if self.db is not None:
+            self.db.backup()
 
         all_domains = self.config.target_domains or ["himalayas.app", "trueup.io"]
 
@@ -1183,7 +1214,6 @@ class GemaScraper:
         # el porcentaje retrocediera. Las ramas CSS que el probe o el breaker salteen
         # mas adelante se cuentan como terminadas (no se restan del total).
         _ats_pedidos = self._ats_dominios_pedidos(all_domains)
-        progreso.cambiar_fase("endpoints")
         progreso.fijar_total("endpoint", len(endpoint_domains))
         if _ats_pedidos:
             progreso.fijar_total("ats", self._contar_fuentes_ats())
@@ -1191,20 +1221,27 @@ class GemaScraper:
             [d for d in all_domains
              if d not in endpoint_domains and d not in _ats_pedidos]))
 
-        if endpoint_domains:
-            all_domains = [d for d in all_domains if d not in endpoint_domains]
-            await self._scrape_endpoint_boards(endpoint_domains)
-
         # ── Fase 2: los tableros de empresa de Greenhouse, Lever y Ashby ──
         # Un ATS no es un board mas: sirve el tablero completo de UNA empresa por
         # token, y el mismo patron se repite por cada empresa que use la plataforma.
         # Por eso no entra por target_domains sino por su propio registro.
-        ats_dominios = self._ats_dominios_pedidos(all_domains)
-        if ats_dominios:
-            all_domains = [d for d in all_domains if d not in ats_dominios]
+        resto = [d for d in all_domains if d not in endpoint_domains]
+        ats_dominios = self._ats_dominios_pedidos(resto)
+        navegador = [d for d in resto if d not in ats_dominios]
+        return {"endpoint": endpoint_domains, "ats": ats_dominios,
+                "navegador": navegador}
+
+    async def _paso_endpoint(self, plan: dict) -> None:
+        progreso.cambiar_fase("endpoints")
+        if plan.get("endpoint"):
+            await self._scrape_endpoint_boards(list(plan["endpoint"]))
+
+    async def _paso_ats(self, plan: dict) -> None:
+        if plan.get("ats"):
             progreso.cambiar_fase("ats")
             await self._scrape_ats_sources()
 
+    async def _paso_gmail(self) -> None:
         # ── Alertas de LinkedIn e Indeed desde Gmail ──
         # No entra por target_domains: no es un sitio que se lea, es el buzon del usuario.
         # Apagada por flag; con el flag prendido y sin token, la corrida sigue y el error
@@ -1213,9 +1250,11 @@ class GemaScraper:
             progreso.cambiar_fase("gmail")
             await self._scrape_gmail_alertas()
 
+    async def _paso_navegador(self, plan: dict) -> None:
+        all_domains = list(plan.get("navegador") or [])
         if not all_domains:
             self._log("[BLITZ] Todos los boards se leyeron por endpoint — sin navegador.")
-            return await self._finalizar_run()
+            return
 
         # Pre-scrape board probe — classify protection type, skip hard-blocked domains
         # Runs only if board_probe is importable (graceful degradation if missing deps)
@@ -1470,8 +1509,6 @@ class GemaScraper:
                 await context.close()
                 await browser.close()
 
-        return await self._finalizar_run()
-
     async def _finalizar_run(self) -> tuple[list[JobResult], ScrapeRunSummary]:
         """
         Cierre comun de la corrida: webhook, contadores y log.
@@ -1497,6 +1534,85 @@ class GemaScraper:
             f"Errors={len(self.summary.errors)}"
         )
         return self._all_jobs, self.summary
+
+    # =========================================================================
+    # Ciclo de vida por fases — lo que usan los nodos del grafo de la corrida
+    #
+    # Cada `fase_*` es SINCRONA y abre su propio event loop: un nodo de LangGraph no tiene
+    # loop vivo entre una llamada y la siguiente, y un checkpoint tampoco puede guardar uno.
+    # Lo que tendria que atravesar el loop (la cola de escritura, el semaforo) se vuelve a
+    # crear al inicio de cada fase; lo que tiene que sobrevivir entre fases —el set de
+    # dedup de la sesion, el circuit breaker, el registro de estrategias, el resumen— son
+    # objetos comunes de esta instancia y no dependen de ningun loop.
+    #
+    # Cada fase devuelve solo los avisos nuevos desde la fase anterior. Los errores se
+    # piden aparte con `nuevos_errores()`; el resumen (`self.summary`) es el mismo objeto
+    # durante toda la corrida.
+    # =========================================================================
+
+    def _nuevo_ciclo(self) -> None:
+        """Recrea la cola de escritura y el semaforo para el loop de la fase que arranca.
+
+        En Python 3.12 un `asyncio.Queue` o `asyncio.Semaphore` queda atado al primer loop
+        en el que tuvo que esperar; usarlo despues desde otro levanta RuntimeError. Cada
+        fase termina con la cola drenada (centinela + `await writer_task`), asi que
+        reemplazarla no pierde nada.
+        """
+        self._write_q = asyncio.Queue()
+        self._sem = asyncio.Semaphore(config.SCRAPER_CONCURRENCY)
+
+    def _correr_fase(self, paso, *args) -> list[JobResult]:
+        async def _fase() -> None:
+            self._nuevo_ciclo()
+            await paso(*args)
+        asyncio.run(_fase())
+        return self.nuevos_avisos()
+
+    def fase_endpoint(self, plan: dict) -> list[JobResult]:
+        """Boards que se leen con un GET."""
+        return self._correr_fase(self._paso_endpoint, plan)
+
+    def fase_ats(self, plan: dict) -> list[JobResult]:
+        """Tableros de empresa de Greenhouse, Lever y Ashby."""
+        return self._correr_fase(self._paso_ats, plan)
+
+    def fase_gmail(self) -> list[JobResult]:
+        """Alertas de LinkedIn e Indeed desde el buzon (apagada por flag)."""
+        return self._correr_fase(self._paso_gmail)
+
+    def fase_navegador(self, plan: dict) -> list[JobResult]:
+        """Probe, Chromium y fan-out por (dominio x titulo), y despues el cierre comun."""
+        async def _navegador_y_cierre() -> None:
+            await self._paso_navegador(plan)
+            await self._finalizar_run()
+        return self._correr_fase(_navegador_y_cierre)
+
+    def nuevos_avisos(self) -> list[JobResult]:
+        """Los avisos que el writer agrego desde la ultima entrega."""
+        nuevos = self._all_jobs[self._avisos_entregados:]
+        self._avisos_entregados = len(self._all_jobs)
+        return nuevos
+
+    def nuevos_errores(self) -> list[str]:
+        """Los errores que el resumen sumo desde la ultima entrega."""
+        nuevos = self.summary.errors[self._errores_entregados:]
+        self._errores_entregados = len(self.summary.errors)
+        return list(nuevos)
+
+    def restaurar(self, summary: Optional[ScrapeRunSummary], jobs: list[JobResult],
+                  errores_entregados: int = 0) -> None:
+        """
+        Siembra una instancia nueva con lo que una corrida ya avanzo.
+
+        Para retomar en un proceso que perdio al scraper: el resumen y los avisos vienen
+        del estado del grafo. El set de dedup NO se reconstruye: `is_seen` consulta la base,
+        donde esos avisos ya estan escritos, asi que repetir una fuente no los duplica.
+        """
+        if summary is not None:
+            self.summary = summary
+        self._all_jobs = list(jobs)
+        self._avisos_entregados = len(self._all_jobs)
+        self._errores_entregados = max(0, min(errores_entregados, len(self.summary.errors)))
 
     # =========================================================================
     # Fuentes ATS — tableros de empresa (Fase 2)

@@ -13,7 +13,7 @@ import inspect
 
 import pytest
 
-from graph import extract_graph, llm_graph
+from graph import extract_graph, llm_graph, run_graph
 
 # `exhausted` lanza ProvidersExhausted por contrato cuando on_exhaustion="raise".
 # Decorarlo registraría esa excepción esperada como node_failed_total y contaminaría
@@ -38,10 +38,14 @@ def test_hay_nodos_que_verificar():
     # protegeria nada.
     assert len(_nodos(llm_graph)) >= 7
     assert len(_nodos(extract_graph)) >= 5
+    assert len(_nodos(run_graph)) >= 10
 
 
-@pytest.mark.parametrize("modulo", [llm_graph, extract_graph],
-                         ids=["llm_graph", "extract_graph"])
+MODULOS = [llm_graph, extract_graph, run_graph]
+IDS = ["llm_graph", "extract_graph", "run_graph"]
+
+
+@pytest.mark.parametrize("modulo", MODULOS, ids=IDS)
 def test_todos_los_nodos_estan_decorados(modulo):
     sin_traza = [
         nombre for nombre, fn in _nodos(modulo).items()
@@ -54,8 +58,7 @@ def test_todos_los_nodos_estan_decorados(modulo):
     )
 
 
-@pytest.mark.parametrize("modulo", [llm_graph, extract_graph],
-                         ids=["llm_graph", "extract_graph"])
+@pytest.mark.parametrize("modulo", MODULOS, ids=IDS)
 def test_el_decorador_no_rompe_la_firma_que_langgraph_inspecciona(modulo):
     """
     LangGraph inyecta la config del runnable mirando la FIRMA del nodo. functools.wraps
@@ -102,3 +105,31 @@ def test_los_nodos_de_la_cadena_llm_no_degradan():
             f"{nombre} parece tener un degrade — en una secuencia, tragarse un fallo "
             f"deja al grafo avanzando con estado incompleto"
         )
+
+
+def test_los_nodos_de_la_corrida_que_degradan_son_solo_los_posteriores_al_scrape():
+    """
+    `notify` y `push` corren DESPUES de que el scrape guardo todo: un Discord o un Notion
+    caidos no pueden volver fallida una corrida con resultados. Todos los demas nodos NO
+    degradan: seguir con una lista vacia produciria una corrida «exitosa» con cero avisos.
+    """
+    degradan = set()
+    for nombre, fn in _nodos(run_graph).items():
+        cerradas = (fn.__closure__ or ())
+        if len([c for c in cerradas if callable(c.cell_contents)]) > 1:
+            degradan.add(nombre)
+    assert degradan == {"notify", "push"}
+
+
+def test_cada_nodo_del_grafo_de_la_corrida_esta_en_la_secuencia_declarada():
+    """Un nodo nuevo en run_graph.py que no entre a NODOS nunca se ejecutaria."""
+    declarados = {nombre for nombre, _ in run_graph.NODOS}
+    definidos = {fn.__wrapped__.__name__ for fn in _nodos(run_graph).values()}
+    assert declarados == definidos
+
+
+def test_la_recuperacion_de_extract_graph_corre_sus_cinco_pasos_en_orden():
+    """Son funciones planas, pero la secuencia sigue siendo la misma de siempre."""
+    assert [paso.__wrapped__.__name__ for paso in extract_graph.PASOS] == [
+        "extract", "map_to_jobs", "ground", "salvage", "snapshot",
+    ]

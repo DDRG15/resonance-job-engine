@@ -281,3 +281,103 @@ class TestTracedNode:
         out = node({}, {"configurable": {"db": db, "run_id": "r1"}})
         assert "_queue_wait_ms" not in out          # no contamina el estado del grafo
         assert db.get_node_traces("r1")[0]["queue_wait_ms"] == 500.0
+
+
+# =============================================================================
+# Un nodo sin degrade deja una fila por intento (lo que reintenta RetryPolicy)
+# =============================================================================
+
+class TestIntentosFallidos:
+
+    def test_cada_intento_fallido_deja_su_fila_failed_y_el_ok_final_la_suya(self, db):
+        llamadas = []
+
+        @traced_node("fuentes_ats", graph="run")
+        def node(state, config=None):
+            llamadas.append(1)
+            if len(llamadas) == 1:
+                raise ConnectionError("dns")
+            return {"ok": 1}
+
+        cfg = {"configurable": {"db": db, "run_id": "r-intentos"}}
+        with pytest.raises(ConnectionError):
+            node({}, cfg)
+        assert node({}, cfg) == {"ok": 1}
+
+        estados = [r["status"] for r in db.get_node_traces("r-intentos")]
+        assert estados == ["failed", "ok"]
+
+
+# =============================================================================
+# extract_graph: funciones planas con la misma traza por paso
+# =============================================================================
+
+class TestExtraccionPlana:
+
+    def _correr(self, **cambios):
+        from graph.extract_graph import run_extraction
+
+        args = dict(
+            domain="board.com", srp_url="https://board.com/jobs",
+            clean_text="Backend https://board.com/j/1",
+            extract_fn=lambda texto: type("R", (), {"jobs": ["ej"]})(),
+            map_fn=lambda ej, dominio, url: f"job:{ej}",
+            ground_fn=lambda recuperados, presentes, dominio: (recuperados, [], 0),
+            salvage_fn=lambda dropped, texto, dominio, url: 0,
+            snapshot_fn=lambda **k: None,
+            should_sample_fn=lambda: False,
+        )
+        args.update(cambios)
+        return run_extraction(**args)
+
+    def test_cada_paso_emite_su_metrica_en_orden(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="gema.metrics"):
+            estado = self._correr()
+        pasos = [m["labels"]["node"] for m in _metrics(caplog)
+                 if m["metric"] == "node_exec_ms" and m["labels"].get("graph") == "extract"]
+        assert pasos == ["extract", "map_to_jobs", "ground", "salvage", "snapshot"]
+        assert estado["kept"] == ["job:ej"]
+
+    def test_la_firma_y_el_estado_final_son_los_de_siempre(self):
+        estado = self._correr()
+        assert set(estado) >= {"domain", "srp_url", "clean_text", "extracted", "recovered",
+                               "kept", "dropped", "repaired_n", "salvaged", "reason",
+                               "error", "prompt_version", "provider"}
+
+    def test_un_paso_que_revienta_degrada_y_la_secuencia_llega_a_snapshot(self, caplog):
+        capturado = {}
+
+        def _explota(texto):
+            raise RuntimeError("proveedor caido")
+
+        with caplog.at_level(logging.WARNING, logger="gema.metrics"):
+            estado = self._correr(extract_fn=_explota,
+                                  snapshot_fn=lambda **k: capturado.update(k))
+        assert estado["kept"] == [] and estado["reason"] == "extraction_failed"
+        assert "RuntimeError" in estado["error"]
+        assert capturado["reason"] == "extraction_failed", (
+            "la falla tiene que dejar evidencia en disco, no cortar la secuencia"
+        )
+
+    def test_el_paso_que_revienta_deja_node_failed_total(self, caplog):
+        with caplog.at_level(logging.WARNING, logger="gema.metrics"):
+            self._correr(ground_fn=lambda *a: (_ for _ in ()).throw(ValueError("x")))
+        fallos = [m["labels"] for m in _metrics(caplog) if m["metric"] == "node_failed_total"]
+        assert fallos == [{"node": "ground", "error_type": "ValueError"}]
+
+    def test_si_el_runtime_trae_db_cada_paso_escribe_su_fila(self, db):
+        """El mecanismo de trazas por paso sigue conectado a node_traces."""
+        from graph.extract_graph import PASOS
+
+        estado = {"domain": "board.com", "srp_url": "u", "clean_text": "t"}
+        cfg = {"configurable": {
+            "db": db, "run_id": "r-ext",
+            "extract_fn": lambda t: type("R", (), {"jobs": []})(),
+            "map_fn": lambda *a: None, "ground_fn": lambda r, p, d: ([], [], 0),
+            "salvage_fn": lambda *a: 0, "snapshot_fn": lambda **k: None,
+            "should_sample_fn": lambda: False,
+        }}
+        for paso in PASOS:
+            estado.update(paso(estado, cfg))
+        assert [r["node"] for r in db.get_node_traces("r-ext")] == [
+            "extract", "map_to_jobs", "ground", "salvage", "snapshot"]

@@ -1,0 +1,11 @@
+# =============================================================================
+# requirements-dev.txt — runtime plus test tools, one command:
+#   pip install -r requirements-dev.txt
+# The first line pulls the runtime file, so every runtime package keeps its pin.
+# =============================================================================
+-r requirements.txt
+
+pytest==8.2.2          # Test runner — LLM callers are mocked; no real API calls made
+pytest-asyncio==0.23.8 # async def test support (required for cookie_vault async tests)
+pandas==2.3.3          # tests/test_excel_seguro.py proves pandas.to_excel writes formulas
+pyinstaller==6.22.0    # packaging/build.ps1 aborts without it (desktop app + MCP executables)

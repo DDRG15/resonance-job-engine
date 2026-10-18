@@ -48,6 +48,16 @@ class RuntimeContext:
     db: Any = None
     run_id: Optional[str] = None
 
+    # ── Recursos de la corrida, ninguno serializable ─────────────────────────
+    # El scraper de la corrida: dueño de la cola de escritura, el circuit breaker, el
+    # registro de estrategias y el set de dedup. Lo crea init_run; los nodos de fuentes
+    # lo toman de acá. Si una corrida se retoma en un proceso que no lo tiene, el primer
+    # nodo que lo necesita lo reconstruye a partir del estado (graph/run_graph.py).
+    scraper: Any = None
+    # El perfil derivado del CV. Efímero: vive solo el tiempo de la corrida y nunca entra
+    # al estado del grafo, para que un checkpoint no lo persista por accidente.
+    profile: Optional[dict] = None
+
     # ── Integraciones de salida. Cada una aislada: un push caído no puede tumbar
     #    una corrida que ya scrapeó bien y ya escribió a la DB. ─────────────────
     notion: Any = None

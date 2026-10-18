@@ -51,7 +51,7 @@ class TestCLIEntraPorElGrafo:
         assert llamadas["ctx"].db is tmp_db
 
     def test_no_llama_al_scraper_directo(self, monkeypatch, tmp_db):
-        """run_scrape_session solo se toca desde el nodo `scrape` del grafo."""
+        """El CLI no llama al scraper: las fuentes las corren los nodos del grafo."""
         import run_scrape_now
 
         def _explota(*a, **k):

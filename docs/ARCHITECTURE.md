@@ -28,9 +28,11 @@ el parseo de prompts nuevos y la recuperación de boards CSS rotos, no la operac
 
 ## De dónde salen los avisos
 
-`GemaScraper.run()` lee las fuentes en un orden fijo, de la más barata y estable a la más
-cara y frágil. El orden es una decisión de costo: un GET tarda cientos de milisegundos y
-no abre ninguna pestaña; una rama de Playwright tarda segundos y compite por el semáforo.
+El grafo del run lee las fuentes en un orden fijo, de la más barata y estable a la más
+cara y frágil, y cada capa es un nodo (`fuentes_endpoint`, `fuentes_ats`, `fuentes_gmail`,
+`navegador`) que llama a la fase correspondiente de `GemaScraper`. El orden es una decisión
+de costo: un GET tarda cientos de milisegundos y no abre ninguna pestaña; una rama de
+Playwright tarda segundos y compite por el semáforo.
 
 | # | Capa | Módulos | Fuentes | Estado |
 |---|---|---|---|---|
@@ -82,23 +84,32 @@ la razón escrita. Sin eso, la razón vivía en un comentario y se re-diagnostic
 
 ---
 
-## Los tres grafos
+## El grafo del run, el de proveedores y la recuperación
 
 ### El grafo del run — `graph/run_graph.py`
 
 ```
-init_run ─> scrape ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
+init_run ─> fuentes_endpoint ─> fuentes_ats ─> fuentes_gmail ─> navegador
+         ─> bucket ─> summarize ─> persist_run ─> notify ─> push ─> END
 ```
 
 | Nodo | Qué hace |
 |---|---|
-| `init_run` | Abre la fila en `runs`, limpia los cooldowns de la corrida previa |
-| `scrape` | Llama a `run_scrape_session` — el scraper completo, las cuatro capas de arriba |
+| `init_run` | Abre la fila en `runs`, limpia los cooldowns de la corrida previa, arma el `GemaScraper` de la corrida y su plan de fuentes (qué dominio va a qué fase) |
+| `fuentes_endpoint` | Boards que se leen con un GET: sin navegador |
+| `fuentes_ats` | Los tableros de empresa de Greenhouse, Lever y Ashby |
+| `fuentes_gmail` | Las alertas de LinkedIn e Indeed. Apagada por flag: sin flag el nodo corre y no hace nada |
+| `navegador` | Probe de boards, Chromium, fan-out por (dominio × título) y el cierre común del scraper (webhook, contadores del resumen). Si no queda ningún board de CSS, no lanza Chromium |
 | `bucket` | Corre los correlators de identidad (`correlacionar_duplicados`) y después `bucket_jobs`: puntúa y reparte en tres tiers |
 | `summarize` | Cierra el `ScrapeRunSummary` con los conteos |
-| `persist_run` | Cierra la fila de `runs` con los **cuatro** tiers |
+| `persist_run` | Cierra la fila de `runs` con los tiers |
 | `notify` | Reporte a Discord: tiers, errores del run, avisos con salario sin confirmar y las próximas acciones vencidas |
 | `push` | Notion y Sheets, cada uno aislado |
+
+Cada nodo deja su propia fila en `node_traces`, y la barra de progreso cambia de fase en el
+nodo que corresponde (`endpoints`, `ats`, `gmail`, `navegador`, `puntuando`). Antes las
+cuatro capas de fuentes eran un solo nodo, `scrape`: una corrida que moría a los 12 minutos
+no dejaba nada que mirar salvo un número.
 
 **Un solo punto de entrada para los tres disparadores.** `run_manager` (API),
 `scheduler_service` (cron) y la CLI llaman a `run_pipeline` con distinto `trigger`. Antes
@@ -106,13 +117,30 @@ de la v3 eran dos orquestadores con comportamiento distinto: el cron no empujaba
 ni Sheets y hardcodeaba `ttl_hours=24`, y esa diferencia no la había decidido nadie — vivía
 en que una de las dos copias no tenía veinte líneas.
 
-**Degrade selectivo, no uniforme.** Los cinco primeros nodos NO degradan: si el scrape
-revienta, seguir a `bucket` con lista vacía produciría una corrida "exitosa" con cero
-resultados, que es peor que un fallo visible. `notify` y `push` SÍ degradan, porque ocurren
-después de que todo se guardó en la DB — un push a Notion caído no puede convertir una
-corrida exitosa en fallida.
+**Degrade selectivo, no uniforme.** Los ocho primeros nodos NO degradan: si una fuente
+obligatoria revienta, seguir a `bucket` con lista vacía produciría una corrida "exitosa" con
+cero resultados, que es peor que un fallo visible. `notify` y `push` SÍ degradan, porque
+ocurren después de que todo se guardó en la DB — un push a Notion caído no puede convertir
+una corrida exitosa en fallida.
 
-**Los correlators corren dentro de `bucket`**, después de que el scrape escribió el
+**Reintento de red, no de programación.** `fuentes_endpoint`, `fuentes_ats` y `fuentes_gmail`
+llevan una `RetryPolicy` de LangGraph (3 intentos, espera de 2 s y 4 s) que solo reintenta
+fallos de transporte: conexión, timeout, DNS y respuestas 429 o 5xx (`es_error_de_red`).
+Escenario: un corte de DNS de 2 segundos mataba una corrida de 10 minutos. Consecuencia de
+reintentar todo: un `KeyError` de un parser se repetiría tres veces con el mismo resultado y
+esconde el bug detrás de segundos de espera. Decisión: los errores de programación, de
+configuración y los 4xx suben tal cual. Cada intento fallido deja su fila `failed` en
+`node_traces`. Los reintentos por request que ya hace el scraper (backoff y `Retry-After`
+de las APIs) siguen donde estaban: respetan el límite de cada API y no se pueden subir al
+nivel del nodo. `navegador` no lleva política: el fan-out ya aísla cada rama, y repetir el
+nodo relanzaría Chromium y volvería a pedir cada página.
+
+**Los avisos fluyen por el estado.** Cada nodo de fuentes devuelve solo los avisos y
+errores que sumó él, y los reducers (`operator.add`) los concatenan. Repetir un nodo no
+duplica avisos: la dedup vive en la base (`is_seen`) y en el set de la sesión, no en el
+estado.
+
+**Los correlators corren dentro de `bucket`**, después de que las fuentes escribieron el
 registry y antes de puntuar. Escenario: el mismo board relista el mismo puesto con IDs
 nuevos (129 filas de más sobre 1.536, 8,4%, medido el 2026-09-11) y `compute_hash` es el
 SHA-256 de la URL. Consecuencia: cinco filas de un mismo aviso llenan el shortlist. Decisión
@@ -120,6 +148,25 @@ SHA-256 de la URL. Consecuencia: cinco filas de un mismo aviso llenan el shortli
 resto en vez de borrarlo — el duplicado queda como evidencia y la decisión es reversible.
 Si el correlator revienta, la corrida sigue y el log avisa que el shortlist puede traer
 duplicados.
+
+### `GemaScraper` por fases
+
+El trabajo de cada fuente sigue en `scraper.py`. Lo que cambió es quién lo invoca:
+
+| Método | Lo usa | Qué hace |
+|---|---|---|
+| `iniciar()` | `init_run` | Respalda la base, declara los totales de progreso y devuelve el plan `{"endpoint": [...], "ats": [...], "navegador": [...]}` |
+| `fase_endpoint(plan)` | `fuentes_endpoint` | Boards de endpoint |
+| `fase_ats(plan)` | `fuentes_ats` | Tableros de empresa |
+| `fase_gmail()` | `fuentes_gmail` | Alertas del buzón |
+| `fase_navegador(plan)` | `navegador` | Probe, Chromium, fan-out y cierre común |
+| `run()` | `run_scrape_session` | Encadena los mismos pasos en un solo event loop, para quien lo use directo |
+
+Cada `fase_*` es síncrona, abre su propio event loop y devuelve los avisos nuevos desde la
+entrega anterior; `nuevos_errores()` hace lo mismo con los errores. Una fase que falla a
+mitad y se reintenta no pierde lo que ya escribió el writer ni lo entrega dos veces.
+`run()` y los `fase_*` comparten los mismos pasos internos: dos copias de la secuencia
+volverían a ser los dos orquestadores que driftean.
 
 ### El subgrafo de proveedores — `graph/llm_graph.py`
 
@@ -154,11 +201,18 @@ Dos invariantes que hay que preservar textualmente:
   un JSON cuando lo que falló fue la conexión es pedirle que alucine una solución a un
   problema que no causó.
 
-### El subgrafo de extracción — `graph/extract_graph.py`
+### La recuperación de un board — `graph/extract_graph.py`
 
 ```
-extract ─> map_to_jobs ─> ground ─> salvage ─> snapshot ─> END
+extract ─> map_to_jobs ─> ground ─> salvage ─> snapshot
 ```
+
+Es una secuencia lineal, sin ramas ni reintentos entre pasos, así que son cinco funciones
+llamadas en orden por `run_extraction` (`PASOS`), no un grafo. Cada una conserva
+`@traced_node`: deja su métrica (`node_exec_ms`, `node_failed_total`) y su fila en
+`node_traces` cuando el runtime trae una base; y degrada al slice vacío que espera la siguiente, así que un board que drifteó llega hasta
+`snapshot` y deja evidencia en disco en vez de cortarse a la mitad. El grafo de proveedores,
+que sí ramifica, sigue siéndolo.
 
 El gate de `ground` es el que vuelve **imposible** la alucinación de URLs, no improbable:
 un job recuperado sobrevive solo si su URL aparece **literalmente** en el texto que se le
@@ -324,8 +378,21 @@ puede ser dueño de eso. Lo mismo el handle de la DB, los clientes de integracio
 cola de logs del SSE.
 
 El `_db_writer_task` es otro: un consumidor de cola de larga vida. LangGraph no expresa
-"corré en paralelo al grafo indefinidamente", así que se arranca y se drena en el wrapper.
-Las ramas de endpoint, ATS y Gmail arrancan cada una el suyo.
+"corré en paralelo al grafo indefinidamente", así que cada fase arranca el suyo y lo drena
+con un centinela antes de volver. Como cada fase abre su propio event loop, la cola y el
+semáforo se recrean al inicio de cada una: en Python 3.12 una `asyncio.Queue` queda atada al
+primer loop donde tuvo que esperar.
+
+Todo esto vive en el `RuntimeContext`: la base, el `GemaScraper` de la corrida (dueño de la
+cola de escritura, el circuit breaker, el registro de estrategias y el set de dedup), las
+integraciones, la cola de logs y el perfil del CV. En el estado queda lo serializable: el
+`run_id`, el `trigger`, la config, el `ttl_hours`, el plan de fuentes, los avisos, los
+errores, el resumen, los tiers y el `status`.
+
+**El perfil del CV nunca entra al estado.** Es efímero por diseño —solo se retiene si el
+usuario lo pide— y el estado es lo que un checkpoint guardaría. Escenario: un perfil dentro
+del estado se persistiría sin que nadie lo decidiera. Decisión: viaja por
+`RuntimeContext.profile` y `run_pipeline` lo suelta al terminar.
 
 ### 2. Es estado mutable que las ramas releen a mitad de superstep
 
@@ -384,10 +451,24 @@ Las dos mitades de la firma son obligatorias y LangGraph las verifica por inspec
   idénticos descubrirlo.
 - **Tiene que estar anotado `RunnableConfig`**, importado de `langgraph.types` y no de
   `langchain_core.runnables`. Con anotación `dict`, LangGraph avisa y no inyecta: falla
-  igual pero parece configurado.
+  igual pero parece configurado. Como langgraph no se importa al cargar el módulo (ver
+  abajo), la anotación es el string `"RunnableConfig"`, con el import bajo `TYPE_CHECKING`,
+  y el builder del grafo publica el nombre como global del módulo antes de compilar.
 
 Consecuencia: dentro de un nodo, `config` es la config del runnable, **nunca** los
 settings de GEMA. Los módulos de `graph/` importan `import config as app_config`.
+
+---
+
+## Import diferido
+
+`import langgraph` cuesta unos 2 s en una máquina cargada (más en frío) y los módulos del
+grafo se importaban al cargar `api`. Escenario: un proceso que solo sirve la UI, o que todavía
+no recibió una corrida, pagaba ese tiempo en cada arranque. Decisión: `graph/lazy.py` define
+`LazyGraph`, que compila el grafo la primera vez que alguien lo invoca, una sola vez y
+protegido por un Lock. `RUN_GRAPH` y `LLM_GRAPH` son `LazyGraph`; la recuperación de boards ya
+no es un grafo. `import api` no trae `langgraph` ni `langchain_core`, y un test en subproceso
+lo comprueba.
 
 ---
 
@@ -395,8 +476,11 @@ settings de GEMA. Los módulos de `graph/` importan `import config as app_config
 
 **Sin checkpointing.** `SqliteSaver` parece dar resumibilidad gratis; no la da. El
 `RuntimeContext` no es serializable, y un run "resumido" con un `BrowserContext` muerto es
-peor que volver a correrlo. Resolución si alguna vez hace falta: hacer todo el estado
-serializable y mover los recursos a un handle reconstruible. Es otro proyecto, no un flag.
+peor que volver a correrlo. El estado del run ya es serializable y los recursos viven en el
+contexto, pero hoy ninguna corrida se guarda entre nodos: un nodo que no encuentra al
+scraper en el contexto lo reconstruye desde el resumen y los avisos del estado, y la dedup
+contra la base evita repetir lo ya escrito. El navegador no se retoma: la fase se vuelve a
+correr entera.
 
 **El fan-out por (dominio × título) sigue dentro de `GemaScraper.run()`**, con
 `asyncio.gather`, no como ramas `Send`. Descomponerlo queda pendiente. No se

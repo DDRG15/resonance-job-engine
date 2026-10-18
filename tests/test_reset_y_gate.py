@@ -62,8 +62,9 @@ def _scrape_rapido(search_config, db, log_queue, ttl_hours=0, webhook=None,
 
 @pytest.fixture()
 def scrape_rapido(monkeypatch):
-    """El nodo `scrape` del grafo importa run_scrape_session desde `scraper` en tiempo
-    de llamada — se parchea ESE simbolo (ver comentario de fake_scrape en test_api)."""
+    """Los nodos de fuentes del grafo corren las fases de GemaScraper; el fixture autouse
+    de conftest las reemplaza cuando se parchea run_scrape_session en `scraper`: se
+    parchea ESE simbolo (ver comentario de fake_scrape en test_api)."""
     monkeypatch.setattr(scraper_module, "run_scrape_session", _scrape_rapido)
     monkeypatch.setattr(run_manager_module, "run_scrape_session", _scrape_rapido)
 

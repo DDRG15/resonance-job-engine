@@ -448,3 +448,72 @@ class TestApiStatus:
         r = client.get("/api/status")
         assert r.status_code == 200
         assert r.json()["progreso"] is None
+
+
+# =============================================================================
+# La corrida en nodos: cada nodo mueve la barra a su fase
+# =============================================================================
+
+class TestFasesPorNodo:
+
+    def test_la_barra_pasa_por_las_fases_en_el_orden_de_los_nodos(
+            self, tmp_db, tmp_path, monkeypatch):
+        """
+        Antes toda la fase de fuentes ocurria dentro del nodo `scrape`. Ahora la barra la
+        mueve cada nodo (endpoints, ats, gmail) y `bucket` la lleva a «puntuando». Si un
+        nodo dejara de pasar por su paso del scraper, la UI mostraria la fase anterior.
+        """
+        import matcher
+        from graph.run_graph import run_pipeline
+        from graph.runtime import RuntimeContext
+
+        monkeypatch.setattr(config_module, "BOARD_STRATEGY_PATH",
+                            str(tmp_path / "board_strategy.json"))
+        monkeypatch.setattr(config_module, "GMAIL_ALERTAS_HABILITADO", True)
+        vistas = []
+
+        def _anota(nombre):
+            async def _paso(self, *a, **k):
+                vistas.append((nombre, progreso.snapshot()["fase"]))
+            return _paso
+
+        monkeypatch.setattr(GemaScraper, "_scrape_endpoint_boards", _anota("endpoint"))
+        monkeypatch.setattr(GemaScraper, "_scrape_ats_sources", _anota("ats"))
+        monkeypatch.setattr(GemaScraper, "_scrape_gmail_alertas", _anota("gmail"))
+
+        def _bucket(jobs, cfg, db, profile=None, **k):
+            vistas.append(("bucket", progreso.snapshot()["fase"]))
+            return [], [], []
+        monkeypatch.setattr(matcher, "bucket_jobs", _bucket)
+
+        # remoteok.com es un board de endpoint y boards.greenhouse.io un ATS: ninguno
+        # necesita navegador, asi que el nodo `navegador` solo cierra la corrida.
+        cfg = SearchConfig(target_titles=["python"],
+                           target_domains=["remoteok.com", "boards.greenhouse.io"])
+        run_pipeline(config=cfg, ctx=RuntimeContext(db=tmp_db), trigger="cli")
+
+        assert vistas == [("endpoint", "endpoints"), ("ats", "ats"), ("gmail", "gmail"),
+                          ("bucket", "puntuando")]
+        assert progreso.snapshot() is None, "la corrida termino y la barra sigue viva"
+
+    def test_los_totales_se_declaran_en_init_run_antes_de_scrapear(
+            self, tmp_db, tmp_path, monkeypatch):
+        from graph.run_graph import run_pipeline
+        from graph.runtime import RuntimeContext
+
+        monkeypatch.setattr(config_module, "BOARD_STRATEGY_PATH",
+                            str(tmp_path / "board_strategy.json"))
+        totales = {}
+
+        async def _endpoint(self, dominios):
+            snap = progreso.snapshot()
+            totales["en_endpoint"] = snap["total"]
+
+        monkeypatch.setattr(GemaScraper, "_scrape_endpoint_boards", _endpoint)
+        monkeypatch.setattr(GemaScraper, "fase_navegador", lambda self, plan: [])
+        cfg = SearchConfig(target_titles=["python"],
+                           target_domains=["remoteok.com", "arc.dev"])
+        run_pipeline(config=cfg, ctx=RuntimeContext(db=tmp_db), trigger="cli")
+
+        # 1 board de endpoint + 1 rama CSS (arc.dev x 1 titulo), ya al llegar a la fase 1.
+        assert totales["en_endpoint"] == 2

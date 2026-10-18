@@ -2,6 +2,8 @@
 # requirements.txt — Project GEMA
 # Intelligent Talent Acquisition System
 # All versions explicitly pinned for reproducible builds.
+# Runtime only: test tools live in requirements-dev.txt, which starts with
+# `-r requirements.txt`. The Docker image installs this file alone.
 # =============================================================================
 
 # ── UI Layer ──────────────────────────────────────────────────────────────────
@@ -83,8 +85,16 @@ pdfplumber==0.11.10    # PDF text extraction for CV upload — subido desde 0.11
 python-docx==1.1.2     # DOCX text extraction for CV upload
 
 # ── Data & Export ─────────────────────────────────────────────────────────────
-pandas==2.3.3          # DataFrame construction for Excel export
-openpyxl==3.1.5        # .xlsx writer engine used by pandas.to_excel()
+openpyxl==3.1.5        # .xlsx writer (excel_seguro.py, exportar_excel.py)
+
+# ── Desktop tray (desktop/bandeja.py) ────────────────────────────────────────
+# bandeja.py imports both and raises ImportError without them; before 2026-10-18 neither
+# was declared, so a clean install had no tray. Pillow also arrives through pdfplumber;
+# the pin keeps it on the version the suite ran against. Pillow 13 has no build for
+# Python 3.10, the interpreter of the Docker image, so that image keeps 12.3.0.
+pystray==0.19.5
+Pillow==13.0.0; python_version >= "3.11"
+Pillow==12.3.0; python_version < "3.11"
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 tenacity==8.3.0        # Exponential backoff for all external API calls
@@ -97,7 +107,5 @@ python-multipart==0.0.31   # upload de CV (multipart/form-data) — subido desde
                            # cierra 6 avisos (PYSEC-2026-1852/3036/3037/3038/3039/3040)
                            # sin cruzar un major. Es el parser que ve POST /api/cv.
 
-# ── Testing ───────────────────────────────────────────────────────────────────
-pytest==8.2.2          # Test runner — LLM callers are mocked; no real API calls made
-pytest-asyncio==0.23.8 # async def test support (required for cookie_vault async tests)
-httpx==0.28.1          # fastapi.testclient (tests de la capa API)
+# ── Internal HTTP client ─────────────────────────────────────────────────────
+httpx==0.28.1          # imported by shipped code; also backs fastapi.testclient in the tests

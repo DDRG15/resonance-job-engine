@@ -17,8 +17,9 @@ Module map:
     runtime.py          RuntimeContext, non-serializable
     instrumentation.py  @traced_node, LLMCallResult
     llm_graph.py        provider subgraph
-    extract_graph.py    extraction subgraph
+    extract_graph.py    board recovery: five traced steps called in order (not a graph)
     run_graph.py        the run graph
+    lazy.py             LazyGraph: compile on first use, not at import
 
 Nothing is re-exported here: import the modules by path
 (`from graph.llm_graph import ...`) rather than adding re-exports, so importing the
@@ -38,6 +39,12 @@ bearing and LangGraph enforces them by signature inspection:
 Import the type from `langgraph.types`, not from `langchain_core.runnables`. It is the
 same object reexported, and it keeps langchain out of the surface this project declares
 it uses.
+
+langgraph is NOT imported when a module loads (`import langgraph` costs seconds of API
+startup). So the annotation is the string `"RunnableConfig"` with the import under
+TYPE_CHECKING, and each `build_*` function imports langgraph and publishes the name with
+`global RunnableConfig` before compiling: that is where LangGraph resolves the annotation.
+The compiled graphs are `LazyGraph` instances (graph/lazy.py).
 
 The consequence: inside a node, `config` is the runnable config, never GEMA's settings
 module. Modules here import the settings as `import config as app_config`.

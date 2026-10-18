@@ -93,9 +93,9 @@ def fake_scrape(monkeypatch):
         summary.total_urls_found = 3
         summary.new_processed = 3
         return jobs, summary
-    # v3 Fase 6: la orquestacion vive en graph/run_graph.py y su nodo `scrape` importa
-    # run_scrape_session desde `scraper` en tiempo de llamada. Parchear el simbolo
-    # reexportado en run_manager ya no intercepta nada — el test golpearia Playwright de
+    # v3 Fase 6: la orquestacion vive en graph/run_graph.py y sus nodos de fuentes corren las
+    # fases de GemaScraper, que usan `scraper.run_scrape_session` cuando un test la
+    # reemplaza. Parchear el simbolo reexportado en run_manager ya no intercepta nada — el test golpearia Playwright de
     # verdad, que es lo que paso la primera vez que se corrio esto.
     monkeypatch.setattr(scraper_module, "run_scrape_session", _fake)
     monkeypatch.setattr(run_manager_module, "run_scrape_session", _fake)
@@ -363,8 +363,8 @@ class TestScrape:
             return [], ScrapeRunSummary()
 
         # Los DOS simbolos, igual que fake_scrape. Parchear solo el reexportado en
-        # run_manager no intercepta nada: el nodo `scrape` del grafo importa
-        # run_scrape_session desde `scraper` en tiempo de llamada. Sin esta linea el
+        # run_manager no intercepta nada: las fases de GemaScraper que corren los
+        # nodos del grafo leen `scraper.run_scrape_session` en tiempo de llamada. Sin esta linea el
         # test corria Playwright de verdad contra himalayas y trueup —~90 s— y el
         # gate quedaba tomado mas alla del deadline, tumbando los dos tests
         # siguientes con 409. El comentario de fake_scrape ya advertia exactamente
