@@ -42,7 +42,7 @@ longer where most jobs come from.
 ## Quick start
 
 **Prerequisites:** Python 3.12 (developed and tested on 3.12.10; the Docker image runs
-Python 3.10), Node.js 22 or newer for the frontend build, and git. Check yours with
+Python 3.10), Node.js 22.13+ for the frontend build, and git. Check yours with
 `python --version` (`python3 --version` on Linux and macOS) and `node --version`.
 
 Windows (PowerShell):
@@ -83,6 +83,10 @@ If PowerShell blocks `Activate.ps1`, allow it for that window only with
 `Set-ExecutionPolicy -Scope Process RemoteSigned` and activate again.
 
 Open `http://localhost:8000`.
+
+Run frontend tests with `cd frontend && npm test`. This command disables Node's native
+Web Storage for the test process so jsdom supplies the browser storage used by the tests.
+The app's browser storage is unaffected. Type-check with `npx tsc --noEmit -p .`.
 
 **`--workers 1` is required.** The scheduler is a per-process singleton. Two workers mean
 two crons firing at the same database.
@@ -422,7 +426,7 @@ With the virtual environment from the Quick start active:
 ```bash
 pip install -r requirements-dev.txt       # starts with -r requirements.txt: runtime + test tools, all pinned
 python -m pytest -q                       # backend suite; use --collect-only -q for the current count
-cd frontend && npx vitest run && npx tsc --noEmit -p .    # 103 tests in 12 files
+cd frontend && npm test && npx tsc --noEmit -p .         # 103 tests in 12 files
 ```
 
 **The suite never touches the internet.** An autouse fixture blocks every connection
