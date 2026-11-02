@@ -43,7 +43,7 @@ longer where most jobs come from.
 
 **Prerequisites:** Python 3.12 (developed and tested on 3.12.10; the Docker image runs
 Python 3.10), Node.js 22 or newer for the frontend build, and git. Check yours with
-`python --version` and `node --version`.
+`python --version` (`python3 --version` on Linux and macOS) and `node --version`.
 
 Windows (PowerShell):
 
@@ -68,7 +68,7 @@ Linux and macOS:
 git clone https://github.com/DDRG15/resonance-job-engine.git
 cd resonance-job-engine
 
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium         # only needed for the browser-scraped boards
@@ -134,6 +134,14 @@ output for anything that must never ship (`.env`, databases, cookies, credential
 chosen port to `runtime.json` so the MCP server always finds it. It never kills a process to
 free a port.
 
+On Linux there is no packaged build. From source, with the virtual environment active, run
+`python -m desktop.app` (window and tray) or `python -m desktop.app --headless` (API and
+scheduler only). Your data lives in `~/.resonance` unless `RESONANCE_HOME` is set. The app
+window uses Chrome, Chromium or Edge with `--app=` when one is installed and the default
+browser otherwise. The tray menu needs PyGObject and an AppIndicator library; without them
+pystray falls back to an icon with no menu, and you stop the app with Ctrl+C or by ending
+the process.
+
 ### MCP server
 
 Resonance also runs as an MCP server, so Claude can search jobs, read results and log
@@ -159,7 +167,9 @@ Register it in Claude Desktop (`%APPDATA%\Claude\claude_desktop_config.json`):
 ```
 
 From source, without packaging: `"command": "<repo>\\.venv\\Scripts\\python.exe", "args": ["-m", "mcp_server"]`
-with the repo as working directory. Details in [mcp_server/LEEME.md](mcp_server/LEEME.md).
+with the repo as working directory. On Linux: `"command": "<repo>/.venv/bin/python", "args": ["-m", "mcp_server"]`
+with the repo as working directory, or from the repo directory with Claude Code:
+`claude mcp add resonance -- <repo>/.venv/bin/python -m mcp_server`. Details in [mcp_server/LEEME.md](mcp_server/LEEME.md).
 
 ### Run progress
 

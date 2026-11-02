@@ -147,6 +147,41 @@ def pytest_configure(config):
     )
 
 
+def pytest_terminal_summary(terminalreporter):
+    """
+    Avisa en rojo cuantos tests de navegador se saltaron por falta de Chromium.
+
+    Los tests que levantan Chromium de Playwright (test_location_builtin,
+    test_location_jobspresso_arc, test_location_posthog, TestTarjeta de
+    test_empresa_sucia) hacen pytest.skip cuando el binario no esta instalado. Es lo
+    correcto: un hueco del entorno no es una falla del codigo. Pero el costo es que la
+    corrida termina verde ("passed, N skipped") y nadie se entera de que el camino de
+    scraping con navegador nunca se ejercito.
+
+    Este resumen lo hace visible sin convertirlo en falla. Nunca lanza: un hook de
+    reporte roto no puede tirar abajo una corrida cuyos tests pasaron.
+    """
+    try:
+        sin_chromium = 0
+        for rep in terminalreporter.stats.get("skipped", []):
+            longrepr = getattr(rep, "longrepr", None)
+            motivo = (
+                longrepr[2]
+                if isinstance(longrepr, tuple) and len(longrepr) == 3
+                else str(longrepr)
+            )
+            if "Chromium de Playwright no disponible" in str(motivo):
+                sin_chromium += 1
+        if sin_chromium:
+            terminalreporter.write_line(
+                f"ATENCION: {sin_chromium} tests de navegador se saltaron porque falta "
+                f"Chromium. Instalarlo: python -m playwright install chromium",
+                red=True,
+            )
+    except Exception:
+        pass
+
+
 # =============================================================================
 # Fixtures compartidas
 # =============================================================================

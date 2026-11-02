@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 tools/watchdog.py — monitor COMPLETO para el LIVE TEST integral (07-18).
 

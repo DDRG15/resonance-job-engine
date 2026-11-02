@@ -7,6 +7,7 @@ El runtime real lo escribe otro módulo (desktop/runtime.py). Estos tests lo ree
 """
 
 import json
+import os
 import sys
 import threading
 import types
@@ -491,7 +492,8 @@ async def test_humo_stdio_initialize_y_tools_list(tmp_path):
     JSON-RPC. Si el servidor escribiera algo ajeno a stdout, el cliente fallaría acá."""
     params = StdioServerParameters(
         command=sys.executable, args=["-m", "mcp_server"], cwd=str(REPO),
-        env={"RESONANCE_HOME": str(tmp_path)})
+        env={"RESONANCE_HOME": str(tmp_path),
+             "PYTHONDONTWRITEBYTECODE": os.environ.get("PYTHONDONTWRITEBYTECODE", "")})
     async with Client(params) as c:
         res = await c.list_tools()
     assert {t.name for t in res.tools} == TOOLS_ESPERADAS

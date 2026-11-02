@@ -8,6 +8,8 @@ llegan a bucket_jobs. El registry quedo con tres escalas y el dashboard las suma
 
 import sqlite3
 
+import pytest
+
 import config
 from models import JobResult
 
@@ -60,6 +62,13 @@ class TestUnaSolaEscala:
 
 
 class TestHerramienta:
+    @pytest.fixture(autouse=True)
+    def _sin_base_real(self, tmp_path, monkeypatch):
+        # main() sin --dry-run saca un snapshot de config.GEMA_DB_PATH a GEMA_BACKUP_DIR
+        # ANTES de construir GemaDatabase: parchear la clase no alcanza.
+        monkeypatch.setattr(config, "GEMA_DB_PATH", str(tmp_path / "registry.db"))
+        monkeypatch.setattr(config, "GEMA_BACKUP_DIR", str(tmp_path / "backups"))
+
     def test_re_puntua_lo_relevante_y_deja_lo_off_topic(self, tmp_db, monkeypatch, capsys):
         import database
         import tools.repuntuar_registry as rep

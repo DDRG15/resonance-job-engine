@@ -27,7 +27,7 @@ publique `runtime.json`. Si no aparece, la tool responde con un error que apunta
 **Desarrollo** (sin empaquetar). `cwd` tiene que ser la raíz del repo: el módulo importa
 `desktop.runtime` de ahí.
 
-Claude Desktop (`claude_desktop_config.json`):
+Claude Desktop (`claude_desktop_config.json`); en Linux el `command` es `<repo>/.venv/bin/python` y el `cwd` la ruta del repo:
 
 ```json
 {
@@ -41,7 +41,8 @@ Claude Desktop (`claude_desktop_config.json`):
 }
 ```
 
-Claude Code (`.mcp.json` en la raíz del repo, o `claude mcp add`):
+Claude Code (`.mcp.json` en la raíz del repo, o `claude mcp add`); en Linux el `command` es `.venv/bin/python`,
+y desde el directorio del repo `claude mcp add resonance -- <repo>/.venv/bin/python -m mcp_server` registra lo mismo:
 
 ```json
 {
@@ -65,7 +66,8 @@ Claude Code (`.mcp.json` en la raíz del repo, o `claude mcp add`):
 ## Probarlo a mano
 
 ```
-.venv\Scripts\python.exe -m pytest tests/test_mcp_server.py -q -p no:cacheprovider -o log_cli=false
+.venv\Scripts\python.exe -m pytest tests/test_mcp_server.py -q -p no:cacheprovider -o log_cli=false   # Windows
+.venv/bin/python -m pytest tests/test_mcp_server.py -q -p no:cacheprovider -o log_cli=false             # Linux
 ```
 
 Los tests usan una API falsa en localhost y un `desktop.runtime` falso; no necesitan la app.
