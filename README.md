@@ -98,15 +98,26 @@ the bundle is missing, and also when the bundle is older than `frontend/src`.
 ### Docker
 
 ```bash
+mkdir -p data
 docker compose up --build
 ```
 
 API keys come from your local `.env` at runtime. Everything the app writes (the registry,
 board strategy, backups, `credentials/`, `cookies/`, `api_state.json`) lives in `./data`,
-mounted on `/data`: the image sets `RESONANCE_HOME=/data` and starts there. Docker creates
-`./data` on the first run; drop manual cookie exports in `./data/cookies/`. `.dockerignore` keeps secrets, cookies, the CV-derived profile,
-the databases and their backups out of the image, and a test checks the credential rules
-against both `git check-ignore` and the `.dockerignore` patterns.
+mounted on `/data`: the image sets `RESONANCE_HOME=/data` and starts there. Drop manual
+cookie exports in `./data/cookies/`.
+
+The container runs as your host user, not as root, so the files in `./data` stay yours and
+you can back them up or delete them without `sudo`. Compose uses UID/GID `1000:1000` by
+default. If `id -u` or `id -g` prints something else, export `HOST_UID` and `HOST_GID`
+before `up`, for example `HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up --build`.
+Create `./data` before the first run: if it is missing, Docker creates it owned by root and
+the app cannot write to it. A `./data` created by an older root container needs
+`sudo chown -R "$(id -u):$(id -g)" data` once.
+
+`.dockerignore` keeps secrets, cookies, the CV-derived profile, the databases and their
+backups out of the image, and a test checks the credential rules against both
+`git check-ignore` and the `.dockerignore` patterns.
 
 When upgrading from the individual file mounts, copy your existing registry, profiles,
 state files, `credentials/` and `cookies/` into `./data` before starting the new container.
@@ -147,6 +158,20 @@ pystray falls back to an icon with no menu, the app logs a warning saying so at 
 you stop the app with Ctrl+C or by ending the process. Open stays the icon's default
 action, and every tray action is also in the web UI. If the tray cannot start at all, the
 app logs `sin bandeja` and keeps serving.
+
+The virtual environment does not see the system's PyGObject. On Debian, Ubuntu and Mint,
+install the system packages and link `gi` into the venv. The link only works when the venv
+uses the same Python version as the system (`python3 --version`), because `python3-gi`
+ships a compiled module built for that version:
+
+```bash
+sudo apt install python3-gi gir1.2-ayatanaappindicator3-0.1
+ln -s /usr/lib/python3/dist-packages/gi .venv/lib/python3.12/site-packages/gi
+.venv/bin/python -c "import pystray; print(pystray.Icon.HAS_MENU)"   # True = menu available
+```
+
+Remove the link (`rm .venv/lib/python3.12/site-packages/gi`) to undo it. Creating the venv
+with `--system-site-packages` also works, but it exposes every system package to the app.
 
 **File permissions.** On Linux and macOS the app creates its data directory as `0700` and
 its `.env` as `0600`, and narrows an existing `.env` to `0600` before saving keys to it, so

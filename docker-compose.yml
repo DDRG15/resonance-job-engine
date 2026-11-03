@@ -7,6 +7,15 @@
 services:
   gema:
     build: .
+    # Sin usuario la imagen corre como root y, en Linux nativo, todo lo que la app escribe
+    # en ./data queda como root:root en el host: el usuario no puede editar, respaldar ni
+    # borrar su propia base sin sudo. Por eso corre con el UID/GID del host. $UID de bash
+    # no se exporta y compose lo leeria vacio: de ahi HOST_UID/HOST_GID con 1000 por
+    # defecto (el primer usuario en casi toda distro; `id -u` lo confirma). Docker Desktop
+    # (Windows/macOS) traduce los permisos del bind mount y este valor no le molesta.
+    # Crea ./data ANTES del primer `up` (`mkdir -p data`): si falta, Docker la crea como
+    # root y la app no puede escribir.
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     # Solo loopback. La API no tiene autenticacion —CV, setup, scheduler y reset
     # quedan abiertos a quien alcance el puerto—, y "8000:8000" publica en TODAS las
     # interfaces: cualquiera en la misma red WiFi podia leer el perfil o disparar un
@@ -31,5 +40,8 @@ services:
 
     environment:
       RESONANCE_HOME: /data
+      # Un UID sin entrada en /etc/passwd de la imagen hereda HOME=/, que no es escribible:
+      # cualquier libreria que cachee en ~ fallaria. /tmp vale para cualquier UID.
+      HOME: /tmp
 
     restart: unless-stopped
