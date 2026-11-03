@@ -223,3 +223,25 @@ def test_fire_skips_when_config_is_none(service):
     # Actually: guard checks is_running first, then config. Config=None
     # triggers an early return BEFORE is_running = True. So is_running stays False.
     assert service.is_running is False
+
+
+def test_fire_releases_gate_when_worker_thread_cannot_start(service):
+    """Si Thread.start falla, el cron no puede dejar el gate tomado para siempre."""
+    import scraper
+
+    service.is_running = False
+    service.config = MagicMock()
+    assert not scraper.scrape_gate_is_busy()
+
+    with patch(
+        "scheduler_service.threading.Thread.start",
+        side_effect=RuntimeError("can't start new thread"),
+    ):
+        with pytest.raises(RuntimeError):
+            service._fire(MagicMock())
+
+    assert service.is_running is False
+    assert not scraper.scrape_gate_is_busy()
+    # La siguiente corrida puede tomar el gate.
+    assert scraper.try_acquire_scrape_gate()
+    scraper.release_scrape_gate()

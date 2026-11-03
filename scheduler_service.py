@@ -365,4 +365,15 @@ class SchedulerService:
                 release_scrape_gate()  # NEW #3: libera el gate compartido
                 self.is_running = False
 
-        threading.Thread(target=_run, daemon=True).start()
+        # Si el hilo no llega a arrancar (sin recursos para crear hilos), `_run` nunca
+        # entra a su finally: el gate y `is_running` quedarían tomados hasta reiniciar
+        # el proceso y ninguna corrida, del cron ni manual, podría volver a empezar.
+        try:
+            threading.Thread(target=_run, daemon=True).start()
+        except BaseException as exc:
+            from scraper import release_scrape_gate
+            release_scrape_gate()
+            self.is_running = False
+            logger.error("[SCHEDULER] No se pudo iniciar la corrida: %s", exc)
+            metrics.emit("scheduler_run_failed_total", 1, error=type(exc).__name__)
+            raise
