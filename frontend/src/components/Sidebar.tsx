@@ -86,7 +86,6 @@ export default function Sidebar({
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand-gem">◆</div>
         <h1>
           Resonance<small>Control Panel</small>
         </h1>
@@ -236,7 +235,9 @@ export default function Sidebar({
         disabled={bloqueado}
         title={corriendo ? 'Hay una corrida en curso; no se puede limpiar hasta que termine' : undefined}
         style={{
-          ...(killArmed ? { background: 'rgba(220,38,38,.25)', fontWeight: 700 } : {}),
+          ...(killArmed
+            ? { background: 'var(--t3)', color: 'var(--surface)', borderColor: 'var(--t3)', fontWeight: 650 }
+            : {}),
           ...(corriendo ? { marginTop: 6 } : {}),
         }}
         onClick={() => void handleKill()}
