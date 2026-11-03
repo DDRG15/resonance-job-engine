@@ -498,6 +498,14 @@ Los avances de corridas terminadas y sus diarios se eliminan; los pendientes se 
 Una entrega externa puede repetirse si el proceso muere después de enviarla y antes de
 guardar el avance: las integraciones no ofrecen una transacción compartida con SQLite.
 
+**El gate se suelta aunque el hilo no arranque.** Quien toma el gate (API, reanudación o cron)
+lo libera en el `finally` de su worker. Si `Thread.start` falla, por ejemplo porque el proceso
+ya no puede crear hilos, ese `finally` nunca corre. Un gate retenido así bloquea toda corrida,
+manual o del cron, hasta reiniciar el proceso, y no queda ningún error a la vista. Por eso
+`RunManager.start`, `RunManager.resume` y `SchedulerService._fire` envuelven el `start()`, liberan el gate (el
+scheduler también apaga `is_running` y emite `scheduler_run_failed_total`) y relanzan la
+excepción.
+
 **Ramas por board.** `Send` distribuye hasta dos boards a la vez; cada rama limita sus
 pestañas a una. El límite total de fallback LLM y el primer aviso se comparten bajo locks.
 Las actualizaciones del registro de estrategias se serializan y releen antes de escribir.

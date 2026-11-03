@@ -146,6 +146,7 @@ que sean visibles con el log en su nivel por defecto.
 | `llm_fallback_failed_total` | domain, error | La extracción de un board drifteado falló entera |
 | `node_exec_ms` | node, graph | Dónde se va el tiempo |
 | `node_failed_total` | node, error_type | Un nodo se cayó y degradó |
+| `scheduler_run_failed_total` | error | La corrida del cron falló o su hilo no llegó a arrancar. En ambos casos el scheduler suelta el gate de scrape, así que la próxima corrida puede empezar |
 
 ### De las fuentes
 

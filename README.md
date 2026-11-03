@@ -143,8 +143,15 @@ On Linux there is no packaged build. From source, with the virtual environment a
 scheduler only). Your data lives in `~/.resonance` unless `RESONANCE_HOME` is set. The app
 window uses Chrome, Chromium or Edge with `--app=` when one is installed and the default
 browser otherwise. The tray menu needs PyGObject and an AppIndicator library; without them
-pystray falls back to an icon with no menu, and you stop the app with Ctrl+C or by ending
-the process.
+pystray falls back to an icon with no menu, the app logs a warning saying so at startup, and
+you stop the app with Ctrl+C or by ending the process. Open stays the icon's default
+action, and every tray action is also in the web UI. If the tray cannot start at all, the
+app logs `sin bandeja` and keeps serving.
+
+**File permissions.** On Linux and macOS the app creates its data directory as `0700` and
+its `.env` as `0600`, and narrows an existing `.env` to `0600` before saving keys to it, so
+other users on the machine cannot read your API keys. A data directory that already existed
+(for example one you pointed `RESONANCE_HOME` at) keeps its permissions. Windows is unchanged.
 
 ### MCP server
 
