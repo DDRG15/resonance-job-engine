@@ -14,7 +14,7 @@ publique `runtime.json`. Si no aparece, la tool responde con un error que apunta
 | Tool | Qué hace |
 |---|---|
 | `estado()` | Resumen: boards activos, proveedores LLM, advertencias, si corre algo |
-| `buscar_trabajos(pedido)` | Interpreta el pedido, lanza la corrida y devuelve `run_id` sin esperar |
+| `buscar_trabajos(pedido)` | Interpreta el pedido, lanza la corrida y devuelve `run_id` sin esperar. Si ya corre algo, manual o del cron, responde sin llamar al LLM |
 | `estado_corrida()` | Si sigue corriendo y, cuando la app lo informa, el progreso |
 | `resultados(tier=1, limite=20)` | Avisos de un tier: título, empresa, score, ubicación, url (máx. 50) |
 | `detalle_aviso(url)` | Razones del score, veredictos y requisitos con evidencia de un aviso |

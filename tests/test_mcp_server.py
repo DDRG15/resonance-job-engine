@@ -241,6 +241,15 @@ async def test_buscar_trabajos_con_corrida_activa_no_parsea_ni_lanza(api, runtim
     assert not api.llamadas("POST", "/api/parse")      # no se gasta el LLM
 
 
+async def test_buscar_trabajos_con_corrida_del_cron_no_parsea_ni_lanza(api, runtime_falso):
+    # La corrida del cron toma el gate pero no marca is_running.
+    api.rutas[("GET", "/api/status")] = (200, {**STATUS_OK, "scrape_gate_busy": True})
+    d = await _json("buscar_trabajos", {"pedido": "algo"})
+    assert d["iniciada"] is False and "corrida activa" in d["motivo"]
+    assert not api.llamadas("POST", "/api/parse")
+    assert not api.llamadas("POST", "/api/scrape")
+
+
 async def test_buscar_trabajos_409_en_scrape_es_mensaje_claro(api, runtime_falso):
     api.rutas[("POST", "/api/parse")] = (200, {"config": {}, "audit_verdict": "clean"})
     api.rutas[("POST", "/api/scrape")] = (409, {"detail": "ya hay una corrida activa"})

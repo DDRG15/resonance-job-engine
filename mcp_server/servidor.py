@@ -127,8 +127,11 @@ def _buscar_trabajos(pedido: str) -> dict:
         raise ErrorApp("El pedido está vacío: describí qué puesto buscás.")
 
     # Primero la consulta barata: si ya corre algo, no se gasta una llamada al LLM en
-    # parsear un pedido que no se va a poder lanzar.
-    if cliente.get("/api/status").get("is_running"):
+    # parsear un pedido que no se va a poder lanzar. El gate cubre también las corridas
+    # del cron, que no marcan is_running: sin mirarlo, el parseo se pagaba y /api/scrape
+    # devolvía 409 igual.
+    s = cliente.get("/api/status")
+    if s.get("is_running") or s.get("scrape_gate_busy"):
         return {"iniciada": False,
                 "motivo": "Ya hay una corrida activa; esperá a que termine.",
                 "siguiente": "Consultá estado_corrida()."}
