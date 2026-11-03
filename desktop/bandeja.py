@@ -111,8 +111,26 @@ class Bandeja:
             log.info("bandeja: %s", mensaje)
 
     def ejecutar(self) -> None:
-        """Bloquea hasta `detener()`. Levanta ImportError si pystray/Pillow no están."""
+        """
+        Bloquea hasta `detener()`. Es el `target` del hilo de la bandeja y NO levanta:
+        sin pystray/Pillow, sin display o con un backend roto, loguea «sin bandeja» y
+        vuelve. El try/except de `app.py` solo cubre crear el hilo; una excepción dentro
+        del hilo nunca llegaría ahí y saldría por `threading.excepthook` sin el aviso.
+        """
+        try:
+            self._correr_icono()
+        except Exception as exc:  # noqa: BLE001 — sin bandeja la app sigue sirviendo
+            log.warning("sin bandeja (%s): la app sigue corriendo", exc)
+
+    def _correr_icono(self) -> None:
         import pystray
+
+        if not getattr(pystray.Icon, "HAS_MENU", True):
+            log.warning(
+                "bandeja: el backend de pystray no muestra menú (HAS_MENU=False), así que "
+                "«Correr búsqueda ahora», «Reanudar corrida» y «Salir» no son alcanzables "
+                "desde el ícono. En Linux falta AppIndicator/GTK vía PyGObject. «Abrir» "
+                "sigue como acción por defecto y la UI web tiene los controles.")
 
         menu = pystray.Menu(
             pystray.MenuItem("Abrir", self._on_abrir, default=True),

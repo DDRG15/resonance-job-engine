@@ -219,6 +219,8 @@ def main(argv: Optional[list[str]] = None) -> int:
                 bandeja = Bandeja(url, abrir=lambda: ventana.abrir(url), al_salir=salir.set)
                 # Hilo aparte: en Windows el loop de mensajes de pystray no deja correr los
                 # handlers de señal de Python hasta que llega un mensaje, y Ctrl+C no saldría.
+                # Los fallos DENTRO del hilo (pystray ausente, sin display) los captura
+                # `Bandeja.ejecutar`; este try/except solo cubre construirla y lanzar el hilo.
                 threading.Thread(target=bandeja.ejecutar, name="bandeja", daemon=True).start()
             except Exception as exc:  # noqa: BLE001 — sin bandeja la app sigue sirviendo
                 log.warning("sin bandeja (%s): la app sigue corriendo", exc)

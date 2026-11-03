@@ -335,3 +335,85 @@ def test_humo_headless_arranca_responde_y_sale_limpio(tmp_path):
             proc.wait()
         log.close()
 
+
+# --- bandeja: un fallo dentro del hilo no escapa y avisa ------------------------
+
+def _correr_en_hilo(b) -> list:
+    """Corre `b.ejecutar` como target de un hilo real; devuelve lo que llegó a excepthook."""
+    escapadas: list = []
+    previo = threading.excepthook
+    threading.excepthook = lambda args: escapadas.append(args)
+    try:
+        t = threading.Thread(target=b.ejecutar, name="bandeja-prueba", daemon=True)
+        t.start()
+        t.join(timeout=10)
+        assert not t.is_alive()
+    finally:
+        threading.excepthook = previo
+    return escapadas
+
+
+def _pystray_falso(has_menu, run=lambda self: None):
+    import types
+
+    class Icon:
+        HAS_MENU = has_menu
+
+        def __init__(self, *a, **k):
+            pass
+
+        def run(self):
+            run(self)
+
+        def stop(self):
+            pass
+
+    return types.SimpleNamespace(
+        Icon=Icon, Menu=lambda *a, **k: object(),
+        MenuItem=lambda *a, **k: object())
+
+
+@pytest.fixture
+def bandeja_falsa(monkeypatch):
+    monkeypatch.setattr(bandeja, "_imagen_icono", lambda: object())
+    return bandeja.Bandeja("http://127.0.0.1:1", abrir=lambda: None, al_salir=lambda: None)
+
+
+def test_bandeja_sin_pystray_avisa_y_no_escapa_del_hilo(bandeja_falsa, monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "pystray", None)     # `import pystray` -> ImportError
+    with caplog.at_level("WARNING", logger="resonance.bandeja"):
+        escapadas = _correr_en_hilo(bandeja_falsa)
+    assert escapadas == []
+    assert any(r.levelname == "WARNING" and "sin bandeja" in r.getMessage()
+               and "la app sigue corriendo" in r.getMessage() for r in caplog.records)
+
+
+def test_bandeja_con_fallo_del_backend_al_correr_avisa_y_no_escapa(
+        bandeja_falsa, monkeypatch, caplog):
+    def _revienta(self):
+        raise RuntimeError("sin display")
+    monkeypatch.setitem(sys.modules, "pystray", _pystray_falso(True, _revienta))
+    with caplog.at_level("WARNING", logger="resonance.bandeja"):
+        escapadas = _correr_en_hilo(bandeja_falsa)
+    assert escapadas == []
+    assert any("sin bandeja (sin display)" in r.getMessage() for r in caplog.records)
+
+
+def test_bandeja_sin_menu_en_el_backend_avisa_con_la_causa_y_sigue(
+        bandeja_falsa, monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "pystray", _pystray_falso(False))
+    with caplog.at_level("WARNING", logger="resonance.bandeja"):
+        escapadas = _correr_en_hilo(bandeja_falsa)
+    assert escapadas == []
+    avisos = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(avisos) == 1
+    assert "HAS_MENU=False" in avisos[0] and "PyGObject" in avisos[0] and "Abrir" in avisos[0]
+
+
+def test_bandeja_con_menu_no_emite_avisos(bandeja_falsa, monkeypatch, caplog):
+    monkeypatch.setitem(sys.modules, "pystray", _pystray_falso(True))
+    with caplog.at_level("WARNING", logger="resonance.bandeja"):
+        escapadas = _correr_en_hilo(bandeja_falsa)
+    assert escapadas == []
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
+
