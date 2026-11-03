@@ -68,6 +68,72 @@ def test_primer_arranque_no_pisa_un_env_existente(tmp_path):
     assert (tmp_path / ".env").read_text(encoding="utf-8") == "MI_KEY=1\n"
 
 
+# --- primer arranque: permisos de los secretos --------------------------------
+
+posix = pytest.mark.skipif(os.name == "nt", reason="modos POSIX: Windows no los aplica")
+
+
+@pytest.fixture
+def umask_022():
+    """Un primer arranque con el umask habitual (022); se restaura pase lo que pase."""
+    previo = os.umask(0o022)
+    try:
+        yield
+    finally:
+        os.umask(previo)
+
+
+def _modo(ruta: Path) -> int:
+    return ruta.stat().st_mode & 0o777
+
+
+@posix
+def test_primer_arranque_crea_el_env_0600_con_umask_022(tmp_path, umask_022):
+    from desktop import app
+    app._primer_arranque(tmp_path)
+    assert _modo(tmp_path / ".env") == 0o600
+    assert (tmp_path / ".env").read_text(encoding="utf-8") == \
+        (REPO / ".env.example").read_text(encoding="utf-8")
+
+
+@posix
+def test_primer_arranque_sin_ejemplo_crea_el_env_vacio_0600(tmp_path, monkeypatch, umask_022):
+    from desktop import app
+    monkeypatch.setattr(runtime, "directorio_codigo", lambda: tmp_path / "sin_codigo")
+    app._primer_arranque(tmp_path)
+    assert (tmp_path / ".env").read_bytes() == b""
+    assert _modo(tmp_path / ".env") == 0o600
+
+
+@posix
+def test_primer_arranque_estrecha_un_env_existente_sin_tocar_su_contenido(tmp_path, umask_022):
+    from desktop import app
+    env = tmp_path / ".env"
+    env.write_text("MI_KEY=sintetica\n", encoding="utf-8")
+    env.chmod(0o644)
+    app._primer_arranque(tmp_path)
+    assert _modo(env) == 0o600
+    assert env.read_text(encoding="utf-8") == "MI_KEY=sintetica\n"
+
+
+@posix
+def test_home_nuevo_se_crea_0700_con_umask_022(tmp_path, monkeypatch, umask_022):
+    monkeypatch.setenv("RESONANCE_HOME", str(tmp_path / "datos"))
+    home = runtime.resonance_home()
+    assert _modo(home) == 0o700
+
+
+@posix
+def test_home_existente_no_se_toca(tmp_path, monkeypatch, umask_022):
+    """RESONANCE_HOME puede apuntar a una carpeta ajena del usuario: no se le cambia el modo."""
+    carpeta = tmp_path / "mia"
+    carpeta.mkdir()
+    carpeta.chmod(0o755)
+    monkeypatch.setenv("RESONANCE_HOME", str(carpeta))
+    runtime.resonance_home()
+    assert _modo(carpeta) == 0o755
+
+
 # --- bandeja: «Correr busqueda ahora» ------------------------------------------
 
 class _Api:
@@ -268,3 +334,4 @@ def test_humo_headless_arranca_responde_y_sale_limpio(tmp_path):
             proc.kill()
             proc.wait()
         log.close()
+

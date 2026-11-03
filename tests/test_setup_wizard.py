@@ -15,6 +15,7 @@ Lo que se fija:
 """
 
 import importlib
+import os
 
 import pytest
 
@@ -111,3 +112,44 @@ class TestSaveKeys:
         self._guardar(groq_key="gsk-nueva", gemini_key="AIza-nueva")
         assert nlp_engine._groq_client is None
         assert nlp_engine._gemini_listo is False
+
+
+@pytest.mark.skipif(os.name == "nt", reason="modos POSIX: Windows no los aplica")
+class TestPermisosDelEnv:
+    """Con umask 022 un .env de primer arranque nace 0644; guardar una key no debe mantenerlo así."""
+
+    @pytest.fixture
+    def umask_022(self):
+        previo = os.umask(0o022)
+        try:
+            yield
+        finally:
+            os.umask(previo)
+
+    @pytest.fixture
+    def env_temporal(self, tmp_path, monkeypatch):
+        archivo = tmp_path / ".env"
+        monkeypatch.setattr(setup_wizard, "_ENV_PATH", archivo)
+        for k in (*LLM_KEY_NAMES, "DISCORD_WEBHOOK_URL"):
+            monkeypatch.setenv(k, "")
+            monkeypatch.setattr(config, k, "")
+        return archivo
+
+    def _guardar(self, **k):
+        base = dict(groq_key="", gemini_key="", openrouter_key="", cohere_key="",
+                    discord_url="")
+        base.update(k)
+        setup_wizard._save_keys(**base)
+
+    def test_guardar_una_key_estrecha_un_env_0644(self, env_temporal, umask_022):
+        env_temporal.write_text("GEMA_DB_PATH=otra.db\n", encoding="utf-8")
+        env_temporal.chmod(0o644)
+        self._guardar(cohere_key="co-sintetica-123")
+        assert env_temporal.stat().st_mode & 0o777 == 0o600
+        assert "GEMA_DB_PATH=otra.db" in env_temporal.read_text(encoding="utf-8")
+
+    def test_guardar_una_key_crea_el_env_0600_si_no_existe(self, env_temporal, umask_022):
+        assert not env_temporal.exists()
+        self._guardar(cohere_key="co-sintetica-123")
+        assert env_temporal.stat().st_mode & 0o777 == 0o600
+

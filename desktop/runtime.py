@@ -50,7 +50,9 @@ def resonance_home() -> Path:
         base = (Path(local) if local else Path.home() / "AppData" / "Local") / "Resonance"
     else:
         base = Path.home() / ".resonance"
-    base.mkdir(parents=True, exist_ok=True)
+    # 0700 solo al crearlo: lleva el .env con las keys. Un directorio que ya existía (el
+    # usuario apuntó RESONANCE_HOME a una carpeta suya) no se toca. Windows ignora `mode`.
+    base.mkdir(mode=0o700, parents=True, exist_ok=True)
     return base
 
 

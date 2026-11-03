@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import shutil
 import signal
 import sys
 import threading
@@ -32,6 +31,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+import rutas
 from desktop import runtime, ventana
 
 log = logging.getLogger("resonance.app")
@@ -65,18 +65,29 @@ def _asegurar_streams(home: Path) -> None:
 
 
 def _primer_arranque(home: Path) -> None:
-    """Sin `.env` en el directorio de datos se copia `.env.example`; la UI muestra el wizard."""
+    """
+    Sin `.env` en el directorio de datos se copia `.env.example`; la UI muestra el wizard.
+
+    El `.env` se crea 0600 desde el primer byte (O_EXCL con modo explícito): con umask 022
+    un `copyfile` lo dejaba 0644 hasta que alguien lo corrigiera. Uno que ya existe con
+    permisos más abiertos se estrecha a 0600 sin tocar su contenido.
+    """
     destino = home / ".env"
     if destino.exists():
+        rutas.endurecer_secreto(destino)
         return
     ejemplo = runtime.directorio_codigo() / ".env.example"
     try:
-        if ejemplo.is_file():
-            shutil.copyfile(ejemplo, destino)
-        else:
-            destino.touch()
+        contenido = ejemplo.read_bytes() if ejemplo.is_file() else b""
+        fd = os.open(destino, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(contenido)
+    except FileExistsError:
+        rutas.endurecer_secreto(destino)   # otra instancia lo creó entre el exists() y el open
     except OSError as exc:
         log.warning("no se pudo crear %s: %s", destino, exc)
+    else:
+        rutas.endurecer_secreto(destino)   # FS que ignoró el modo del open
 
 
 def _esperar_api(server, hilo: threading.Thread, url: str, tope: float) -> bool:

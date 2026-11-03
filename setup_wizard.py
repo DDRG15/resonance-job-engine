@@ -24,7 +24,7 @@ from dotenv import set_key
 
 import config
 
-from rutas import ruta_datos
+from rutas import endurecer_secreto, ruta_datos
 
 # Mismo archivo que lee config.py: RESONANCE_HOME/.env, o el .env del repo en desarrollo.
 _ENV_PATH = ruta_datos(".env")
@@ -96,11 +96,15 @@ def _save_keys(
         "COHERE_API_KEY": cohere_key,
         "DISCORD_WEBHOOK_URL": discord_url,
     }
+    # set_key conserva el modo del .env existente: uno 0644 de un arranque anterior se
+    # estrecha ANTES de escribir la key (set_key reescribe vía un temporal y lo mueve).
+    endurecer_secreto(env)
     for nombre, valor in guardadas.items():
         if valor:
             set_key(env, nombre, valor)
             setattr(config, nombre, valor)
             os.environ[nombre] = valor
+    endurecer_secreto(env)
 
     if groq_key or gemini_key:
         import nlp_engine

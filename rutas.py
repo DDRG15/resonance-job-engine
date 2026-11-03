@@ -24,3 +24,25 @@ def directorio_datos() -> Path:
 def ruta_datos(*partes: str) -> Path:
     """`directorio_datos()/partes...`, resuelto en el momento de la llamada."""
     return directorio_datos().joinpath(*partes)
+
+
+def endurecer_secreto(ruta) -> bool:
+    """
+    En POSIX, deja `ruta` (el `.env` con las keys) legible solo por su dueño (0600).
+
+    Con umask 022, `shutil.copyfile` y un `touch` crean el archivo 0644, y `set_key` de
+    python-dotenv conserva el modo que ya tenía: las keys quedan legibles para cualquier
+    otro usuario de la máquina. Si el archivo ya existe con más permisos se estrecha el
+    modo; el contenido no se toca. En Windows no hace nada (los modos POSIX no aplican).
+    Devuelve True si cambió el modo; no levanta (un FS sin chmod no debe tumbar el arranque).
+    """
+    if os.name == "nt":
+        return False
+    try:
+        modo = os.stat(ruta).st_mode & 0o777
+        if modo & 0o077 == 0:
+            return False
+        os.chmod(ruta, 0o600)
+        return True
+    except OSError:
+        return False
