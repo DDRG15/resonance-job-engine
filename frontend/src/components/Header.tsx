@@ -34,14 +34,25 @@ export default function Header({ status }: { status: Status | null }) {
               </span>
             )}
           </div>
+          {/* Antes: "17 boards activos (17 reg.)" — dos conteos distintos que coincidían
+              por casualidad y se leían como "todo lo registrado funciona". "Activa" es
+              "se intenta en cada corrida", no "devuelve avisos": eso lo dice Fuentes. */}
           <div className="big">
-            {status.boards_active} boards activos ({status.boards} reg.) ·{' '}
-            {status.providers_configured} LLM en cadena
+            {status.boards_active} fuentes activas · {status.providers_configured}{' '}
+            {status.providers_configured === 1 ? 'proveedor LLM con key' : 'proveedores LLM con key'}
           </div>
+          {status.boards_por_via && (
+            <div className="sub" data-testid="boards-por-via">
+              {status.boards_por_via.navegador} por navegador · {status.boards_por_via.api} por
+              API · {status.boards_por_via.ats} ATS
+              {status.ats_empresas !== undefined && ` (${status.ats_empresas} empresas)`}
+              {!!status.boards_retired && ` · ${status.boards_retired} retiradas`}
+            </div>
+          )}
           <div className="sub">
             {status.stale_selectors.length > 0
-              ? `${status.stale_selectors.length} selectores stale (activos)`
-              : 'selectores al día'}{' '}
+              ? `${status.stale_selectors.length} selectores sin verificar hace +30 días`
+              : 'selectores verificados en los últimos 30 días'}{' '}
             ·{' '}
             {status.scheduler.enabled
               ? `próxima corrida: ${status.scheduler.next_run}`

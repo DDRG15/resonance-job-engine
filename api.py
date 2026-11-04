@@ -1160,10 +1160,29 @@ def status():
     # los REGISTRADOS — engañoso (queja del usuario). Se scrapean solo los activos;
     # el stale se calcula SOLO sobre ellos (un retirado stale no alarma a nadie).
     active = set(selectors_registry.active_domains())
+    # La tarjeta decía "17 boards activos (17 reg.)": dos conteos distintos que daban
+    # igual por casualidad. Los activos mezclan tres vías (navegador, API pública y
+    # plataformas ATS) y "reg." contaba solo el registro de selectores, con retirados
+    # adentro y sin las fuentes que solo existen por API o ATS. Ahora se dice por qué
+    # vía se lee cada fuente y cuántas conocidas quedaron fuera.
+    import ats_registry
+    import endpoint_registry
+    via_ats = set(ats_registry.dominios())
+    via_api = set(endpoint_registry.dominios()) - via_ats
+    por_via = {
+        "navegador": len(active - via_api - via_ats),
+        "api": len(active & via_api),
+        "ats": len(active & via_ats),
+    }
+    conocidas = set(selectors_registry.SELECTORS) | via_api | via_ats
+    # Stale = el selector CSS no se verificó en 30 días. Solo aplica a lo que se lee por
+    # navegador: himalayas, remoteok y weworkremotely tienen selectores viejos en el
+    # registro pero se leen por su API, y contarlos era una alarma falsa.
     stale = [
         sel.domain
         for sel in selectors_registry.SELECTORS.values()
-        if sel.domain in active and selectors_registry.is_selector_stale(sel)
+        if sel.domain in active and sel.domain not in via_api
+        and sel.domain not in via_ats and selectors_registry.is_selector_stale(sel)
     ]
     warnings = config.validate_config()
     # Fase 4: estado REAL del token de Notion (ver NotionClient.verificar_token). Un
@@ -1183,8 +1202,14 @@ def status():
     sched: SchedulerService = app.state.sched
     runs: RunManager = app.state.runs
     return {
-        "boards": len(selectors_registry.SELECTORS),
+        # Todas las fuentes conocidas, activas o retiradas (antes: solo el registro de
+        # selectores, que dejaba fuera las de API/ATS y adentro las retiradas).
+        "boards": len(conocidas),
         "boards_active": len(active),
+        "boards_retired": len(conocidas - active),
+        # Suma boards_active. "ats" cuenta plataformas; cada una lee varias empresas.
+        "boards_por_via": por_via,
+        "ats_empresas": len(ats_registry.activas()),
         "stale_selectors": stale,
         "providers_configured": providers,
         "warnings": warnings,

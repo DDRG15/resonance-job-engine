@@ -157,6 +157,28 @@ class TestStatus:
         body = client.get("/api/status").json()
         assert body["boards"] > 0
 
+    def test_status_desglose_por_via_suma_los_activos(self, client):
+        body = client.get("/api/status").json()
+        via = body["boards_por_via"]
+        assert set(via) == {"navegador", "api", "ats"}
+        assert sum(via.values()) == body["boards_active"]
+        assert body["boards"] == body["boards_active"] + body["boards_retired"]
+        assert body["ats_empresas"] >= via["ats"]
+
+    def test_status_board_leido_por_api_nunca_cuenta_como_stale(self, client):
+        # Sus selectores CSS existen en el registro, pero no se usan: se lee por API.
+        import ats_registry
+        import endpoint_registry
+        no_navegador = set(endpoint_registry.dominios()) | set(ats_registry.dominios())
+        body = client.get("/api/status").json()
+        assert not no_navegador & set(body["stale_selectors"])
+
+    def test_status_stale_cuenta_los_de_navegador_con_selector_viejo(self, client, monkeypatch):
+        import selectors_registry
+        monkeypatch.setattr(selectors_registry, "is_selector_stale", lambda sel: True)
+        body = client.get("/api/status").json()
+        assert len(body["stale_selectors"]) == body["boards_por_via"]["navegador"]
+
     def test_status_providers_range(self, client):
         body = client.get("/api/status").json()
         assert 0 <= body["providers_configured"] <= 7

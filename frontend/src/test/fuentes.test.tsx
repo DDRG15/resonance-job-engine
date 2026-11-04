@@ -185,3 +185,15 @@ describe('Botón «Fuentes» del sidebar', () => {
     await waitFor(() => expect(onOpen).toHaveBeenCalled())
   })
 })
+
+describe('Píldora de la barra lateral', () => {
+  beforeEach(() => { vi.restoreAllMocks() })
+
+  it('sin avisos dice «Configuración en orden», no «Todo en orden», aunque haya selectores viejos', () => {
+    // La tarjeta de estado dice «Atención» con selectores sin verificar: la barra
+    // lateral solo mira la configuración y no puede afirmar que todo está bien.
+    montarSidebar({ ...STATUS, stale_selectors: ['arc.dev'], nominal: false })
+    expect(screen.getByText(/Configuración en orden/)).toBeInTheDocument()
+    expect(screen.queryByText(/Todo en orden/)).toBeNull()
+  })
+})

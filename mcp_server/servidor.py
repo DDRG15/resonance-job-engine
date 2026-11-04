@@ -89,10 +89,15 @@ def _todos_los_avisos(resultados: dict) -> list[tuple[int, dict]]:
 def _estado() -> dict:
     s = cliente.get("/api/status")
     out = {
+        # "activo" = se intenta en cada corrida, no "devuelve avisos" (eso es salud_fuentes).
         "boards_activos": s.get("boards_active"),
-        "boards_registrados": s.get("boards"),
-        "selectores_stale": len(s.get("stale_selectors") or []),
-        "providers_llm_configurados": s.get("providers_configured"),
+        "boards_por_via": s.get("boards_por_via"),
+        "boards_retirados": s.get("boards_retired"),
+        "ats_empresas": s.get("ats_empresas"),
+        # Solo boards por navegador con el selector sin verificar hace +30 días.
+        "selectores_sin_verificar_30d": len(s.get("stale_selectors") or []),
+        # Con key configurada; no prueba que la key siga siendo válida.
+        "providers_llm_con_key": s.get("providers_configured"),
         "warnings": (s.get("warnings") or [])[:5],
         "nominal": s.get("nominal"),
         "corre_algo": bool(s.get("is_running") or s.get("scrape_gate_busy")),

@@ -93,8 +93,10 @@ export default function Sidebar({
 
       {status &&
         (status.warnings.length === 0 ? (
+          // Solo mira los avisos de configuración. Decía "Todo en orden" y contradecía a la
+          // tarjeta de estado, que además cuenta los selectores sin verificar.
           <span className="pill-ok">
-            <span className="dot" /> Todo en orden
+            <span className="dot" /> Configuración en orden
           </span>
         ) : (
           <details className="warn-details">

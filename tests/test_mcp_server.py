@@ -109,7 +109,8 @@ def _tj(titulo, empresa, score, url, tier="Tier 1", **extra):
 
 
 STATUS_OK = {
-    "boards": 17, "boards_active": 10, "stale_selectors": ["a.test"],
+    "boards": 23, "boards_active": 17, "boards_retired": 6, "stale_selectors": ["a.test"],
+    "boards_por_via": {"navegador": 8, "api": 6, "ats": 3}, "ats_empresas": 13,
     "providers_configured": 2, "warnings": ["w1"], "nominal": False,
     "scheduler": {"enabled": True, "next_run": "2026-10-14T09:00:00"},
     "is_running": False, "scrape_gate_busy": False, "has_results": False,
@@ -193,9 +194,11 @@ async def test_listado_por_protocolo_en_memoria():
 
 async def test_estado_resume_y_no_vuelca_todo(api, runtime_falso):
     d = await _json("estado")
-    assert d["boards_activos"] == 10
-    assert d["selectores_stale"] == 1          # conteo, no la lista
-    assert d["providers_llm_configurados"] == 2
+    assert d["boards_activos"] == 17
+    assert d["boards_por_via"] == {"navegador": 8, "api": 6, "ats": 3}
+    assert d["boards_retirados"] == 6 and d["ats_empresas"] == 13
+    assert d["selectores_sin_verificar_30d"] == 1   # conteo, no la lista
+    assert d["providers_llm_con_key"] == 2
     assert d["warnings"] == ["w1"]
     assert d["corre_algo"] is False
     assert "notion_estado" not in d
@@ -386,7 +389,7 @@ async def test_si_la_app_no_corre_la_lanza_y_sigue(api, runtime_falso):
     runtime_falso["viva"] = False
     d = await _json("estado")
     assert runtime_falso["lanzada"] == 1
-    assert d["boards_activos"] == 10
+    assert d["boards_activos"] == 17
 
 
 async def test_usa_lanzar_headless_del_runtime_si_existe(api, runtime_falso, monkeypatch):
@@ -401,7 +404,7 @@ async def test_usa_lanzar_headless_del_runtime_si_existe(api, runtime_falso, mon
 
     monkeypatch.setattr(sys.modules["desktop.runtime"], "lanzar_headless", lanzar, raising=False)
     d = await _json("estado")
-    assert llamadas == [1] and d["boards_activos"] == 10
+    assert llamadas == [1] and d["boards_activos"] == 17
 
 
 async def test_si_la_app_no_arranca_el_error_es_claro_y_no_cuelga(api, runtime_falso, tmp_path):
@@ -453,7 +456,7 @@ async def test_proceso_que_sale_con_1_pero_deja_una_instancia_viva_se_usa(
     monkeypatch.setattr(rt, "instancia_viva", viva_tras_unas_sondas)
     monkeypatch.setattr(cliente, "ESPERA_ARRANQUE_S", 30.0)
     d = await _json("estado")
-    assert d["boards_activos"] == 10
+    assert d["boards_activos"] == 17
     assert sondas["n"] > 8
 
 

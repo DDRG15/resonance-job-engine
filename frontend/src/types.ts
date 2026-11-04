@@ -1,8 +1,14 @@
 // Tipos espejo del contrato API (api.py)
 
 export interface Status {
+  // Fuentes conocidas (activas + retiradas).
   boards: number
   boards_active: number
+  // Opcionales: un backend anterior no los manda y la tarjeta muestra solo el total.
+  boards_retired?: number
+  boards_por_via?: { navegador: number; api: number; ats: number }
+  ats_empresas?: number
+  // Solo boards leídos por navegador con el selector sin verificar hace más de 30 días.
   stale_selectors: string[]
   providers_configured: number
   warnings: string[]

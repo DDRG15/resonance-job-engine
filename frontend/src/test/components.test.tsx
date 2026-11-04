@@ -123,10 +123,32 @@ describe('CommandCenter — F10 Usar mi perfil', () => {
 describe('Header', () => {
   it('muestra los datos reales del live status', () => {
     render(<Header status={STATUS} />)
-    // activos primero, registrados entre paréntesis
-    expect(screen.getByText(/10 boards activos \(17 reg\.\)/)).toBeInTheDocument()
-    expect(screen.getByText(/1 selectores stale \(activos\)/)).toBeInTheDocument()
+    expect(screen.getByText(/10 fuentes activas · 7 proveedores LLM con key/)).toBeInTheDocument()
+    expect(screen.getByText(/1 selectores sin verificar hace \+30 días/)).toBeInTheDocument()
     expect(screen.getByText('Atención')).toBeInTheDocument()
+    // Sin desglose del backend no se inventa uno, y el "(17 reg.)" engañoso ya no está.
+    expect(screen.queryByTestId('boards-por-via')).toBeNull()
+    expect(screen.queryByText(/reg\./)).toBeNull()
+  })
+
+  it('desglosa las fuentes activas por vía, empresas ATS y retiradas', () => {
+    render(
+      <Header
+        status={{
+          ...STATUS,
+          boards: 23,
+          boards_active: 17,
+          boards_retired: 6,
+          boards_por_via: { navegador: 8, api: 6, ats: 3 },
+          ats_empresas: 13,
+          providers_configured: 1,
+        }}
+      />,
+    )
+    expect(screen.getByText(/17 fuentes activas · 1 proveedor LLM con key/)).toBeInTheDocument()
+    expect(screen.getByTestId('boards-por-via')).toHaveTextContent(
+      '8 por navegador · 6 por API · 3 ATS (13 empresas) · 6 retiradas',
+    )
   })
 })
 
