@@ -1,7 +1,7 @@
 # Proveedores LLM — cadena, reparto, presupuesto y verificación
 
 Actualizado: **2026-10-12**. La tabla de modelos verificados conserva su fecha de
-verificación (2026-09-03); reemplaza al `LLM_PROVIDERS.md` de la raíz (2026-07-05).
+verificación (2026-09-03).
 
 Resonance usa siete proveedores de free tier. Ninguno es indispensable: la cadena recorre
 todos antes de darse por vencida, y la ingesta de avisos —endpoints públicos, APIs de ATS

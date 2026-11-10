@@ -21,7 +21,7 @@ sources ─> dedup + registry ─> score (v7, 0 tokens) ─> tiers ─> UI / Dis
 
 ## Why it reads APIs instead of scraping everything
 
-The first version (June 2026) scraped 16 job boards with a headless browser and ran an
+The first version (June 2026) scraped 17 job boards with a headless browser and ran an
 LLM extraction on every listing. Three things broke it. Cloudflare and bot managers took
 7 of 17 boards offline, and each one needed its own workaround. Every listing cost tokens,
 so a bigger search meant a bigger bill. And when a board changed its markup, the scraper
@@ -458,7 +458,7 @@ With the virtual environment from the Quick start active:
 ```bash
 pip install -r requirements-dev.txt       # starts with -r requirements.txt: runtime + test tools, all pinned
 python -m pytest -q                       # backend suite; use --collect-only -q for the current count
-cd frontend && npm test && npx tsc --noEmit -p .         # 103 tests in 12 files
+cd frontend && npm test && npx tsc --noEmit -p .         # 105 tests in 12 files
 ```
 
 **The suite never touches the internet.** An autouse fixture blocks every connection
