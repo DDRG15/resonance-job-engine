@@ -26,7 +26,7 @@ No mide, porque no necesita un gate con modelo:
   salud la dice el conteo por fuente (`fuentes_estado`, `GET /api/fuentes`).
 - **El scoring.** `matcher.py` y `requisitos.py` son deterministas: mismo aviso y mismo
   perfil, mismo puntaje. Su regresión la atrapa `tests/test_score_version_congelada.py`,
-  que falla si alguien cambia la salida de `score_job` sin subir `SCORE_VERSION` (hoy `v7`).
+  que falla si alguien cambia la salida de `score_job` sin subir `SCORE_VERSION` (hoy `v8`).
 
 ---
 

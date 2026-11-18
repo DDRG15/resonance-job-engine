@@ -271,10 +271,10 @@ class TestTope:
         modelo = _activo(*filas)
         assert abs(modelo.ajuste("Backend Engineer", "Acme").delta) <= config.LEARN_TOPE
 
-    def test_el_puntaje_queda_en_0_a_115(self):
+    def test_el_puntaje_queda_en_0_a_100(self):
         sube = _activo(*([_fila("Data Analyst", "Acme", *OFERTA)] * 2))
         baja = _activo(*([_fila("Data Analyst", "Acme", *DESCARTE)] * 4))
-        assert matcher.aplicar_aprendizaje(_tiered(112), sube).match_score == 115
+        assert matcher.aplicar_aprendizaje(_tiered(97), sube).match_score == 100
         assert matcher.aplicar_aprendizaje(_tiered(4), baja).match_score == 0
 
 
@@ -384,7 +384,7 @@ class TestBase:
         assert db.version_vigente() == config.SCORE_VERSION
         assert db.get_registry_stats()["score_version"] == config.SCORE_VERSION
 
-    def test_debajo_del_umbral_se_persiste_v7_con_el_puntaje_base(self, db):
+    def test_debajo_del_umbral_se_persiste_la_version_base_con_su_puntaje(self, db):
         _postular(db, 1, "Backend Engineer", "Acme", ENTREVISTA)
         _llenar(db, 13)                       # 14 con resultado
         job = _job("Backend Engineer", "Acme", 77)
@@ -407,7 +407,7 @@ class TestBase:
         base = matcher.score_job(job, _config())
         t1, t2, t3 = matcher.bucket_jobs([job], _config(), db=db)
         tj = (t1 + t2 + t3)[0]
-        esperado = min(115, base.match_score + config.LEARN_PUNTOS_ENTREVISTA * 2)
+        esperado = min(100, base.match_score + config.LEARN_PUNTOS_ENTREVISTA * 2)
         assert tj.match_score == esperado   # empresa +4 y familia +4
 
         fila = [f for f in db.get_recent_jobs(limit=100) if f["url"] == job.url][0]

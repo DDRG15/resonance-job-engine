@@ -20,7 +20,7 @@ import config
 import matcher
 from models import JobResult
 
-VERSION_CONGELADA = "v7"
+VERSION_CONGELADA = "v8"
 
 TITULOS = {
     ("Backend Engineer", ("backend engineer",)): 50,
@@ -147,6 +147,19 @@ def test_eje_de_requisitos(descripcion, score, cobertura):
     assert real[0] == score and (
         real[1] is None if cobertura is None else real[1] == pytest.approx(cobertura)
     ), _mensaje("eje de requisitos", (score, cobertura), real)
+
+
+@pytest.mark.parametrize("titulo,esperado", [
+    ("Python FastAPI Backend Engineer", 100),
+    ("Senior Python FastAPI Developer", 65),
+])
+def test_bono_de_perfil_con_techo_v8(titulo, esperado):
+    from models import SearchConfig
+    job = JobResult(title=titulo, company="Acme", url="https://x.com/8",
+                    source_domain="x.com")
+    tj = matcher.score_job(job, SearchConfig(target_titles=[
+        "Python FastAPI Backend Engineer"]), {"core_skills": ["Python", "FastAPI"]})
+    assert tj.match_score == esperado, _mensaje("bono de perfil", esperado, tj.match_score)
 
 
 def test_la_señal_de_deseable_no_cruza_el_punto():

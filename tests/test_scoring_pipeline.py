@@ -157,16 +157,15 @@ class TestLocationDeltaInMathPath:
 
 class TestScoreBounds:
 
-    def test_score_capped_at_115(self):
-        # Perfect title match (50) + no salary filter (25) + must_include (15)
-        # + excl bonus (10) + skill bonus (15) + location bonus (10) = 125 → cap 115
+    def test_score_capped_at_100_with_profile(self):
+        # A perfect title plus CV skills cannot exceed the published scale.
         profile = {"core_skills": ["python", "fastapi", "django", "postgres", "redis",
                                    "docker", "kubernetes", "aws", "api", "backend",
                                    "engineer", "sql", "nosql", "linux", "git"],
                    "audit_signals": []}
         j = _job(title="Python Engineer", location="Anywhere", n=30)
         tiered = score_job(j, _CFG, profile=profile)
-        assert tiered.match_score <= 115
+        assert tiered.match_score == 100
 
     def test_score_floor_at_zero(self):
         # Extreme penalty scenario: no title match + no salary + restricted location

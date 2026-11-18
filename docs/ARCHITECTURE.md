@@ -245,10 +245,10 @@ instrucción del cerco.
 
 ---
 
-## Cómo se puntúa un aviso (v7)
+## Cómo se puntúa un aviso (v8)
 
 `matcher.score_job` puntúa; `requisitos.py` lee la descripción. `config.SCORE_VERSION` es
-`v7` y se guarda en cada fila: un puntaje de v3 y uno de v7 no se comparan.
+`v8` y se guarda en cada fila: puntajes de versiones distintas no se comparan.
 
 | Eje | Peso | Techo | Participa si |
 |---|---|---|---|
@@ -264,7 +264,8 @@ eje de salario daba 12 puntos fijos cuando el sueldo no estaba publicado, y eso 
 dimensión; la escala nunca pasaba de 90 y la masa se apilaba entre 40 y 60. Decisión: un
 aviso sin salario se puntúa sobre los ejes restantes y es comparable con uno que sí lo
 trae. Sobre el promedio se suma el bono de skills del perfil (fuera de la normalización) y
-el techo es 115.
+el resultado se acota a 0–100, también después del ajuste por aprendizaje.
+Desde v8, un calce perfecto con CV sigue siendo Tier 1 y no supera 100.
 
 **Salario.** `models.salario_anual_usd` lleva todo a USD anuales: multiplica por período
 (hora x 2080, día x 260, semana x 52, mes x 12) solo si el monto es plausible para ese
@@ -295,9 +296,9 @@ una copia de la base antes de escribir.
 
 **Aprendizaje de postulaciones** (`aprendizaje.py`): construido e **inactivo**. Con menos
 de 15 postulaciones con resultado (`LEARN_MIN_RESULTADOS`) el ajuste es cero y la versión
-sigue siendo `v7`. Escenario: con 3 resultados, un rechazo de una empresa bajaría cada aviso
+sigue siendo `v8`. Escenario: con 3 resultados, un rechazo de una empresa bajaría cada aviso
 futuro de esa empresa por un solo dato. Activo, ajusta después de `score_job` por empresa y
-por familia de título, nunca por fuente, y la versión pasa a `v7+ap.<huella de las reglas>`.
+por familia de título, nunca por fuente, y la versión pasa a `v8+ap.<huella de las reglas>`.
 `GEMA_APRENDIZAJE=0` es el rollback.
 
 ---

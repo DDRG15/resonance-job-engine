@@ -226,7 +226,7 @@ def _score_skill_overlap(
     profile: Optional[dict],
 ) -> tuple[int, list[str], list[str]]:
     """
-    Profile skill-overlap bonus. Max 15 points (additive on top of the base 100).
+    Profile skill-overlap bonus. Adds up to 15 points before the final 0–100 cap.
 
     Searches job title + company + salary_raw for any string in the union of
     profile['core_skills'] and profile['audit_signals']. Score is proportional
@@ -672,10 +672,9 @@ def score_job(job: JobResult, search_config: SearchConfig, profile: Optional[dic
         base = sum(w * (s / techo) for _, w, s, techo, aplica in dimensiones
                    if aplica) / peso_total * 100
 
-    # El bono de perfil sigue siendo aditivo y fuera de la normalización: es un
-    # extra sobre el calce, no una quinta dimensión del calce. El techo de 115 y el
-    # umbral de Tier 1 en 80 quedan como estaban.
-    final_score = max(0, min(115, int(round(base)) + skill_score))
+    # El bono sigue mejorando calces parciales, dentro de la escala publicada.
+    # Un calce perfecto con CV conserva su Tier 1 sin superar 100.
+    final_score = max(0, min(100, int(round(base)) + skill_score))
     tier        = _assign_tier(final_score)
 
     logger.debug(
@@ -710,7 +709,7 @@ def aplicar_aprendizaje(tiered: TieredJob,
     Inactivo (o sin rasgo aprendido para este aviso): devuelve el MISMO objeto, sin
     copiar. Cero efecto no es "casi cero": es el mismo puntaje y las mismas razones.
 
-    Activo: suma el delta (ya con tope ±10) al puntaje, lo recorta a 0–115 como
+    Activo: suma el delta (ya con tope ±10) al puntaje, lo recorta a 0–100 como
     `score_job`, recalcula el tier con los umbrales de siempre y deja cada razón con el
     prefijo «Aprendizaje:», a favor en `match_reasons` y en contra en `miss_reasons`.
     """
@@ -719,7 +718,7 @@ def aplicar_aprendizaje(tiered: TieredJob,
     ajuste = modelo.ajuste(tiered.job.title, tiered.job.company)
     if ajuste.vacio:
         return tiered
-    nuevo = max(0, min(115, tiered.match_score + ajuste.delta))
+    nuevo = max(0, min(100, tiered.match_score + ajuste.delta))
     return tiered.model_copy(update={
         "match_score": nuevo,
         "tier": _assign_tier(nuevo),

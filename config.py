@@ -113,6 +113,7 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 #   v7  desde 2026-10-04  eje "requisitos" (peso 0,25): cobertura por el CV de los
 #                         requisitos de la descripcion. Sin
 #                         descripcion el puntaje es identico al de v6.
+#   v8  desde 2026-11-18  techo de 100 tambien con bono de perfil y aprendizaje.
 #
 # El salto a v3 es retroactivo: 9bc8e4b cambio _score_title y dejo la version en v2,
 # asi que 1024 filas quedaron con puntajes escalonados bajo la misma etiqueta que los
@@ -123,7 +124,7 @@ LLM_PROVIDER_COOLDOWN_S: int = int(os.getenv("LLM_PROVIDER_COOLDOWN_S", "60"))
 # ya vistos no vuelven a pasar por bucket_jobs). Despues de subirla hay que correr
 # tools/repuntuar_registry.py. tests/test_score_version_congelada.py falla si alguien
 # cambia la salida de score_job sin tocar esta linea.
-SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v7")
+SCORE_VERSION: str = os.getenv("SCORE_VERSION", "v8")
 
 
 # ── Aprender de las postulaciones (aprendizaje.py) ──

@@ -9,7 +9,7 @@ time and network requests in proportion to the sources, ATS companies and boards
 With every provider down, Resonance still finds, scores and ranks.
 
 ```
-sources ─> dedup + registry ─> score (v7, 0 tokens) ─> tiers ─> UI / Discord / Notion / Excel
+sources ─> dedup + registry ─> score (v8, 0 tokens) ─> tiers ─> UI / Discord / Notion / Excel
   │
   ├─ public JSON/RSS APIs      Himalayas, Remotive, Jobicy, Arbeitnow, RemoteOK, WeWorkRemotely
   ├─ company ATS boards        Greenhouse, Lever, Ashby (+ Recruitee, Workable, BambooHR, Personio)
@@ -294,9 +294,19 @@ python tools/limpiar_empresas_registry.py --aplicar    # snapshot, then repair
 The tool preserves job rows, backs up the database before applying changes, and leaves
 jobs with a corrected company pending re-scoring. Uncertain names go to manual review.
 
-The scoring version (`SCORE_VERSION=v7`) is frozen by a test with known inputs and
+CV skill overlap and application-history adjustments can improve a partial match;
+the final score stays between 0 and 100, including those bonuses.
+
+The scoring version (`SCORE_VERSION=v8`) is frozen by a test with known inputs and
 expected scores. Changing the formula means bumping the version, and
 `tools/repuntuar_registry.py` re-scores the whole registry after taking a snapshot first.
+Existing scores retain their original version until re-scored. To update a registry
+from an earlier version, stop the app and run the tool with the same `GEMA_DB_PATH`:
+
+```bash
+python tools/repuntuar_registry.py --dry-run   # preview without changing job scores
+python tools/repuntuar_registry.py             # snapshot, then re-score
+```
 
 ---
 
@@ -458,7 +468,7 @@ With the virtual environment from the Quick start active:
 ```bash
 pip install -r requirements-dev.txt       # starts with -r requirements.txt: runtime + test tools, all pinned
 python -m pytest -q                       # backend suite; use --collect-only -q for the current count
-cd frontend && npm test && npx tsc --noEmit -p .         # 105 tests in 12 files
+cd frontend && npm test && npx tsc --noEmit -p .         # 107 tests in 12 files
 ```
 
 **The suite never touches the internet.** An autouse fixture blocks every connection

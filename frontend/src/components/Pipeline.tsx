@@ -16,6 +16,20 @@ interface Props {
 // que el servidor tenga que contestar 422.
 const MAX_ACCION = 200
 
+async function obtenerPostulaciones(): Promise<ApplicationsResponse> {
+  const r = await fetch('/api/applications')
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
+type GrupoConversion = { grupo: string; postulaciones: number; convirtieron: number; tasa: number }
+
+async function obtenerConversion(dimension: string): Promise<GrupoConversion[]> {
+  const r = await fetch(`/api/applications/stats?dimension=${dimension}`)
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return (await r.json()).grupos
+}
+
 const ETIQUETA: Record<string, string> = {
   borrador: 'Borrador',
   postulado: 'Postulado',
@@ -154,8 +168,8 @@ export default function Pipeline({ onClose, onChanged }: Props) {
   const [accion, setAccion] = useState('')
   const [fecha, setFecha] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [stats, setStats] = useState<{ grupo: string; postulaciones: number;
-    convirtieron: number; tasa: number }[] | null>(null)
+  const [stats, setStats] = useState<GrupoConversion[] | null>(null)
+  const [revision, setRevision] = useState(0)
   const [dimension, setDimension] = useState('tier_al_aplicar')
   const [error, setError] = useState<string | null>(null)
   const [moviendo, setMoviendo] = useState<string | null>(null)
@@ -169,19 +183,21 @@ export default function Pipeline({ onClose, onChanged }: Props) {
     })
   }
 
-  async function cargar() {
-    try {
-      const r = await fetch('/api/applications')
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setData(await r.json())
-      const s = await fetch(`/api/applications/stats?dimension=${dimension}`)
-      if (s.ok) setStats((await s.json()).grupos)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
+  useEffect(() => {
+    let vivo = true
+    obtenerPostulaciones()
+      .then((d) => { if (vivo) setData(d) })
+      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : String(e)) })
+    return () => { vivo = false }
+  }, [revision])
 
-  useEffect(() => { void cargar() }, [dimension])
+  useEffect(() => {
+    let vivo = true
+    obtenerConversion(dimension)
+      .then((grupos) => { if (vivo) setStats(grupos) })
+      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : String(e)) })
+    return () => { vivo = false }
+  }, [dimension, revision])
 
   async function mover(app: Application, hasta: string) {
     setMoviendo(app.app_id)
@@ -198,7 +214,7 @@ export default function Pipeline({ onClose, onChanged }: Props) {
         const cuerpo = await r.json().catch(() => ({}))
         throw new Error(cuerpo.detail ?? `HTTP ${r.status}`)
       }
-      await cargar()
+      setRevision((r) => r + 1)
       // Cerrar una postulación la saca de las vencidas: el badge tiene que enterarse.
       onChanged?.()
     } catch (e) {
@@ -235,7 +251,7 @@ export default function Pipeline({ onClose, onChanged }: Props) {
           typeof cuerpo.detail === 'string' ? cuerpo.detail : `HTTP ${r.status}`)
       }
       setEditando(null)
-      await cargar()
+      setRevision((r) => r + 1)
       onChanged?.()
     } catch (e) {
       // El formulario queda abierto con lo escrito: perder el texto por un 422 sería

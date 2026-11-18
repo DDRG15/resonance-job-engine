@@ -10,6 +10,12 @@ function dia(iso: string | null): string {
   return iso ? iso.slice(0, 10) : '—'
 }
 
+async function obtenerDuplicados(): Promise<CorrelatorsResponse> {
+  const r = await fetch('/api/correlators')
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return r.json()
+}
+
 /**
  * Fase 11 — pares de avisos que el correlator cree que son el mismo puesto y no se
  * anima a decidir solo (confianza baja: mismo título y empresa, días distintos).
@@ -25,15 +31,19 @@ export default function Duplicados({ onClose, onChanged }: Props) {
 
   async function cargar() {
     try {
-      const r = await fetch('/api/correlators')
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setData(await r.json())
+      setData(await obtenerDuplicados())
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
 
-  useEffect(() => { void cargar() }, [])
+  useEffect(() => {
+    let vivo = true
+    obtenerDuplicados()
+      .then((d) => { if (vivo) setData(d) })
+      .catch((e) => { if (vivo) setError(e instanceof Error ? e.message : String(e)) })
+    return () => { vivo = false }
+  }, [])
 
   async function decidir(p: CorrelatorPendiente, decision: 'ACCEPTED' | 'REJECTED') {
     const clave = p.job_hash + p.hash_duplicado

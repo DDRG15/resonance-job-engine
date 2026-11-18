@@ -6,7 +6,7 @@ Coverage:
     2. _score_salary          — no filter, meets min, below min, not published
     3. _score_must_include    — all present, partial, empty list
     4. _apply_exclusion_penalty — hit, clean, empty list
-    5. score_job              — Tier 4 bypass, Tier 1, Tier 3, score=115 (regression fix)
+    5. score_job              — salary flags, tiers and score bounds with a CV
     6. bucket_jobs            — 3-tier distribution, db update_tiers_batch called
 
 No external API calls or disk access.
@@ -252,18 +252,8 @@ def test_score_job_returns_tiered_job_instance():
     assert result.tier in {"Tier 1", "Tier 2", "Tier 3"}
 
 
-def test_score_job_accepts_score_above_100_regression():
-    """
-    Regression test for the le=100 bug.
-
-    Before the fix: TieredJob(match_score=115) raised pydantic.ValidationError,
-    silently dropping all high-quality Tier 1 results when a CV was loaded.
-    After the fix (le=115): this test must pass.
-
-    Trigger conditions:
-        - title_exact(50) + salary_ok(25) + include_full(15) + no_exclude(+10) = 100
-        - skill_overlap bonus (+15) pushes to 115
-    """
+def test_score_job_caps_profile_bonus_without_dropping_tier1():
+    """A perfect match with CV skills remains a valid Tier 1 at 100."""
     job = _job(
         title="Python SRE Backend Engineer FastAPI Docker",
         salary_raw="$150k",
@@ -276,7 +266,7 @@ def test_score_job_accepts_score_above_100_regression():
     )
     tiered = score_job(job, config, profile=FULL_PROFILE)
 
-    assert tiered.match_score >= 100
+    assert tiered.match_score == 100
     assert tiered.tier == "Tier 1"
 
 

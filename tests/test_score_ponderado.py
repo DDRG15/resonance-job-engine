@@ -95,8 +95,8 @@ class TestRenormalizacion:
         número real."""
         a = matcher.score_job(_job("Backend Engineer"), CFG)
         b = matcher.score_job(_job("Backend Engineer"), CFG_SIN_FILTRO)
-        assert 0 <= a.match_score <= 115
-        assert 0 <= b.match_score <= 115
+        assert 0 <= a.match_score <= 100
+        assert 0 <= b.match_score <= 100
 
     def test_un_titulo_irrelevante_sigue_abajo(self):
         tj = matcher.score_job(_job("Chef de Cuisine"), CFG)
@@ -104,16 +104,15 @@ class TestRenormalizacion:
         assert tj.tier == "Tier 3"
 
     def test_el_bono_de_perfil_sigue_siendo_aditivo(self):
-        """Es un extra sobre el calce, no una quinta dimensión del calce — por eso
-        queda fuera de la normalización y el techo sigue en 115."""
+        """El perfil mejora el calce sin superar la escala de 100."""
         perfil = {"core_skills": ["python", "fastapi"], "audit_signals": []}
         sin = matcher.score_job(_job("Backend Engineer python"), CFG)
         con = matcher.score_job(_job("Backend Engineer python"), CFG, profile=perfil)
         assert con.match_score >= sin.match_score
-        assert con.match_score <= 115
+        assert con.match_score <= 100
 
     def test_nunca_sale_del_rango(self):
         for titulo in ("Backend Engineer", "Chef", "", "backend engineer " * 20):
             for sal in (None, "$1,000,000", "$10,000", "€200k"):
                 tj = matcher.score_job(_job(titulo or "x", sal=sal), CFG)
-                assert -1 <= tj.match_score <= 115
+                assert 0 <= tj.match_score <= 100

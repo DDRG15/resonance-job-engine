@@ -3,7 +3,7 @@
  * El historial se pide recién al hacer clic; un error de red se muestra, no rompe.
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import Pipeline from '../components/Pipeline'
 import type { Application } from '../types'
 
@@ -35,11 +35,12 @@ function resp(body: unknown, ok = true, status = 200) {
   } as Response)
 }
 
-function servidor(historial: () => Promise<Response>) {
+function servidor(historial: () => Promise<Response>,
+                  stats: (url: string) => Promise<Response> = () => resp({ grupos: [] })) {
   const f = vi.fn((url: string) => {
     if (url.startsWith('/api/aprendizaje')) return resp(APRENDIZAJE)
     if (url.endsWith('/history')) return historial()
-    if (url.startsWith('/api/applications/stats')) return resp({ grupos: [] })
+    if (url.startsWith('/api/applications/stats')) return stats(url)
     return resp({ applications: [APP], vencidas: 0, ...MAQUINA })
   })
   vi.stubGlobal('fetch', f)
@@ -78,5 +79,35 @@ describe('Pipeline — aprendizaje e historial', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Historial' }))
     await waitFor(() =>
       expect(screen.getByText(/No se pudo cargar el historial: Failed to fetch/)).toBeTruthy())
+  })
+
+  it.each(['respuesta', 'error'])('ignora una %s tardía de la agrupación anterior', async (tipo) => {
+    let resolver!: (r: Response) => void
+    let rechazar!: (e: Error) => void
+    const lenta = new Promise<Response>((resolve, reject) => {
+      resolver = resolve
+      rechazar = reject
+    })
+    const grupo = (nombre: string) => ({ grupos: [
+      { grupo: nombre, postulaciones: 2, convirtieron: 1, tasa: 0.5 },
+    ] })
+    const f = servidor(() => resp({}), (url) => {
+      if (url.endsWith('source_domain')) return lenta
+      return resp(grupo(url.endsWith('rango_score') ? 'Rango vigente' : 'Tier inicial'))
+    })
+    render(<Pipeline onClose={() => {}} />)
+    await screen.findByText('Tier inicial')
+    const selector = screen.getByRole('combobox', { name: 'Agrupar conversión por' })
+    fireEvent.change(selector, { target: { value: 'source_domain' } })
+    fireEvent.change(selector, { target: { value: 'rango_score' } })
+    await screen.findByText('Rango vigente')
+    await act(async () => {
+      if (tipo === 'error') rechazar(new Error('Fallo anterior'))
+      else resolver(await resp(grupo('Board anterior')))
+    })
+    expect(screen.getByText('Rango vigente')).toBeInTheDocument()
+    expect(screen.queryByText('Board anterior')).not.toBeInTheDocument()
+    expect(screen.queryByText('Fallo anterior')).not.toBeInTheDocument()
+    expect(f.mock.calls.filter(([url]) => url === '/api/applications')).toHaveLength(1)
   })
 })

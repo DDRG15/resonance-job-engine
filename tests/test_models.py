@@ -7,7 +7,7 @@ Coverage:
     3. SearchConfig.validate_no_overlap   — raises ValueError on include∩exclude conflict
     4. JobResult.parse_salary_usd         — dollar prefix, usd suffix, range, rejects noise
     5. TieredJob.validate_tier            — rejects unknown tier labels
-    6. TieredJob.match_score              — accepts 115 (regression test for le=100 bug)
+    6. TieredJob.match_score              — enforces the 0–100 scale
 
 No external calls.
 """
@@ -184,25 +184,22 @@ def test_tiered_job_accepts_all_valid_tiers():
 
 
 # =============================================================================
-# 6. TieredJob.match_score — regression test for le=100 bug
+# 6. TieredJob.match_score — published score bounds
 # =============================================================================
 
-def test_tiered_job_accepts_match_score_115():
-    """
-    Before the le=100 fix: ValidationError.
-    After the fix (le=115): this must pass without error.
-    """
+def test_tiered_job_accepts_match_score_100():
     tiered = TieredJob(
         job=_job(),
-        match_score=115,
+        match_score=100,
         tier="Tier 1",
     )
-    assert tiered.match_score == 115
+    assert tiered.match_score == 100
 
 
-def test_tiered_job_rejects_score_above_115():
+@pytest.mark.parametrize("score", [101, 115, 116])
+def test_tiered_job_rejects_score_above_100(score):
     with pytest.raises(ValidationError):
-        TieredJob(job=_job(), match_score=116, tier="Tier 1")
+        TieredJob(job=_job(), match_score=score, tier="Tier 1")
 
 
 def test_tiered_job_accepts_zero_score():
