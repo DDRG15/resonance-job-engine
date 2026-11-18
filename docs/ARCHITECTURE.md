@@ -266,6 +266,8 @@ aviso sin salario se puntúa sobre los ejes restantes y es comparable con uno qu
 trae. Sobre el promedio se suma el bono de skills del perfil (fuera de la normalización) y
 el resultado se acota a 0–100, también después del ajuste por aprendizaje.
 Desde v8, un calce perfecto con CV sigue siendo Tier 1 y no supera 100.
+El modelo conserva la lectura de puntajes antiguos de hasta 115 para que una corrida
+guardada pueda reanudarse después de actualizar; no se reescriben sus resultados al leerlos.
 
 **Salario.** `models.salario_anual_usd` lleva todo a USD anuales: multiplica por período
 (hora x 2080, día x 260, semana x 52, mes x 12) solo si el monto es plausible para ese

@@ -22,6 +22,25 @@ def job(n):
                      url=f"https://jobs.example/{n}", source_domain="jobs.example")
 
 
+def test_legacy_checkpoint_preserves_scored_job_types(tmp_db):
+    from graph.checkpoints import open_checkpoints
+    from models import TieredJob
+
+    # Simulate an object written before the score ceiling changed. The checkpoint
+    # serializer falls back to model_construct if current validation rejects it,
+    # which leaves nested job data as a dict and breaks consumers using job.title.
+    legacy = TieredJob.model_construct(job=job(1), match_score=115, tier="Tier 1")
+    with open_checkpoints(tmp_db) as saver:
+        restored = saver.serde.loads_typed(
+            saver.serde.dumps_typed({"tier1": [legacy]})
+        )["tier1"][0]
+
+    assert isinstance(restored, TieredJob)
+    assert isinstance(restored.job, JobResult)
+    assert restored.job.title == job(1).title
+    assert restored.match_score == 115
+
+
 @pytest.fixture
 def phases(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "BOARD_STRATEGY_PATH", str(tmp_path / "strategies.json"))

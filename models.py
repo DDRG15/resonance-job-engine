@@ -447,10 +447,10 @@ class TieredJob(BaseModel):
     match_score: int = Field(
         ...,
         ge=0,
-        le=100,
+        le=115,
         description=(
-            "0–100 match score for scored tiers (Tier 1/2/3), including CV "
-            "skill overlap and application-history adjustments. "
+            "Current scoring produces 0–100, including CV and application-history "
+            "adjustments. Values up to 115 remain readable for legacy checkpoints. "
         ),
     )
     tier: str = Field(..., description="'Tier 1', 'Tier 2', or 'Tier 3'.")

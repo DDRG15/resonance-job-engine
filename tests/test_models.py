@@ -7,7 +7,7 @@ Coverage:
     3. SearchConfig.validate_no_overlap   — raises ValueError on include∩exclude conflict
     4. JobResult.parse_salary_usd         — dollar prefix, usd suffix, range, rejects noise
     5. TieredJob.validate_tier            — rejects unknown tier labels
-    6. TieredJob.match_score              — enforces the 0–100 scale
+    6. TieredJob.match_score              — accepts current and legacy saved scores
 
 No external calls.
 """
@@ -184,20 +184,21 @@ def test_tiered_job_accepts_all_valid_tiers():
 
 
 # =============================================================================
-# 6. TieredJob.match_score — published score bounds
+# 6. TieredJob.match_score — current and legacy checkpoint compatibility
 # =============================================================================
 
-def test_tiered_job_accepts_match_score_100():
+@pytest.mark.parametrize("score", [100, 115])
+def test_tiered_job_accepts_current_and_legacy_scores(score):
     tiered = TieredJob(
         job=_job(),
-        match_score=100,
+        match_score=score,
         tier="Tier 1",
     )
-    assert tiered.match_score == 100
+    assert tiered.match_score == score
 
 
-@pytest.mark.parametrize("score", [101, 115, 116])
-def test_tiered_job_rejects_score_above_100(score):
+@pytest.mark.parametrize("score", [116, 120])
+def test_tiered_job_rejects_score_above_legacy_limit(score):
     with pytest.raises(ValidationError):
         TieredJob(job=_job(), match_score=score, tier="Tier 1")
 
